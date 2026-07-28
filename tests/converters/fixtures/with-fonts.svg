@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60">
+  <defs>
+    <style>
+      @import url("https://fonts.googleapis.com/css?family=Roboto");
+      text { font-family: Roboto, sans-serif; }
+    </style>
+  </defs>
+  <rect width="200" height="60" fill="#f0f0f0"/>
+  <text x="10" y="40" font-size="24" fill="#333">Hello, SVG!</text>
+</svg>

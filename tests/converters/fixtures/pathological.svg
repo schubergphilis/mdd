@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10000" height="10000" viewBox="0 0 10000 10000">
+  <!-- Pathological: nominal dimensions far exceed the 4096×4096 cap when scaled 2× -->
+  <rect width="10000" height="10000" fill="green"/>
+  <text x="5000" y="5000" font-size="500" text-anchor="middle" fill="white">BIG</text>
+</svg>

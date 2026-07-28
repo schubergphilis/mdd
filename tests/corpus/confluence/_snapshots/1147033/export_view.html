@@ -1,0 +1,9 @@
+<h1 id="Looselist-Looselist">Loose list</h1>
+<p>A CommonMark list becomes &quot;loose&quot; when one or more blank lines separate its items. The renderer then wraps each item's text in a <code>&lt;p&gt;</code> element inside the <code>&lt;li&gt;</code>. Confluence storage follows the same rule: every item's text becomes the body of a <code>&lt;p&gt;</code> child of <code>&lt;li&gt;</code>, instead of sitting as bare text on the <code>&lt;li&gt;</code> itself.</p>
+<ul>
+<li>First loose item, separated from the next by a blank line.</li>
+<li>Second loose item, paragraphs wrapped in <code>&lt;p&gt;</code> inside the <code>&lt;li&gt;</code>.</li>
+<li>Third loose item — still loose because the blank lines apply to the list as a whole, not to individual items.</li>
+<li>Fourth and final loose item.</li>
+</ul>
+<p>Loose vs tight is decided at the list level: even one blank line between items promotes every item to paragraph-wrapped. The round-trip should preserve that structural promotion exactly.</p>

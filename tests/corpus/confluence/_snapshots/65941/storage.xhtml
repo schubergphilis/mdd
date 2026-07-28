@@ -1,0 +1,21 @@
+<h1>Code block with language tag (python)</h1>
+<p>A fenced code block tagged <code>python</code>. Confluence storage represents
+the language as <code>&lt;ac:parameter ac:name=&quot;language&quot;&gt;python&lt;/ac:parameter&gt;</code>
+inside the code macro.</p>
+<pre><code class="language-python">def fibonacci(n: int) -&gt; int:
+    &quot;&quot;&quot;Return the nth Fibonacci number (0-indexed).&quot;&quot;&quot;
+    if n &lt; 2:
+        return n
+    a, b = 0, 1
+    for _ in range(n - 1):
+        a, b = b, a + b
+    return b
+
+
+if __name__ == &quot;__main__&quot;:
+    for i in range(10):
+        print(f&quot;fib({i}) = {fibonacci(i)}&quot;)
+</code></pre>
+<p>Round-trip must preserve the language tag, the indentation, the
+function body, the trailing blank line before <code>if __name__</code>, and
+the f-string syntax.</p>

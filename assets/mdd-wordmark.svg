@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752.09 225.7" width="752.09" height="225.7">
+  <title>mdd</title>
+  <g transform="translate(58,20) scale(0.93)">
+    <rect x="0" y="14" width="132" height="178" rx="20" fill="none" stroke="#333A40" stroke-width="20"/>
+    <g stroke="#C17A23" stroke-width="18" stroke-linecap="round">
+      <line x1="34" y1="66" x2="98" y2="66"/>
+      <line x1="34" y1="103" x2="98" y2="103"/>
+      <line x1="34" y1="140" x2="76" y2="140"/>
+    </g>
+    <g fill="none" stroke="#333A40" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"
+       transform="translate(200,0)">
+      <path d="M13,192 V102"/>
+      <path d="M13,116 C13,90 33,78 55,78 C77,78 91,94 91,118 V192"/>
+      <path d="M91,116 C91,90 111,78 133,78 C155,78 169,94 169,118 V192"/>
+      <circle cx="256" cy="135" r="57"/>
+      <path d="M313,22 V192"/>
+      <circle cx="424" cy="135" r="57"/>
+      <path d="M481,22 V192"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<h1>Multiple paragraphs</h1>
+<p>First paragraph. Short and plain.</p>
+<p>Second paragraph, separated from the first by exactly one blank
+line in markdown source. The round-trip should preserve the
+paragraph boundary as a <code>&lt;p&gt;</code> element break in storage XHTML
+without merging the two into one paragraph.</p>
+<p>Third paragraph, with intentionally trailing whitespace at the
+sentence boundaries to confirm the converter normalises it
+predictably.</p>
+<p>Fourth and final paragraph, present so that the page contains an
+even number of paragraphs &mdash; if any rendering pass injects or drops
+the first or last paragraph, the count check catches it.</p>

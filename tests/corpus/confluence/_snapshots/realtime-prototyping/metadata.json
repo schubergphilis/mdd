@@ -1,0 +1,14 @@
+{
+  "id": "realtime-prototyping",
+  "title": "Realtime prototyping with stakeholders",
+  "origin": "Captured from a private Confluence space and anonymised: ri:account-id replaced with a synthetic value.",
+  "shapes": [
+    "layout-two-equal-breakout-wide",
+    "layout-cell-with-tip-macro-and-loose-paragraphs",
+    "layout-cell-image-only",
+    "user-mention-bare-no-link-body",
+    "html-entities-times-quot-rarr"
+  ],
+  "issue": "https://gitlab.example.com/mdd/mdd/-/issues/85",
+  "expected_failure": "R3 round-trip is not byte-perfect; right layout-cell drops, callout fence collides with layout close, attributes stripped, link-body injected."
+}

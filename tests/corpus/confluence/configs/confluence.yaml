@@ -1,0 +1,20 @@
+# Confluence config for the round-trip test corpus.
+#
+# Points mdd at the project test instance at markdown.atlassian.net.
+# The presence of this file is load-bearing: when `mdd confluence ...`
+# runs from inside this repo it loads this file BEFORE
+# ~/.config/mdd/confluence.yaml, so commands here never accidentally
+# hit a production Confluence instance.
+#
+# Defaults to the lsimons-bot credentials — the same identity used by
+# automation on a shared build host and elsewhere. Contributors running from
+# their own workstation should override via the `--config` flag (e.g.
+# point at `~/.config/mdd/confluence.yaml`) or edit this file locally
+# without committing the change.
+
+confluence:
+  url: https://markdown.atlassian.net
+  username: lsimons-bot@jicarilla.nl
+  api_token:
+    ref: op://Shared/lsimons-bot-confluence-pat/token
+    account: my

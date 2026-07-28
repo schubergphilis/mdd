@@ -1,0 +1,13 @@
+# SharePoint site to GitLab repo name mapping.
+# Optional override — if a site name is not listed here, the repo name
+# is derived by replacing whitespace/special-chars with -.
+#
+# Format (spec 010 dict-keyed):
+#   sites:
+#     "HR Documentation":
+#       repo: HR-Documentation                # GitLab repo name
+#       gitlab_group: mdd/sharepoint          # optional; default mdd/sharepoint
+#     "AI / ML Team":
+#       repo: AI-ML-Team
+#
+sites: {}

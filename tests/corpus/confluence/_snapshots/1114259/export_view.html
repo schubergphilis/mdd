@@ -1,0 +1,7 @@
+<h1 id="Callout—tip(markdown-first)-Callout—tip(markdown-first)">Callout — tip (markdown-first)</h1>
+<p>The <code>:::callout-tip</code> fenced div is the markdown-first authoring form of the Confluence tip callout. Spec 030 §&quot;Fenced divs&quot; pins the syntax: three (or more) colons, the kind, a blank or content line, then a matching close fence with the same colon count.</p>
+<div class="confluence-information-macro confluence-information-macro-tip"><span class="aui-icon aui-icon-small aui-iconfont-approve confluence-information-macro-icon"></span><div class="confluence-information-macro-body"><p>This tip body exercises the markdown reader's fenced-div plugin end to end. The IR emits a <code>Callout(kind=&quot;tip&quot;)</code> block; the Confluence writer maps it back to <code>&lt;ac:structured-macro ac:name=&quot;tip&quot;&gt;…&lt;/ac:structured-macro&gt;</code>.</p><p>The body can hold <strong>bold</strong>, <em>italic</em>, <code>inline code</code>, and even a bulleted list:</p><ul>
+<li>a child item</li>
+<li>another item with <a class="external-link" href="https://example.com" rel="nofollow">a link</a> :::</li>
+</ul></div></div>
+<p>Trailing paragraph after the callout to confirm the close fence terminates the macro and prose resumes at block scope.</p>

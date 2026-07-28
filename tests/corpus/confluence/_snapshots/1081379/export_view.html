@@ -1,0 +1,14 @@
+<h1 id="Nestedblockquotes-Nestedblockquotes">Nested blockquotes</h1>
+<p>Blockquotes can nest. The number of leading <code>&gt;</code> markers on a line sets the nesting depth; Confluence storage represents this as <code>&lt;blockquote&gt;</code> elements nested inside each other, one per depth level.</p>
+<blockquote>
+<p>Outer quote, depth one.</p>
+<blockquote>
+<p>Inner quote, depth two — a reply quoted inside the outer author's text.</p>
+<blockquote>
+<p>Deeper quote, depth three. Practical use of three-deep quoting is rare, but the parser must support it and the writer must emit three nested <code>&lt;blockquote&gt;</code> elements without collapsing them.</p>
+</blockquote>
+<p>Back to depth two for the closing thought.</p>
+</blockquote>
+<p>Closing line of the outer quote.</p>
+</blockquote>
+<p>The round-trip should preserve the nesting depth at every line.</p>

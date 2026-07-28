@@ -1,0 +1,10 @@
+<h1 id="Inlineformatting-Inlineformatting">Inline formatting</h1>
+<p>A single paragraph that exercises every inline span the markdown
+reader produces: <strong>strong text</strong>, <em>emphasis</em>, <em><strong>strong emphasis
+combined</strong></em>, and <code>inline code</code> with a literal backtick <code>`</code> inside
+it. The round-trip should preserve each span and the spacing between
+them without introducing stray whitespace or escape characters.</p>
+<p>Confluence storage represents these as <code>&lt;strong&gt;</code>, <code>&lt;em&gt;</code> (sometimes
+nested for combined emphasis), and <code>&lt;code&gt;</code>. The fixture checks that
+the storage emission matches what Confluence's editor would write
+when the same span is composed in the UI.</p>

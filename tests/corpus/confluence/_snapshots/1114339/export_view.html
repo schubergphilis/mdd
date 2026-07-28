@@ -1,0 +1,6 @@
+<h1 id="SyntheticURI—`confluence-attachment:`-SyntheticURI—confluence-attachment:">Synthetic URI — <code>confluence-attachment:</code></h1>
+<p>Spec 030 §&quot;Synthetic URIs&quot; defines <code>confluence-attachment:&lt;filename&gt;</code> as the markdown-first form for an attachment reference. The reader resolves the URI to a <code>ConfluenceLink(target_kind= &quot;attachment&quot;, target=&quot;&lt;filename&gt;&quot;)</code> for link contexts, or to a <code>ConfluenceImage(source_kind=&quot;attachment&quot;, …)</code> when the URI appears inside a markdown image (<code>![alt](…)</code>). The writer maps both back to <code>&lt;ri:attachment ri:filename=&quot;…&quot; /&gt;</code> in storage.</p>
+<p>A textual attachment link: <a class="unresolved" href="#">download the migration plan</a>.</p>
+<p>An attachment image (rendered inline as the image macro): <span class="confluence-embedded-file-wrapper"><img class="confluence-embedded-image" alt="architecture diagram" src="https://markdown.atlassian.net/wiki/download/attachments/1114339/architecture.png?api=v2"></span>.</p>
+<p>A cross-page attachment uses the <code>page</code> extra segment to point into another page's attachment list: <a class="unresolved" href="#">the legacy PDF</a>.</p>
+<p>A trailing paragraph confirms the URI parser releases control after each closing <code>)</code>.</p>

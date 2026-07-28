@@ -1,0 +1,13 @@
+<h1 id="Listitemswithinlineformatting-Listitemswithinlineformatting">List items with inline formatting</h1>
+<p>Bullet list where each item exercises a different inline span:</p>
+<ul>
+<li>Plain item, no formatting</li>
+<li>Item with <strong>bold text</strong> in the middle</li>
+<li>Item with <em>emphasis</em> and <code>inline code</code> together</li>
+<li>Item with an <a class="external-link" href="https://example.com" rel="nofollow">external link</a> and trailing
+prose after the link</li>
+<li>Item with <em><strong>combined strong-emphasis</strong></em> spanning multiple words</li>
+</ul>
+<p>The trailing-text-after-inline case in item four is structurally
+similar to the bug fixed in mdd issue #71. This fixture catches
+regressions in that area for non-<code>ac:link</code> inline elements.</p>

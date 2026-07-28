@@ -1,0 +1,4 @@
+<h1 id="Macro—jira-Macro—jira">Macro — jira</h1>
+<p>The <code>jira</code> macro embeds a live Jira issue link or filter. The storage form carries the issue key (or a JQL filter) plus the linked Jira application's <code>serverId</code>. Confluence's renderer hits the linked Jira instance at view-time to fetch the current summary and status.</p>
+<div class="error">Error rendering macro 'jira' : null</div>
+<p>The fixture uses a synthetic all-zero <code>serverId</code> — no live Jira is queried at render time. Round-trip preserves the parameter values byte-for-byte.</p>

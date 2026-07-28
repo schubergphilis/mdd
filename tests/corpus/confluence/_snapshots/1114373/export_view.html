@@ -1,0 +1,60 @@
+<h1 id="Macro—attachments-Macro—attachments">Macro — attachments</h1>
+<p>The <code>attachments</code> macro renders the current page's attachment list. Parameters tune the columns shown and the sort order. The macro has no body — Confluence resolves the attachment inventory at render time.</p>
+
+
+    
+    
+
+<div class="plugin_attachments_container">
+    <div class="plugin_attachments_table_container">
+        <fieldset class="hidden">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="pageId" value="1114373">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="pageSize" value="500">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="totalPages" value="1">
+            <input type="hidden" name="deleteConfirmMessage" value="Are you sure you want to send the attached file "{0}" to the trash? Only a space administrator can undo this action."/>
+                                                 <input type="hidden" class="plugin_attachments_macro_render_param" name="upload" value="false">
+                                                                 <input type="hidden" class="plugin_attachments_macro_render_param" name="patterns" value=".*\.pdf,.*\.png">
+                                                                 <input type="hidden" class="plugin_attachments_macro_render_param" name="sortOrder" value="descending">
+                                                                 <input type="hidden" class="plugin_attachments_macro_render_param" name="sortBy" value="date">
+                                                                    <input type="hidden" name="outputType" value="email">
+        </fieldset>
+                
+
+
+
+
+
+
+    
+
+
+<table class="attachments aui"
+    data-sort-by="date"
+    data-sort-order="descending"
+    data-tablesorter-headers='{"0": {"sorter": false}}'>
+        <tr class="header-row">
+        <th class="expand-column attachment-summary-toggle">&nbsp;</th>
+        <th class="filename-column">
+            File
+        </th>
+        <th class="modified-column">
+            Modified
+        </th>
+    </tr>
+
+        
+    <tbody>
+            </tbody>
+</table>
+
+
+    </div>
+    <div class="plugin_attachments_upload_container">
+            </div>
+
+    <div>
+            </div>
+</div>
+
+
+<p>The fixture's page has no real attachments — the macro renders an empty list. Storage still preserves the parameter set verbatim.</p>

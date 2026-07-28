@@ -1,0 +1,3 @@
+# Ignore generated sidecar files and PNG outputs from integration tests
+*.meta.yaml
+*.png

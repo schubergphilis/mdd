@@ -1,0 +1,4 @@
+<h1>Inline image (markdown form)</h1>
+<p>A bare markdown image literal &mdash; <code>![alt](https://example/x.png)</code> &mdash; round-trips as an <code>Image</code> node when the source is a URL Confluence keeps as a plain <code>&lt;img&gt;</code> (rather than rewriting to an <code>&lt;ac:image&gt;</code> macro).</p>
+<p><img src="https://www.example.com/themes/custom/sbpv2/logo.svg" alt="mdd logo" /></p>
+<p>This is the markdown-first counterpart to the existing <code>images/external-url.md</code> fixture, which is authored through the Confluence UI and produces <code>&lt;ac:image&gt;</code> instead. Having both keeps the corpus honest about which markdown forms become which Confluence shapes.</p>

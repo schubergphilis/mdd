@@ -1,0 +1,140 @@
+[
+  {
+    "path": "mdd/ai/index.py",
+    "file_name": "index.py",
+    "functions": [
+      {
+        "name": "index_dir",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "mdd/ai/rewrite.py",
+    "file_name": "rewrite.py",
+    "functions": [
+      {
+        "name": "rewrite_file",
+        "complexity": 17
+      }
+    ]
+  },
+  {
+    "path": "mdd/confluence/client/__init__.py",
+    "file_name": "__init__.py",
+    "functions": [
+      {
+        "name": "ConfluenceClient::_request",
+        "complexity": 16
+      },
+      {
+        "name": "ConfluenceClient::upload_attachment",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/confluence/ir/attachment_refs.py",
+    "file_name": "attachment_refs.py",
+    "functions": [
+      {
+        "name": "_walk",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/confluence/ir/elements/__init__.py",
+    "file_name": "__init__.py",
+    "functions": [
+      {
+        "name": "read_blocks_from_container",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/confluence/ir/writer/blocks.py",
+    "file_name": "blocks.py",
+    "functions": [
+      {
+        "name": "_render_list_item",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/convert/pptx.py",
+    "file_name": "pptx.py",
+    "functions": [
+      {
+        "name": "_render_table_markdown",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/ir/identity.py",
+    "file_name": "identity.py",
+    "functions": [
+      {
+        "name": "_assign_block",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "mdd/ir/serialize.py",
+    "file_name": "serialize.py",
+    "functions": [
+      {
+        "name": "to_dict",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/markdown/ir/reader/blocks.py",
+    "file_name": "blocks.py",
+    "functions": [
+      {
+        "name": "_consume_container",
+        "complexity": 16
+      }
+    ]
+  },
+  {
+    "path": "mdd/search/filters.py",
+    "file_name": "filters.py",
+    "functions": [
+      {
+        "name": "filter_blacklisted",
+        "complexity": 17
+      }
+    ]
+  },
+  {
+    "path": "mdd/search/roots.py",
+    "file_name": "roots.py",
+    "functions": [
+      {
+        "name": "resolve_roots",
+        "complexity": 17
+      }
+    ]
+  },
+  {
+    "path": "mdd/sharepoint/sync.py",
+    "file_name": "sync.py",
+    "functions": [
+      {
+        "name": "resolve_sync_root",
+        "complexity": 16
+      },
+      {
+        "name": "sync_folder",
+        "complexity": 18
+      }
+    ]
+  }
+]

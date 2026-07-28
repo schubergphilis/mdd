@@ -1,0 +1,16 @@
+<h1>Attachment link via ac:link</h1>
+<p>This fixture exercises the <strong>true</strong> <code>&lt;ac:link&gt;</code> with <code>&lt;ri:attachment&gt;</code>
+inline reference &mdash; distinct from the <code>view-file</code> macro card that the
+Confluence editor's paperclip-upload workflow produces (covered
+separately by <code>niche-macros/view-file-macro.md</code>).</p>
+<p>The Confluence UI doesn't make this shape easy to compose, so this
+fixture is authored markdown-first with the inline reference written
+out as a raw <code>{=confluence}</code> block. The reference points at the
+attachment already uploaded to the &quot;Attachment link&quot; page (id
+164069) via a <code>&lt;ri:page ri:content-title=&quot;...&quot;/&gt;</code> child, making it a
+<strong>cross-page</strong> attachment link.</p>
+<p>See the file:</p>
+<ac:link><ri:attachment ri:filename="attachment-sample.txt" ri:version-at-save="1"><ri:page ri:content-title="Attachment link" ri:version-at-save="1" /></ri:attachment><ac:link-body>attachment-sample.txt</ac:link-body></ac:link>
+<p>for an example. And the prose continues after the link to exercise
+the trailing-text-after-inline pattern (regression coverage for the
+class of bug closed in #70/#71/#72).</p>

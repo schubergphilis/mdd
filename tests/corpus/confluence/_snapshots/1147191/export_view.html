@@ -1,0 +1,6 @@
+<h1 id="SyntheticURI—`confluence-page:`-SyntheticURI—confluence-page:">Synthetic URI — <code>confluence-page:</code></h1>
+<p>Spec 030 §&quot;Synthetic URIs&quot; defines <code>confluence-page:&lt;space&gt;/&lt;title&gt;</code> as the markdown-first form for a Confluence page link. The markdown reader resolves the URI to a <code>ConfluenceLink(target_kind= &quot;page&quot;, …)</code> node; the writer maps it back to <code>&lt;ac:link&gt;&lt;ri:page ri:space-key=&quot;…&quot; ri:content-title=&quot;…&quot; /&gt;&lt;/ac:link&gt;</code> in storage.</p>
+<p>Bare in-space link: <a class="createlink" href="/wiki/pages/createpage.action?spaceKey=MDD&amp;title=MDD%2FHome&amp;linkCreation=true&amp;fromPageId=1147191">the project overview</a>.</p>
+<p>Cross-space link with the space key spelled out: <a class="createlink" href="/wiki/pages/createpage.action?spaceKey=MDD&amp;title=OTHER%2FExternal%2BHome&amp;linkCreation=true&amp;fromPageId=1147191">external project home</a>.</p>
+<p>A page link with an anchor segment encoded as a semicolon-delimited extra: <a class="createlink" href="/wiki/pages/createpage.action?spaceKey=MDD&amp;title=MDD%2FAPI%2BReference&amp;linkCreation=true&amp;fromPageId=1147191">the API section</a>.</p>
+<p>A trailing paragraph confirms the inline link parser releases control after the closing <code>)</code>.</p>

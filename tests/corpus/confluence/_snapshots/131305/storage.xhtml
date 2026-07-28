@@ -1,0 +1,38 @@
+<h1>Table with mixed inline content in cells</h1>
+<p>Each cell exercises a different inline span shape. The round-trip
+should preserve the inline structure inside <code>&lt;td&gt;</code> / <code>&lt;th&gt;</code> without
+collapsing the spans or losing the cell boundaries.</p>
+<table>
+<thead>
+<tr>
+<th>Plain</th>
+<th>Bold</th>
+<th>Emphasis</th>
+<th>Code</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>one</td>
+<td><strong>bold</strong></td>
+<td><em>italic</em></td>
+<td><code>code</code></td>
+<td><a href="https://example.com">external</a></td>
+</tr>
+<tr>
+<td>two</td>
+<td><strong>strong</strong></td>
+<td><em>italics</em></td>
+<td><code>inline()</code></td>
+<td><a href="https://example.org/path">another link</a></td>
+</tr>
+<tr>
+<td>three</td>
+<td><strong>a b c</strong></td>
+<td><em>x y z</em></td>
+<td><code>f(x, y)</code></td>
+<td><a href="https://example.net">trailing text</a> too</td>
+</tr>
+</tbody>
+</table>

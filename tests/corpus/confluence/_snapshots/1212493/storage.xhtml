@@ -1,0 +1,24 @@
+<h1>Nested task list</h1>
+<p>Task list items can contain nested sub-task lists. CommonMark's indentation rules apply: indent a sub-list by two spaces under its parent item's marker. Each level becomes its own <code>&lt;ac:task-list&gt;</code> macro in Confluence storage, nested inside the parent <code>&lt;ac:task&gt;</code>'s body.</p>
+<ul>
+<li>Plan release
+<ul>
+<li>Draft notes</li>
+<li>Get sign-off</li>
+</ul>
+</li>
+<li>Ship release
+<ul>
+<li>Cut branch</li>
+<li>Run smoke tests</li>
+<li>Publish artifacts</li>
+</ul>
+</li>
+<li>Follow-up
+<ul>
+<li>Collect feedback</li>
+<li>File next-iteration tickets</li>
+</ul>
+</li>
+</ul>
+<p>The two-level structure exercises the writer's recursion: each nested <code>&lt;ac:task-list&gt;</code> carries its own children, and the parent task's status is independent of the child statuses.</p>

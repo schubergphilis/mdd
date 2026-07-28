@@ -1,0 +1,9 @@
+<h1 id="id-`confluence-xml`fencedcodeblock-confluence-xmlfencedcodeblock"><code>confluence-xml</code> fenced code block</h1>
+<p>The <code>```confluence-xml</code> fence is the markdown-first escape hatch for embedding raw Confluence storage that has no first-class IR node. Spec 030 §&quot;Raw blocks&quot; maps the fence to <code>RawBlock(format=&quot;confluence-storage&quot;, …)</code>; the writer re-emits the same fence in markdown and the raw XHTML body in Confluence storage.</p>
+<p>Below is a verbatim chunk of storage markup wrapped in the fence. The IR carries the inner text byte-for-byte and the writer re-emits it exactly:</p>
+<div class="confluence-information-macro confluence-information-macro-information"><span class="aui-icon aui-icon-small aui-iconfont-info confluence-information-macro-icon"></span><div class="confluence-information-macro-body">
+    <p>This body is hand-authored storage markup. The
+    markdown reader does <em>not</em> parse the children —
+    it stores them in a RawBlock and round-trips bytes.</p>
+  </div></div>
+<p>A trailing paragraph confirms the fence closes cleanly and the markdown writer resumes normal block scope.</p>

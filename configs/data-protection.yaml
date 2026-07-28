@@ -1,0 +1,36 @@
+# Confidentiality blacklist. Spec S07 (data protection) is the canonical
+# reference. Any push from a Confluence space or SharePoint site listed
+# here is refused by the `--push` paths in `mdd confluence` /
+# `mdd sharepoint` and by the mirror backend's push guard.
+#
+# Rules:
+# - Match is case-insensitive.
+# - Default: exact match.
+# - A trailing `*` enables a prefix match (the only wildcard supported).
+# - Removing an entry from this file requires a deliberate edit and
+#   leaves a diff in git history; that's intentional friction.
+#
+# The entries below are illustrative. Replace them with the spaces and
+# sites that must never leave your own systems — this file is a template,
+# not a working policy, and an empty blacklist means everything is
+# pushable.
+
+confluence:
+  # Space keys, e.g. HRPRIV, LEGAL, FINPRIV.
+  blacklisted_spaces: []
+
+sharepoint:
+  blacklisted_sites:
+    # Governance bodies: minutes and decisions stay where they were written.
+    - Board
+    - Governance
+
+    # Anything appraisal-shaped. These are often synced as personal
+    # sub-folders (`Appraisals - <Name>`), so the trailing-`*` prefix
+    # match catches every variant regardless of whose name is appended.
+    - "Appraisal*"
+    - "Performance Review*"
+
+    # Coaching notes and named customer engagements.
+    - Coaching
+    - "Customer-*"

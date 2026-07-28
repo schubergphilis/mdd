@@ -1,0 +1,12 @@
+<h1>Raw HTML block</h1>
+<p>CommonMark allows raw HTML at the block level. A block-level HTML element written at column zero, surrounded by blank lines, is passed through to the rendered output verbatim. Confluence storage may sanitise some tags (e.g. strip <code>&lt;kbd&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;script&gt;</code>) but accepts most structural elements. The IR carries block-level raw HTML as a <code>RawBlock</code> node with <code>format=&quot;confluence-storage&quot;</code>.</p>
+<p>The paragraph before the raw HTML.</p>
+<pre>&lt;div class=&quot;note&quot;&gt;
+  &lt;p&gt;This is a raw HTML block. The &lt;code&gt;&amp;lt;div&amp;gt;&lt;/code&gt; and
+  inner &lt;code&gt;&amp;lt;p&amp;gt;&lt;/code&gt; are passed through verbatim because
+  CommonMark recognises them as block-level HTML at column zero.&lt;/p&gt;
+  &lt;p&gt;Confluence renders the block as-is. The round-trip should
+  preserve the wrapping &lt;code&gt;&amp;lt;div&amp;gt;&lt;/code&gt; and its class
+  attribute.&lt;/p&gt;
+&lt;/div&gt;</pre>
+<p>The paragraph after the raw HTML. Round-trip fidelity here depends on the writer emitting the block on its own lines with blank-line padding above and below; otherwise CommonMark's HTML-block rule won't recognise the same shape on re-read.</p>

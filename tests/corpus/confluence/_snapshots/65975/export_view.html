@@ -1,0 +1,12 @@
+<h1 id="Multipleinlinelinksinoneparagraph-Multipleinlinelinksinoneparagraph">Multiple inline links in one paragraph</h1>
+<p>A single paragraph with three external links interleaved with
+prose. Two of them have text trailing immediately after the
+closing bracket — the pattern that triggered mdd issues #70 and
+#71 for <code>ac:link</code>. This fixture exercises the same trailing-text
+case for ordinary <code>&lt;a href&gt;</code> elements.</p>
+<p>Visit <a class="external-link" href="https://pandoc.org" rel="nofollow">Pandoc</a>, then read about
+<a class="external-link" href="https://quarto.org/" rel="nofollow">Quarto</a> and finally browse
+<a class="external-link" href="https://docling-project.github.io/docling/" rel="nofollow">docling</a> to compare
+the three approaches. Each link is followed by punctuation,
+whitespace, or further prose — the round-trip should preserve all
+three.</p>

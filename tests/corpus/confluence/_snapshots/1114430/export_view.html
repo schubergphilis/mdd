@@ -1,0 +1,12 @@
+<h1 id="Fallback—unknownHTMLblockelement-Fallback—unknownHTMLblockelement">Fallback — unknown HTML block element</h1>
+<p>Spec 032 §&quot;Fallback fixtures&quot; pins this fixture as proof that a block-level HTML element with no first-class IR node round-trips as <code>RawBlock(format=&quot;html&quot;, …)</code>. The CommonMark parser recognises raw-HTML blocks starting at column zero; the markdown reader maps those to <code>RawBlock</code> and the writer re-emits them verbatim inside Confluence storage.</p>
+<pre>&lt;details&gt;
+&lt;summary&gt;Click to expand the hidden section&lt;/summary&gt;
+&lt;p&gt;The body of a &lt;code&gt;&amp;lt;details&amp;gt;&lt;/code&gt; element is hidden
+by default in HTML renderers. Confluence storage carries the
+element through unchanged, but its rich-text editor strips
+the toggle behaviour at render time.&lt;/p&gt;
+&lt;p&gt;A second paragraph keeps the block multi-line so the round-
+trip exercises whitespace preservation inside the raw HTML.&lt;/p&gt;
+&lt;/details&gt;</pre>
+<p>A trailing paragraph confirms the raw-HTML block parser terminates correctly on the closing <code>&lt;/details&gt;</code> tag and returns control to the document's block scope.</p>

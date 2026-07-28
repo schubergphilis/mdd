@@ -1,0 +1,5 @@
+<h1 id="Macro—roadmap-planner-Macro—roadmap-planner">Macro — roadmap-planner</h1>
+<p>The <code>roadmap</code> (sometimes <code>roadmap-planner</code>) macro renders a visual timeline with lanes, bars, and markers. The storage form carries the entire roadmap configuration as a JSON-style parameter blob — the macro is opaque to anything other than Confluence's own renderer.</p>
+<img title="Q3 milestones" src="/wiki/plugins/servlet/roadmap/image/1114411/2/${hash}.png"/>
+
+<p>The JSON blob is verbatim — round-trip must preserve it byte-for-byte through the <code>confluence-xml</code> fence's <code>RawBlock(format=&quot;confluence-storage&quot;)</code> carrier.</p>

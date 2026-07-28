@@ -1,0 +1,26 @@
+{
+  "attachments": [
+    {
+      "fileSize": 89,
+      "id": "att164081",
+      "mediaType": "text/plain",
+      "title": "attachment-sample.txt",
+      "version": null
+    }
+  ],
+  "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+  "createdAt": "2026-05-11T20:20:44.303Z",
+  "id": "164069",
+  "labels": [],
+  "parentId": "164060",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Attachment link",
+  "version": {
+    "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+    "createdAt": "2026-05-11T20:22:14.459Z",
+    "message": "",
+    "number": 1
+  }
+}

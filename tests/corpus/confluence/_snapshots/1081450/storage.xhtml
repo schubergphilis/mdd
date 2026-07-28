@@ -1,0 +1,10 @@
+<h1>Task list</h1>
+<p>GFM task lists are unordered lists whose items start with <code>[ ]</code> (open) or <code>[x]</code> (done). Confluence storage maps each checked / unchecked item onto the <code>&lt;ac:task-list&gt;</code> macro with nested <code>&lt;ac:task&gt;</code> children carrying <code>&lt;ac:task-status&gt;</code> and <code>&lt;ac:task-body&gt;</code> elements.</p>
+<ul>
+<li>Draft the proposal</li>
+<li>Circulate for review</li>
+<li>Incorporate feedback</li>
+<li>Publish v1</li>
+<li>Schedule the follow-up</li>
+</ul>
+<p>The fixture mixes checked and unchecked items in a single list so the round-trip verifies both states. The item bodies are plain text &mdash; inline formatting inside task items lives in the <code>task-list-nested.md</code> companion fixture.</p>

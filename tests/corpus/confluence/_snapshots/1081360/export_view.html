@@ -1,0 +1,6 @@
+<h1 id="Tilde-fencedcodeblock-Tilde-fencedcodeblock">Tilde-fenced code block</h1>
+<p>CommonMark accepts two fence characters for code blocks: backtick (<code>```</code>) and tilde (<code>~~~</code>). The two forms are interchangeable in semantics — Confluence storage represents either as a code macro — but the reader has to recognise both, and the writer's choice of which to emit on the way back is a normalisation concern.</p>
+<pre><code>$ curl -s https://example.com/api | jq '.results[]'
+{&quot;id&quot;: 1, &quot;name&quot;: &quot;first&quot;}
+{&quot;id&quot;: 2, &quot;name&quot;: &quot;second&quot;}</code></pre>
+<p>The body above contains a backtick-quoted string inside a JSON pipeline; tilde fences let the author write that without needing to escape the inner backticks. A round-trip through Confluence storage and back should preserve the contents verbatim regardless of which fence the writer emits.</p>

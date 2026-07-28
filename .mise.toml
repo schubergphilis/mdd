@@ -1,0 +1,127 @@
+# mise: https://mise.jdx.dev/
+#
+# `mise install` installs everything under [tools]; `mise run <task>`
+# dispatches to uv. `pyproject.toml`'s `requires-python` remains
+# authoritative — mise reads it.
+#
+# This is the open-source task set. The private wrapper keeps the
+# release, multi-remote and GitLab-pipeline tasks, which have no meaning
+# outside its own hosting.
+
+[tools]
+python = "3.14"
+uv = "latest"
+
+[env]
+_.file = { path = ".env", optional = true }
+
+[tasks.install]
+description = "uv sync (all groups)"
+run = "uv sync --all-groups"
+
+[tasks.lint]
+description = "ruff check + ruff format --check"
+run = ["uv run ruff check .", "uv run ruff format --check ."]
+
+[tasks.format]
+description = "ruff format + ruff check --fix"
+run = ["uv run ruff format .", "uv run ruff check --fix ."]
+
+[tasks.typecheck]
+description = "basedpyright strict"
+run = "uv run basedpyright"
+
+[tasks.complexipy]
+description = "complexipy cognitive-complexity gate (uses complexipy-snapshot.json for grandfathering)"
+run = "uv run complexipy src/mdd"
+
+[tasks.complexipy-snapshot]
+description = "Regenerate complexipy-snapshot.json baseline. Use only for deliberate refactor PRs."
+run = "uv run complexipy --snapshot-create src/mdd"
+
+[tasks.verify-clean]
+description = "Fail if any tracked file contains git conflict markers"
+run = "python3 scripts/verify-clean.py"
+
+[tasks.test]
+description = "Unit tests (no external services, no Microsoft Office)"
+run = "uv run python -m pytest -m \"not integration and not office\""
+
+[tasks.test-integration]
+description = "Integration tests — talk to Confluence / SharePoint / an LLM gateway"
+run = "uv run python -m pytest -m integration --no-cov"
+
+[tasks.test-office]
+description = "Office tests — require Microsoft Office installed locally (macOS)"
+run = "uv run python -m pytest -m office --no-cov"
+
+[tasks.test-all]
+description = "Every test — unit + integration + office (needs services and Office)"
+run = "uv run python -m pytest -m \"\""
+
+[tasks.audit]
+description = "pip-audit (OSV) over the dependency closure"
+# pip-audit >= 2.10 rejects --disable-pip unless it is paired with -r, and CI
+# logs are not a terminal, so the spinner goes too.
+run = "uv run pip-audit --progress-spinner off"
+
+[tasks.ci]
+description = "Full CI gate"
+depends = [
+  "verify-clean",
+  "lint",
+  "typecheck",
+  "complexipy",
+  "audit",
+  "test",
+  "ir-roundtrip",
+  "ir-coverage",
+]
+
+[tasks.version]
+description = "Print the resolved version (setuptools-scm, from git tags)"
+run = "uv run python -c \"import mdd; print(mdd.__version__)\""
+
+[tasks.build]
+description = "Build wheel + sdist into dist/"
+run = "uv build"
+
+[tasks.new-doc-number]
+description = "Print the next free spec/research number"
+run = "python3 scripts/new-doc-number.py \"$@\""
+
+[tasks.new-spec]
+description = "Scaffold a new spec from docs/spec/spec-template.md"
+run = "python3 scripts/new-spec.py \"$@\""
+
+[tasks.spec-list]
+description = "List specs with their status"
+run = "python3 scripts/spec-list.py \"$@\""
+
+[tasks.spec-check]
+description = "Validate docs/spec/*.md hygiene"
+run = "python3 scripts/spec-check.py"
+
+[tasks.refresh-corpus]
+description = "Refresh _snapshots/ under tests/corpus/confluence/ from a live Confluence instance"
+run = "uv run python scripts/refresh-corpus.py \"$@\""
+
+[tasks.test-corpus]
+description = "Run the corpus-snapshot smoke test"
+run = "uv run python -m pytest tests/confluence/test_corpus_smoke.py -v"
+
+[tasks.ir-roundtrip]
+description = "R1/R2/R3 IR round-trip suites (spec S33)."
+run = "uv run python -m pytest tests/ir/test_r1_storage_roundtrip.py tests/ir/test_r2_markdown_roundtrip.py tests/ir/test_r3_full_roundtrip.py --no-cov -q"
+
+[tasks.ir-roundtrip-quick]
+description = "R2-only IR round-trip (under 5s)."
+run = "uv run python -m pytest tests/ir/test_r2_markdown_roundtrip.py --no-cov -q"
+
+[tasks.ir-roundtrip-bench]
+description = "Benchmark gates for the IR round-trip (R3 timing)."
+run = "uv run python -m pytest tests/ir/test_benchmarks.py --no-cov -v"
+
+[tasks.ir-coverage]
+description = "Corpus coverage matrix gate (spec S32). Writes build/ir-coverage.json."
+run = "uv run python -m pytest tests/ir/test_corpus_coverage.py --no-cov -q"

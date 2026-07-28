@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+  "createdAt": "2026-05-11T19:22:47.328Z",
+  "id": "98367",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Top-level heading (h1)",
+  "version": {
+    "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+    "createdAt": "2026-05-11T19:22:48.164Z",
+    "message": "Created via mdd",
+    "number": 2
+  }
+}

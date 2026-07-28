@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+  "createdAt": "2026-05-13T19:02:30.676Z",
+  "id": "1212436",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Indented code block",
+  "version": {
+    "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+    "createdAt": "2026-05-13T19:02:31.578Z",
+    "message": "Created via mdd",
+    "number": 2
+  }
+}

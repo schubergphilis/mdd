@@ -1,0 +1,29 @@
+<h1>Table with per-column alignment</h1>
+<p>GFM extends CommonMark tables with per-column alignment markers on the header separator row: <code>:---</code> is left-aligned (the default), <code>---:</code> is right-aligned, and <code>:---:</code> is centered. Confluence storage carries the alignment through to <code>&lt;td&gt;</code> / <code>&lt;th&gt;</code> styling.</p>
+<table>
+<thead>
+<tr>
+<th>Left</th>
+<th>Right</th>
+<th>Center</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alice</td>
+<td>42</td>
+<td>short</td>
+</tr>
+<tr>
+<td>Bob</td>
+<td>1.5</td>
+<td>middle item</td>
+</tr>
+<tr>
+<td>Charlie</td>
+<td>1000</td>
+<td>end</td>
+</tr>
+</tbody>
+</table>
+<p>The leading <code>:</code> on the first column and the trailing <code>:</code> on the second column make those columns left- and right-aligned. The third column has <code>:</code> on both sides, centering it. The data rows themselves carry no alignment hints &mdash; the renderer derives them from the separator row.</p>

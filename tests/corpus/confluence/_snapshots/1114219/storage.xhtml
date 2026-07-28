@@ -1,0 +1,29 @@
+<h1>Table with escaped pipe in cells</h1>
+<p>GFM treats <code>|</code> as the cell separator, so a literal pipe inside a cell must be backslash-escaped (<code>\|</code>). Confluence storage drops the backslash and stores the pipe as plain text inside the <code>&lt;td&gt;</code>, so the round-trip needs to re-introduce the escape when the IR is rewritten back to markdown.</p>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>|</code></td>
+<td>bitwise OR</td>
+<td><code>a | b</code></td>
+</tr>
+<tr>
+<td><code>||</code></td>
+<td>logical OR</td>
+<td><code>a || b</code></td>
+</tr>
+<tr>
+<td><code>&amp;</code></td>
+<td>bitwise AND</td>
+<td><code>a &amp; b</code></td>
+</tr>
+</tbody>
+</table>
+<p>A second escape pair appears in prose too: the regex alternation <code>foo\|bar</code> parses as a single text run, not two cells. The fixture exercises both contexts so the writer can verify it re-emits the backslash whenever a literal <code>|</code> would otherwise be ambiguous.</p>

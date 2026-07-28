@@ -1,0 +1,33 @@
+---
+title: "{{TITLE}}"
+subtitle: "Your subtitle here"
+author: "Your Name"
+format:
+  pptx:
+    reference-doc: simple-presentation.pptx
+  docx:
+    reference-doc: simple-document.docx
+    toc: true
+---
+
+## Introduction
+
+This is a sample document that outputs to both PowerPoint and Word formats.
+
+## Key Points
+
+- Edit this `.qmd` file with your content
+- Run `./render.sh` to generate both `.pptx` and `.docx` files
+- The unified `mdd pdf` command will export both to PDF
+
+## Code Example
+
+```python
+def hello():
+    print("Hello, world!")
+```
+
+## Conclusion
+
+- Quarto makes it easy to create multiple output formats
+- Single source, multiple outputs

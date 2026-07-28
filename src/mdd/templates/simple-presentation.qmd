@@ -1,0 +1,43 @@
+---
+title: "{{TITLE}}"
+subtitle: "Your subtitle here"
+author: "Your Name"
+format:
+  pptx:
+    reference-doc: simple-presentation.pptx
+---
+
+
+# Introduction
+
+
+## Your First Slide
+
+:::: {.columns}
+::: {.column}
+* **First point:**
+  * Detail about first point
+* **Second point:**
+  * Detail about second point
+:::
+
+::: {.column}
+* **Third point:**
+  * Detail about third point
+* **Fourth point:**
+  * Detail about fourth point
+:::
+::::
+
+::: {.notes}
+Speaker notes go here. These will not appear on the slide but are visible in presenter view.
+:::
+
+
+## Next Steps
+
+* Edit this file to create your presentation
+* Add more slides by creating new `##` sections
+* Use `::::` and `:::` for columns layout
+* Add speaker notes with `::: {.notes}` blocks
+* Run `./render.sh` to generate your PowerPoint

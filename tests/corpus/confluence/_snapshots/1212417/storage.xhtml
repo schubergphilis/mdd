@@ -1,0 +1,5 @@
+<h1>Confluence inline ac:* elements</h1>
+<p><code>&lt;ac:emoticon&gt;</code> and <code>&lt;ac:placeholder&gt;</code> are inline Confluence elements that have no canonical markdown form. The IR carries them as <code>Emoticon</code> and <code>Placeholder</code> nodes. To populate them in a markdown-first fixture we inject the raw storage XML through a <code>confluence-xml</code> fence &mdash; that survives the round-trip and lets the storage reader produce the typed nodes the coverage gate is looking for.</p>
+<p>The team is on track <ac:emoticon ac:name="smile" /> and the
+deadline is <ac:placeholder>insert date</ac:placeholder>.</p>
+<p>The IR-backed Confluence reader picks up the inline elements from the storage snapshot and emits <code>Emoticon(name=&quot;smile&quot;)</code> plus <code>Placeholder(content=&quot;insert date&quot;)</code> &mdash; exactly the two nodes Phase 6's coverage matrix flags as missing.</p>

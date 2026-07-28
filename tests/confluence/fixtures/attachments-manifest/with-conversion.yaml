@@ -1,0 +1,31 @@
+confluence:
+  url: https://example.atlassian.net/wiki/spaces/ENG/pages/123/TestPage
+  page_id: "123"
+  space_key: ENG
+  space_id: s1
+  parent_id: null
+  title: TestPage
+  status: current
+  version: 2
+  version_message: null
+  created_at: "2024-01-01T00:00:00Z"
+  created_by:
+    account_id: abc123
+    display_name: Test User
+  updated_at: "2024-06-01T00:00:00Z"
+  updated_by:
+    account_id: abc123
+    display_name: Test User
+  labels: []
+  exported_at: "2024-06-01T12:00:00Z"
+  source_format: storage
+  attachments:
+    - filename: ArchitectureSpec.docx
+      sha256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+      version: 3
+      converted_to: ArchitectureSpec.docx.md
+      converter: DocxConverter
+      converter_version: DocxConverter
+    - filename: BudgetSheet.xlsx
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      version: 1

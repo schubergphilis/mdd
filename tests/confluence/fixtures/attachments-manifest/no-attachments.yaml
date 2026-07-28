@@ -1,0 +1,22 @@
+confluence:
+  url: https://example.atlassian.net/wiki/spaces/ENG/pages/456/EmptyPage
+  page_id: "456"
+  space_key: ENG
+  space_id: s1
+  parent_id: null
+  title: EmptyPage
+  status: current
+  version: 1
+  version_message: null
+  created_at: "2024-01-01T00:00:00Z"
+  created_by:
+    account_id: abc123
+    display_name: Test User
+  updated_at: "2024-01-01T00:00:00Z"
+  updated_by:
+    account_id: abc123
+    display_name: Test User
+  labels: []
+  exported_at: "2024-01-01T12:00:00Z"
+  source_format: storage
+  attachments: []

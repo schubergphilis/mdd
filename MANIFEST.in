@@ -1,0 +1,23 @@
+# Prune non-distribution content from the sdist (spec S43). setuptools-scm's
+# file finder defaults to every git-tracked file, which would otherwise ship
+# the whole working tree. The wheel is unaffected (it is built from the
+# packages under src/ plus [tool.setuptools.package-data]).
+
+prune docs
+prune tests
+prune scripts
+prune configs
+prune .github
+prune .gitlab
+prune .claude
+
+exclude .gitlab-ci.yml
+exclude .mise.toml
+exclude complexipy-snapshot.json
+exclude install.py
+exclude AGENTS.md
+exclude CLAUDE.md
+exclude CONTRIBUTING.md
+exclude CODE_OF_CONDUCT.md
+exclude Dockerfile.ci-runner
+exclude .gitignore

@@ -1,0 +1,30 @@
+# AI gateway config. Spec S20 is the canonical reference.
+#
+# `mdd ai` talks to any OpenAI-compatible endpoint — LiteLLM, vLLM, an
+# OpenAI-compatible proxy, or the OpenAI API itself. There is no useful
+# universal default for `base_url`, so set it here (or in
+# ~/.config/mdd/ai.yaml) to point at your own gateway. With nothing set,
+# `mdd` assumes a LiteLLM proxy on its default local port.
+#
+# Search order: --config <path> -> ./configs/ai.yaml -> ~/.config/mdd/ai.yaml.
+
+ai:
+  base_url: http://localhost:4000/v1
+
+  # Never a literal token. An `op://` reference is resolved through the
+  # 1Password CLI at call time, so no secret is stored in this file.
+  # api_token: op://Vault/Item/token
+
+  # Shown when the token is missing or rejected. Point people at wherever
+  # your gateway tokens actually come from.
+  # token_hint: >-
+  #   request a gateway token from the platform team, then store it in
+  #   1Password under Vault/Item field token.
+
+  # Model aliases. `default`, `summarise` and `embed` are the tasks the
+  # commands resolve; override any of them to point at what your gateway
+  # actually serves.
+  # models:
+  #   default: claude-sonnet-4-5
+  #   summarise: claude-haiku-4-5
+  #   embed: text-embedding-3-large

@@ -1,0 +1,5 @@
+<h1>Fallback &mdash; inline HTML element</h1>
+<p>Spec 032 &sect;&quot;Fallback fixtures&quot; pins this fixture as proof that an inline-level HTML element with no first-class IR node round-trips as <code>RawInline(format=&quot;html&quot;, &hellip;)</code>. CommonMark permits inline raw HTML in any paragraph; the markdown reader captures the open / content / close tags as a single <code>RawInline</code> span and the writer re-emits them verbatim.</p>
+<p>Press Ctrl+C to interrupt the running command. The kbd element is the semantic HTML tag for keyboard input; CommonMark allows it inline and the IR carries it through as raw HTML.</p>
+<p>A second paragraph mixes Esc with <strong>bold prose</strong>, <em>italic emphasis</em>, and <code>code</code> to confirm the inline parser keeps each span distinct without collapsing the raw HTML span into its neighbours.</p>
+<p>Two raw inline shapes in a single line &mdash; Tab next to <samp>shell output</samp> &mdash; exercise back-to-back <code>RawInline</code> tokens and confirm whitespace handling between adjacent raw elements.</p>

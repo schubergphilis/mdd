@@ -1,0 +1,135 @@
+<h1 id="Platformglossary-Platformglossary">Platform glossary</h1>
+<p>A short glossary of terms used inside Acme's platform team.
+<strong>Synthetic test content</strong> for the round-trip corpus. Definitions
+are written in everyday English, not formally — the prose shape
+deliberately includes a mix of short and long entries, code
+examples, and cross-references so the long-form round-trip
+exercises naturally-occurring combinations.</p>
+<p>Entries are alphabetical.</p>
+<hr/>
+<h2 id="Platformglossary-Backfill">Backfill</h2>
+<p>The process of generating data for a new schema, table, or
+metric retroactively by replaying historical events through the
+new producer code. Backfills are usually one-shot batch jobs;
+they should be <em>idempotent</em> (running them twice produces the
+same result), <em>resumable</em> (a crash mid-run doesn't force a
+restart from zero), and <em>throttled</em> (they don't starve the
+foreground workload).</p>
+<p>A typical backfill is invoked like:</p>
+<pre><code class="language-bash">acme-backfill run \
+    --producer payments \
+    --from 2025-01-01 \
+    --to 2025-12-31 \
+    --concurrency 4
+</code></pre>
+<p>The <code>--concurrency</code> flag is the lever that distinguishes a
+backfill that completes overnight from one that runs for a week.
+Too low and the job blocks subsequent work; too high and it
+contends with the foreground workload. The historical rule of
+thumb is to start at 4, watch the foreground p99 for an hour,
+and tune from there.</p>
+<p>See also: <strong>Idempotency</strong>, <strong>Replay</strong>.</p>
+<h2 id="Platformglossary-Canary">Canary</h2>
+<p>A deployment pattern where a new version of a service receives
+a small fraction of production traffic (typically 1–5 %) for a
+fixed observation window before being promoted to receive all
+traffic.</p>
+<p>Canary windows at Acme are <strong>15 minutes</strong> for code-only changes
+and <strong>60 minutes</strong> for anything touching the data path. The
+observation window is what catches the slow regressions —
+errors that take 10 minutes to manifest, or memory leaks that
+only show up under sustained load. A canary that's &quot;green&quot; at
+30 seconds is not green.</p>
+<p>The canary is automatically rolled back if any of three
+conditions fire:</p>
+<ul>
+<li>p99 latency exceeds 1.5× the baseline.</li>
+<li>Error rate exceeds 0.1 % more than baseline.</li>
+<li>Memory usage trends upward at &gt;50 MB/minute.</li>
+</ul>
+<h2 id="Platformglossary-Dual-write">Dual-write</h2>
+<p>A schema-migration pattern where the application writes the same
+data to both the <strong>old</strong> and <strong>new</strong> schemas during the migration
+window. The read path stays on the old schema until validation
+is complete. Once reads are migrated and the old write path is
+removed, the migration is done.</p>
+<p>Dual-write is reversible until the old schema is dropped, which
+makes it the safest migration pattern available. The cost is
+two writes per logical operation during the migration window —
+budget for ~2× the storage I/O for the duration.</p>
+<pre><code class="language-python"># Pseudocode for a dual-write helper
+def write_payment(p):
+    write_old_schema(p)         # legacy
+    try:
+        write_new_schema(p)     # new
+    except SchemaError as e:
+        log_dual_write_failure(p, e)
+        # Do NOT raise — old write succeeded, the user
+        # action shouldn't fail because of migration
+        # plumbing.
+</code></pre>
+<p>The <code>try/except</code> around the new-schema write is deliberate: the
+migration must not be a regression in availability. Failures
+during the dual-write window are logged and reconciled by a
+batch job, not by failing the user request.</p>
+<p>See also: <strong>Backfill</strong>, <strong>Migration</strong>.</p>
+<h2 id="Platformglossary-Idempotency">Idempotency</h2>
+<p>A property of an operation: running it once produces the same
+end state as running it twice (or N times). For HTTP, <code>PUT</code> and
+<code>DELETE</code> are idempotent by convention; <code>POST</code> is not.</p>
+<p>In practice at Acme:</p>
+<ul>
+<li><strong>API endpoints</strong>: idempotent unless documented otherwise.
+Clients are expected to retry on 5xx, and retries must not
+produce duplicate side effects.</li>
+<li><strong>Background jobs</strong>: idempotent by default. Job runners may
+retry on infrastructure failure without coordination.</li>
+<li><strong>Migrations</strong>: idempotent strictly. The same migration run
+twice produces the same schema; the second run is a no-op.</li>
+</ul>
+<p>The most common idempotency mistake is treating <em>eventual</em>
+consistency as if it were <em>strict</em> consistency. A read after
+write may not return the value just written; idempotent code
+must not depend on the value being visible immediately.</p>
+<h2 id="Platformglossary-Migration">Migration</h2>
+<p>A change to the structure or location of stored data. Acme uses
+the term narrowly: migrations are about schemas, table shapes,
+storage tiers, or region placement. Data <strong>transformations</strong>
+(applying business logic to existing data) are not migrations.</p>
+<p>Three migration patterns are sanctioned:</p>
+<ul>
+<li><strong>Dual-write</strong> (see entry): for additive changes where the
+old schema can be retained.</li>
+<li><strong>Expand-contract</strong>: add the new column/table, backfill,
+migrate readers, then drop the old column/table. Slower than
+dual-write but works when dual-writing isn't feasible.</li>
+<li><strong>Cutover</strong>: write a freeze, run the migration job, lift the
+freeze. Reserved for cases where neither of the above works.
+Requires explicit approval from the engineering manager.</li>
+</ul>
+<h2 id="Platformglossary-Replay">Replay</h2>
+<p>Re-running a stream of events through a consumer, typically to
+backfill new state derived from those events. Distinct from a
+<strong>retry</strong>, which re-attempts a single failed operation.</p>
+<p>Replays are <em>destructive of derived state</em>: any computed
+aggregates, indexes, or projections that the consumer maintains
+will be rebuilt. The original event stream is not modified by a
+replay.</p>
+<pre><code class="language-yaml"># Example replay invocation (acme-replay tool)
+producer: payments
+from: 2024-01-01T00:00:00Z
+to: 2024-12-31T23:59:59Z
+consumer: search-index
+batch-size: 1000
+parallel: 8
+</code></pre>
+<p>Replays should be tested in pre-prod before production. The
+common failure mode is the consumer code having changed in ways
+that break on historical event shapes (e.g. a field that was
+added in 2025 but didn't exist in 2024 events).</p>
+<hr/>
+<p>This glossary is a living document. Add new entries at the
+correct alphabetical position; prefer short, direct prose over
+academic precision. If you're not sure whether a term needs an
+entry, the test is: would a new engineer joining the team have
+to ask what it means? If yes, write it down.</p>

@@ -1,0 +1,38 @@
+<h1 id="Tablewithmixedinlinecontentincells-Tablewithmixedinlinecontentincells">Table with mixed inline content in cells</h1>
+<p>Each cell exercises a different inline span shape. The round-trip
+should preserve the inline structure inside <code>&lt;td&gt;</code> / <code>&lt;th&gt;</code> without
+collapsing the spans or losing the cell boundaries.</p>
+<div class="table-wrap"><table class="confluenceTable">
+<thead>
+<tr>
+<th class="confluenceTh">Plain</th>
+<th class="confluenceTh">Bold</th>
+<th class="confluenceTh">Emphasis</th>
+<th class="confluenceTh">Code</th>
+<th class="confluenceTh">Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="confluenceTd">one</td>
+<td class="confluenceTd"><strong>bold</strong></td>
+<td class="confluenceTd"><em>italic</em></td>
+<td class="confluenceTd"><code>code</code></td>
+<td class="confluenceTd"><a class="external-link" href="https://example.com" rel="nofollow">external</a></td>
+</tr>
+<tr>
+<td class="confluenceTd">two</td>
+<td class="confluenceTd"><strong>strong</strong></td>
+<td class="confluenceTd"><em>italics</em></td>
+<td class="confluenceTd"><code>inline()</code></td>
+<td class="confluenceTd"><a class="external-link" href="https://example.org/path" rel="nofollow">another link</a></td>
+</tr>
+<tr>
+<td class="confluenceTd">three</td>
+<td class="confluenceTd"><strong>a b c</strong></td>
+<td class="confluenceTd"><em>x y z</em></td>
+<td class="confluenceTd"><code>f(x, y)</code></td>
+<td class="confluenceTd"><a class="external-link" href="https://example.net" rel="nofollow">trailing text</a> too</td>
+</tr>
+</tbody>
+</table></div>

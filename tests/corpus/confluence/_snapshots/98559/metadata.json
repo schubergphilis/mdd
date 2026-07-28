@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+  "createdAt": "2026-05-11T20:54:59.506Z",
+  "id": "98559",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Acme Internal Engineering Handbook",
+  "version": {
+    "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+    "createdAt": "2026-05-11T20:55:00.353Z",
+    "message": "Created via mdd",
+    "number": 2
+  }
+}

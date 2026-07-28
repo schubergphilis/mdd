@@ -1,0 +1,7 @@
+<body>
+  <h1>Test Page</h1>
+  <p>Hello <strong>world</strong></p>
+  <ul><li>Item 1</li><li>Item 2</li></ul>
+  <ac:image xmlns:ac="http://atlassian.com/content" xmlns:ri="http://atlassian.com/repository/confluence/1.0"><ri:attachment ri:filename="image.png"/></ac:image>
+  <ac:structured-macro xmlns:ac="http://atlassian.com/content" ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[print("hello")]]></ac:plain-text-body></ac:structured-macro>
+</body>

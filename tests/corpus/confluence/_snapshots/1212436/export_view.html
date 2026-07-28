@@ -1,0 +1,7 @@
+<h1 id="Indentedcodeblock-Indentedcodeblock">Indented code block</h1>
+<p>CommonMark allows code blocks formed by indenting every line of content with four spaces (or one tab), without any fence markers. This is the older Markdown.pl style; many modern authors prefer fenced blocks, but the indented form is still valid CommonMark and should round-trip through Confluence storage as a code block.</p>
+<pre><code>def greet(name):
+    return f&quot;hello, {name}&quot;
+
+print(greet(&quot;world&quot;))</code></pre>
+<p>The four-space indent is the only thing marking the block — the blank line above and below are part of the paragraph framing, not the code itself. Confluence storage typically represents this as <code>&lt;ac:structured-macro ac:name=&quot;code&quot;&gt;</code> with a CDATA body, same as the fenced form, with no language parameter unless the writer can infer one from heuristics.</p>

@@ -1,0 +1,6 @@
+<h1>Lazy blockquote continuation</h1>
+<p>CommonMark allows blockquote continuation lines to omit the leading <code>&gt;</code> marker. The parser folds them into the preceding blockquote paragraph as if the marker had been there. This is the &quot;lazy&quot; continuation form and exists primarily for author convenience.</p>
+<blockquote>
+<p>The first line carries the marker as expected. This second line has no <code>&gt;</code> marker but is folded into the same blockquote paragraph because CommonMark's lazy continuation rule extends the quote until a blank line breaks it. The third line is also lazy and joins the same paragraph.</p>
+</blockquote>
+<p>After a blank line the blockquote ends, and the writer should emit a single <code>&lt;blockquote&gt;</code> element wrapping one paragraph containing all three lines (joined by soft breaks or spaces depending on the writer's wrapping policy).</p>

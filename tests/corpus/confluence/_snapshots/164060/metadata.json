@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+  "createdAt": "2026-05-11T20:17:58.812Z",
+  "id": "164060",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Same-space page link",
+  "version": {
+    "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+    "createdAt": "2026-05-13T20:35:05.601Z",
+    "message": "Drop trailing empty <p> anchor; not what the fixture exercises",
+    "number": 2
+  }
+}

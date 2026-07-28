@@ -1,0 +1,13 @@
+<h1>Plain code block (no language)</h1>
+<p>A fenced code block with no language tag. Confluence storage
+typically represents this as <code>&lt;ac:structured-macro ac:name=&quot;code&quot;&gt;</code>
+with <code>&lt;ac:plain-text-body&gt;&lt;![CDATA[&hellip;]]&gt;&lt;/ac:plain-text-body&gt;</code> and
+no <code>&lt;ac:parameter ac:name=&quot;language&quot;&gt;</code>.</p>
+<pre><code>$ echo &quot;hello&quot;
+hello
+$ echo &quot;world&quot;
+world
+</code></pre>
+<p>The CDATA section in storage must round-trip verbatim &mdash; the
+content between the fences includes meaningful whitespace and
+characters that would be HTML-escaped if treated as PCDATA.</p>

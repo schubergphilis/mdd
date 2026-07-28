@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # CI never pushes; don't leave the token in .git/config (zizmor artipacked).
+          persist-credentials: false
+
+      - name: Install local tools
+        # Required by unit tests that exercise real tool integrations
+        # (quarto, librsvg, ripgrep). Integration tests with external
+        # services and Office-bound tests do not run in CI.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin ripgrep
+          # Quarto via official .deb (apt repo lags behind)
+          QUARTO_VER=1.9.37
+          curl -fsSL -o /tmp/quarto.deb \
+            "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VER}/quarto-${QUARTO_VER}-linux-amd64.deb"
+          sudo dpkg -i /tmp/quarto.deb
+
+      - name: Set up mise
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install: true
+          cache: true
+
+      - name: Cache uv dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: ${{ runner.os }}-uv-
+
+      - name: Install
+        run: mise run install
+
+      - name: Lint
+        run: mise run lint
+
+      - name: Typecheck
+        run: mise run typecheck
+
+      # Both of these are part of `mise run ci`; run them here too, or the
+      # documented full gate is stricter than the pipeline that guards main.
+      - name: Cognitive complexity (complexipy)
+        run: mise run complexipy
+
+      - name: Verify no conflict markers
+        run: mise run verify-clean
+
+      - name: Audit dependencies (pip-audit / OSV)
+        run: mise run audit
+
+      - name: Test
+        run: mise run test
+
+      - name: IR round-trip (R1/R2/R3)
+        run: mise run ir-roundtrip
+
+      - name: IR coverage matrix
+        run: mise run ir-coverage
+
+      - name: IR benchmarks
+        run: mise run ir-roundtrip-bench
+
+      - name: Upload IR artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ir-build-artifacts
+          path: |
+            build/ir-coverage.json
+            build/ir-benchmarks.json
+            build/ir-diffs/
+          if-no-files-found: ignore
+
+  zizmor:
+    name: Zizmor (GitHub Actions audit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit GitHub Actions workflows (zizmor)
+        uses: zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5 # v0.6.1
+        with:
+          advanced-security: false

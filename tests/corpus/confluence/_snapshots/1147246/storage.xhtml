@@ -1,0 +1,8 @@
+<h1>Fallback &mdash; unknown confluence macro</h1>
+<p>Spec 032 &sect;&quot;Fallback fixtures&quot; pins this fixture as proof that the <code>ConfluenceMacro</code> generic carrier round-trips an <code>&lt;ac:structured-macro&gt;</code> whose <code>ac:name</code> is not in mdd's recognised-macro registry. The macro stays opaque to the IR &mdash; parameters and body ride through as a literal storage chunk.</p>
+<ac:structured-macro ac:name="bogus-macro" ac:schema-version="1" ac:macro-id="4aee64f4-1892-4aa9-addd-7bb4fa941c7f"><ac:parameter ac:name="alpha">one</ac:parameter><ac:parameter ac:name="beta">two</ac:parameter><ac:rich-text-body>
+    <p>The body is rich text inside an unrecognised macro. The
+    reader does not introspect the children; the writer
+    re-emits them byte-for-byte from the captured Origin.</p>
+  </ac:rich-text-body></ac:structured-macro>
+<p>Trailing prose confirms the macro stands as its own block in storage and the rest of the document continues at block scope.</p>

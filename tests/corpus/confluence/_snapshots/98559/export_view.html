@@ -1,0 +1,120 @@
+<h1 id="AcmeInternalEngineeringHandbook-AcmeInternalEngineeringHandbook">Acme Internal Engineering Handbook</h1>
+<p>This page is the entry point to the Acme engineering team's
+internal handbook. It is <strong>synthetic test content</strong> for the round-
+trip corpus — no real people, no real customers, no real products
+are referenced. The fictional company &quot;Acme&quot; is used purely as a
+narrative anchor so the long-form prose reads naturally and
+exercises a realistic mix of markdown shapes.</p>
+<p>The handbook covers four areas, in order of how often a new
+engineer joining the team needs them:</p>
+<ol>
+<li>Local development environment</li>
+<li>Code style and review practices</li>
+<li>Deployment and rollout</li>
+<li>Incident response and on-call</li>
+</ol>
+<p>Each section below stands on its own; cross-references are
+explicit, not implied.</p>
+<hr/>
+<h2 id="AcmeInternalEngineeringHandbook-Localdevelopmentenvironment">Local development environment</h2>
+<p>The dev environment runs entirely from a single <code>mise</code> toolchain
+config. After cloning, run:</p>
+<pre><code class="language-bash">mise install
+mise run setup
+mise run test
+</code></pre>
+<p><code>mise install</code> reads <code>mise.toml</code> and installs the right Python,
+Node, and supporting binaries into a project-local cache. There
+is no <code>.python-version</code>, no <code>nvm use</code>, and no global pyenv
+involvement — the chain is one tool deep and version-pinned.</p>
+<p>The <code>setup</code> task creates a Python virtual environment under
+<code>.venv/</code>, installs <code>uv</code> if not already present, and runs
+<code>uv sync --all-groups</code> to materialise every dependency from
+<code>uv.lock</code>. A successful setup terminates with a green
+&quot;environment ready&quot; line on stdout.</p>
+<h3 id="AcmeInternalEngineeringHandbook-Whatifsetupfails?">What if setup fails?</h3>
+<p>The two failure modes that account for ~90 % of new-joiner pain:</p>
+<ul>
+<li><strong>mise prompts for trust.</strong> Run <code>mise trust</code> once per fresh
+clone. <code>mise run</code> tasks fail silently without it.</li>
+<li><strong>Python build dependencies missing.</strong> On macOS, <code>xcode-select --install</code> resolves it. On Debian, <code>apt install build-essential python3-dev libssl-dev</code> is the usual fix.</li>
+</ul>
+<p>If neither matches, post the full output of <code>mise doctor</code> in
+the team channel and someone will pair on it within an hour.</p>
+<hr/>
+<h2 id="AcmeInternalEngineeringHandbook-Codestyleandreview">Code style and review</h2>
+<p>We follow three rules, in declining order of importance:</p>
+<ol>
+<li><strong>Explicit over clever.</strong> Readability beats brevity. A
+five-line function with a clear name beats a one-liner that
+needs a comment.</li>
+<li><strong>Follow the existing patterns.</strong> If you're new to a module,
+read the surrounding code before introducing a new approach.
+Inconsistency within one file is worse than copying a
+slightly-off-pattern that's already established.</li>
+<li><strong>One concern per pull request.</strong> Refactors do not ride along
+with feature work. The reviewer's job is harder by an order
+of magnitude when a 200-line diff contains four orthogonal
+changes.</li>
+</ol>
+<blockquote>
+<p><em>On review tone:</em> be specific. &quot;This could be simpler&quot; is
+not actionable. &quot;Could this be a single comprehension instead
+of the for-loop with append?&quot; — that's a question the author
+can answer yes or no in under a minute.</p>
+</blockquote>
+<p>Tooling enforces what tooling can enforce: <code>ruff</code>, <code>mypy</code>,
+<code>pytest</code>. Reviewers focus on what tools can't see: naming,
+abstraction boundaries, whether the test cases match the actual
+risk surface.</p>
+<hr/>
+<h2 id="AcmeInternalEngineeringHandbook-Deploymentandrollout">Deployment and rollout</h2>
+<p>Acme uses a <strong>trunk-based</strong> deployment model. <code>main</code> is always
+deployable. Every PR that lands triggers a CI build; a green
+build deploys to staging automatically.</p>
+<p>Promotion from staging to production is <strong>manual</strong> and
+<strong>gated</strong>: a human selects a build hash from the recent green
+list and confirms the rollout in the deploy tool. The gate
+exists because automated promotion at our scale has bitten us
+twice — both times when a downstream service had degraded but
+not failed, and an automated push compounded the problem.</p>
+<h3 id="AcmeInternalEngineeringHandbook-Rollback">Rollback</h3>
+<p>Rollback is one command: <code>acme-deploy rollback &lt;service&gt;</code>. It
+re-deploys the last-known-green build hash for that service.
+The command is safe to run during an incident — it doesn't
+require approval, doesn't log to ticketing, and doesn't touch
+the gate.</p>
+<p>The team has a <a class="external-link" href="https://example.com/post-mortem" rel="nofollow">post-mortem template</a>
+that should be filled in within 24 hours of any production
+incident, including rollbacks. The template asks the same
+questions every time so the data accumulates into a useful
+corpus over years.</p>
+<hr/>
+<h2 id="AcmeInternalEngineeringHandbook-Incidentresponseandon-call">Incident response and on-call</h2>
+<p>On-call rotation is one week, starting Monday at 09:00 local
+time. The on-call engineer is the <strong>first responder</strong>, not the
+sole responder — escalation paths are documented per service
+in the runbook.</p>
+<p>When paged:</p>
+<ol>
+<li>Acknowledge within 5 minutes. Even just typing &quot;looking&quot; in
+the channel counts.</li>
+<li>Update the channel every 15 minutes with one sentence of
+what you're checking, what you've ruled out, and what
+you'll try next.</li>
+<li>Roll back <strong>first</strong>, debug second. Production stability
+takes precedence over root-cause discovery. The post-mortem
+is the right venue for root cause.</li>
+<li>Mark the incident resolved only when you've verified the
+fix in production telemetry. &quot;It should be fine now&quot; is
+not resolution.</li>
+</ol>
+<p>The on-call engineer doesn't write code that's deployed during
+their shift — the cognitive load of monitoring plus writing
+plus reviewing leads to errors. The shift trade is six hours
+of focused on-call attention plus two hours for the
+post-mortem of anything that happened.</p>
+<hr/>
+<p>This handbook is a living document. Propose changes via PR
+against the <code>engineering-handbook</code> repo; small typo fixes are
+self-merge, structural changes need a second approver.</p>

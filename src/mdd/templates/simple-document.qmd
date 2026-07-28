@@ -1,0 +1,83 @@
+---
+title: "{{TITLE}}"
+subtitle: "Your subtitle here"
+author: "Your Name"
+date: today
+format:
+  docx:
+    reference-doc: simple-document.docx
+    toc: true
+---
+
+# Introduction
+
+This is a sample Quarto document that demonstrates various formatting options for Microsoft Word output.
+
+You can write paragraphs with **bold text**, *italic text*, and `inline code`.
+
+# Main Content
+
+## Lists
+
+### Bullet Lists
+
+* First item
+* Second item
+  * Nested item
+  * Another nested item
+* Third item
+
+### Numbered Lists
+
+1. First step
+2. Second step
+   a. Sub-step A
+   b. Sub-step B
+3. Third step
+
+## Tables
+
+Here's a simple table:
+
+| Feature | PowerPoint | Word |
+|---------|------------|------|
+| Slides  | ✓          | ✗    |
+| Pages   | ✗          | ✓    |
+| TOC     | Limited    | ✓    |
+
+## Code Blocks
+
+Here's a code block with syntax highlighting:
+
+```python
+def hello_world():
+    """A simple function."""
+    print("Hello, World!")
+    return 42
+
+# Call the function
+result = hello_world()
+```
+
+## Block Quotes
+
+> This is a block quote. It can be used for emphasizing important text or quoting other sources.
+>
+> Block quotes can span multiple paragraphs.
+
+## Custom Styles
+
+You can apply custom styles defined in your reference document:
+
+::: {custom-style="Emphasis"}
+This paragraph uses a custom style called "Emphasis".
+:::
+
+## Conclusion
+
+### Next Steps
+
+* Edit this file to create your document
+* Add more sections with `#`, `##`, `###` headings
+* Customize the reference document (`simple-document.docx`) with your preferred styles
+* Run `./render.sh` to generate your Word document and PDF

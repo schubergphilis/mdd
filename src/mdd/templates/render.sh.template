@@ -1,0 +1,29 @@
+#!/bin/sh
+# Render Quarto file and export to PDF
+# Supports both PowerPoint (.pptx) and Word (.docx) formats
+
+set -e
+
+FILE_NAME="{{FILE_NAME}}"
+
+echo "Rendering ${FILE_NAME}.qmd..."
+quarto render "${FILE_NAME}.qmd"
+
+if [ $? -eq 0 ]; then
+    echo "✓ Successfully rendered ${FILE_NAME}.qmd"
+
+    echo "Exporting to PDF..."
+    mdd pdf
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Successfully exported to PDF"
+        echo ""
+        echo "Output files created in current directory"
+    else
+        echo "✗ PDF export failed"
+        exit 1
+    fi
+else
+    echo "✗ Rendering failed"
+    exit 1
+fi

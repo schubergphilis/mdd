@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+  "createdAt": "2026-05-13T19:02:45.078Z",
+  "id": "1147033",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Loose list",
+  "version": {
+    "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+    "createdAt": "2026-05-13T20:25:46.923Z",
+    "message": "Drop multi-line inline code span that Confluence storage mangles",
+    "number": 3
+  }
+}

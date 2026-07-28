@@ -1,0 +1,13 @@
+# mdd CLI working state
+.claude/
+*.local.yaml
+
+# OS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Python __pycache__ from any scripts/
+__pycache__/
+*.py[cod]

@@ -1,0 +1,18 @@
+<h1 id="ImagereferencedbyexternalURL-ImagereferencedbyexternalURL">Image referenced by external URL</h1>
+<p>A paragraph containing a markdown image where the source is an
+external <code>https://</code> URL. Confluence storage emits this as
+<code>&lt;ac:image&gt;&lt;ri:url ri:value=&quot;…&quot;/&gt;&lt;/ac:image&gt;</code>.</p>
+<p><span class="confluence-embedded-file-wrapper"><img class="confluence-embedded-image confluence-external-resource" src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Markdown-mark.svg/120px-Markdown-mark.svg.png" data-image-src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Markdown-mark.svg/120px-Markdown-mark.svg.png" loading="lazy"></span></p>
+<p>The image rendering depends on Confluence's ability to fetch the
+URL at render time. We use a small PNG from Wikimedia Commons
+(stable URL, public-domain logo) because:</p>
+<ul>
+<li>SVG images via <code>ri:url</code> render inconsistently in Confluence
+Cloud — the editor often shows &quot;Preview unavailable&quot; even when
+the storage XHTML is well-formed.</li>
+<li>Confluence's content security configuration may block fetches
+from arbitrary domains; Wikimedia is broadly allowlisted.</li>
+</ul>
+<p>For the round-trip fidelity test, the only invariant that matters
+is that the URL is preserved verbatim in storage XHTML — the
+visual render is a bonus, not the contract.</p>

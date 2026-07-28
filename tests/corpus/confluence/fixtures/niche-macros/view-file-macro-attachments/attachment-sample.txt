@@ -1,0 +1,2 @@
+Hello from a Confluence attachment.
+This file exists for the ri:attachment test fixture.

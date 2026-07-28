@@ -1,0 +1,12 @@
+<h1>Fallback &mdash; entity form preservation</h1>
+<p>Spec 032 &sect;&quot;Fallback fixtures&quot; pins this fixture as the proof that whitespace-preserving mode round-trips both the entity- form spelling (<code>&amp;hellip;</code>, <code>&amp;mdash;</code>, <code>&amp;ldquo;</code>) and the Unicode-character spelling (<code>&hellip;</code>, <code>&mdash;</code>, <code>&quot;</code>) of the same codepoint without conflating them. Plan 106 D5 made <code>entity_form</code> preservation universal in the writer; this fixture exercises that promise.</p>
+<p>The markdown-first body uses Unicode characters directly:</p>
+<p>A sentence ending in an ellipsis&hellip;</p>
+<p>A dash &mdash; used like a parenthetical &mdash; keeps its surrounding spacing.</p>
+<p>A &quot;quoted phrase&quot; uses curly double quotes.</p>
+<p>The Confluence-first half lives in storage as named entities. The IR's <code>Origin.entity_form</code> field carries the original spelling so the writer can round-trip the right one:</p>
+<p>A sentence ending in an ellipsis&hellip;</p>
+<p>A dash &mdash; used like a parenthetical &mdash; keeps its
+surrounding spacing.</p>
+<p>A &ldquo;quoted phrase&rdquo; uses curly double quotes.</p>
+<p>The fenced block's literal <code>&amp;hellip;</code> etc. flow into the page as storage entities; the prose above carries the same characters as raw Unicode. The R1 preserving gate verifies they round-trip byte-for-byte from their respective sources.</p>

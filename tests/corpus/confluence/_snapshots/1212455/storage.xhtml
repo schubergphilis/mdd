@@ -1,0 +1,9 @@
+<h1>Tight list</h1>
+<p>A CommonMark list is &quot;tight&quot; when no blank lines separate its items. The renderer omits the wrapping <code>&lt;p&gt;</code> inside each <code>&lt;li&gt;</code> &mdash; the item's text becomes the direct child of <code>&lt;li&gt;</code>. Confluence storage follows the same convention, so tight lists round-trip as <code>&lt;ul&gt;&lt;li&gt;text&lt;/li&gt;&lt;li&gt;text&lt;/li&gt;&hellip;&lt;/ul&gt;</code> without inner paragraphs.</p>
+<ul>
+<li>First tight item</li>
+<li>Second tight item</li>
+<li>Third tight item</li>
+<li>Fourth tight item</li>
+</ul>
+<p>Tight vs loose is a structural distinction CommonMark makes at the list level, not at the item level: a single blank line anywhere inside the list promotes the entire list to loose. This fixture keeps every item glued so the round-trip should yield a list of plain text <code>&lt;li&gt;</code> children with no nested <code>&lt;p&gt;</code> wrappers.</p>

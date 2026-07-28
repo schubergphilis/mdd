@@ -1,0 +1,145 @@
+<h1>Meeting notes &mdash; Platform sync, 2026-05-11</h1>
+<p>Weekly platform team sync. <strong>Synthetic test content</strong> &mdash; no real
+attendees, no real customers, no real decisions. Names and
+project references are invented for narrative coherence in the
+round-trip corpus.</p>
+<h2>Attendees</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Role</th>
+<th>Joined</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alice Chen</td>
+<td>Platform engineer</td>
+<td>09:00</td>
+</tr>
+<tr>
+<td>Bob Singh</td>
+<td>Platform engineer</td>
+<td>09:00</td>
+</tr>
+<tr>
+<td>Carol Mendez</td>
+<td>SRE lead</td>
+<td>09:03</td>
+</tr>
+<tr>
+<td>Dan Park</td>
+<td>Engineering manager</td>
+<td>09:00</td>
+</tr>
+</tbody>
+</table>
+<p>Apologies: <em>Eva Lindqvist</em> (on parental leave), <em>Faisal Omar</em>
+(customer escalation).</p>
+<h2>Agenda</h2>
+<ol>
+<li>Last week's action items</li>
+<li>Q2 milestone status</li>
+<li>Database migration rollout plan</li>
+<li>Incident review: 2026-05-09 partial outage</li>
+<li>Open floor</li>
+</ol>
+<hr />
+<h2>1. Last week's action items</h2>
+<p>Three items from 2026-05-04. Status of each:</p>
+<ul>
+<li><strong>Alice</strong>: write the rollout doc for the migration. <em>Done</em> &mdash;
+see the <code>migration-rollout</code> doc.</li>
+<li><strong>Bob</strong>: investigate the <code>429</code> spike in the rate-limit gateway.
+<em>In progress</em> &mdash; initial findings suggest a noisy retry loop
+in one client; full report by 2026-05-15.</li>
+<li><strong>Carol</strong>: schedule the failover drill. <em>Blocked</em> &mdash; waiting on
+capacity allocation from infra. Carol will re-raise with
+infra today.</li>
+</ul>
+<p>Decision: roll Bob's investigation forward to next week. No new
+information expected before then.</p>
+<h2>2. Q2 milestone status</h2>
+<p>Three milestones remain for Q2. Status as of today:</p>
+<ul>
+<li><strong>M1 &mdash; Service mesh upgrade</strong>: on track for 2026-06-15. No
+blockers. Carol's team has the test plan signed off.</li>
+<li><strong>M2 &mdash; Database migration v2</strong>: on track but tight. Estimated
+completion 2026-06-28 against the Q2 deadline of 2026-06-30.
+We need one of the two stretch items (audit logging or
+cross-region replicas) to slip if any unplanned work lands.</li>
+<li><strong>M3 &mdash; Platform metrics overhaul</strong>: behind by ~2 weeks. Root
+cause is two engineers reallocated to incident response. Dan
+will reset expectations with the requesting stakeholder by
+end of week.</li>
+</ul>
+<blockquote>
+<p><em>Dan's framing:</em> &quot;On-track-but-tight is our default state. The
+question is which of the M2 stretch items we drop first when
+the data-replication estimate slips, not whether it will.&quot;</p>
+</blockquote>
+<h2>3. Database migration rollout plan</h2>
+<p>Alice walked through the rollout doc. Three phases:</p>
+<ol>
+<li><strong>Phase 1</strong> (2026-05-20 to 2026-05-23): dual-write to old and
+new schemas. Read path unchanged. Reversible by toggling the
+write fan-out off.</li>
+<li><strong>Phase 2</strong> (2026-05-24 to 2026-05-30): read path moves to
+new schema. Old schema still receives writes for rollback
+capacity. Reversible by toggling the read source.</li>
+<li><strong>Phase 3</strong> (2026-05-31 onwards): writes stop going to old
+schema. Old data retained read-only for 90 days for audit.
+Not reversible without backfill.</li>
+</ol>
+<p>The migration runs across <strong>all three regions</strong> simultaneously
+in each phase. Carol pushed back: she'd prefer one region per
+phase, staged over a week. After discussion the team agreed to
+a <strong>compromise</strong>: phase 1 simultaneous (low risk, easy rollback),
+phase 2 staggered region-by-region with 24 hours between cuts,
+phase 3 simultaneous (already validated by phase 2).</p>
+<p>Action items from this discussion:</p>
+<ul>
+<li>Alice updates the rollout doc to reflect the staggered phase 2.</li>
+<li>Carol drafts the region-cut go/no-go checklist.</li>
+<li>Bob writes the smoke-test suite that the cut runs against
+before each region promotes.</li>
+</ul>
+<h2>4. Incident review: 2026-05-09 partial outage</h2>
+<p>15-minute degradation in the <code>us-west-2</code> region. Caused by a
+deploy that touched the rate-limit gateway's retry budget; the
+new value (3 retries with 200ms backoff) interacted poorly with
+a downstream service that was already serving 503s under load.</p>
+<p>What went well:</p>
+<ul>
+<li>Time-to-detect: 90 seconds (alert fired on p99 latency).</li>
+<li>Time-to-rollback: 4 minutes (one-command rollback).</li>
+<li>Communication: status page updated within 2 minutes of
+acknowledgement.</li>
+</ul>
+<p>What didn't go well:</p>
+<ul>
+<li>The retry budget change was reviewed but the reviewer didn't
+notice the downstream service was already degraded in
+pre-prod telemetry. The dashboard for the downstream service
+wasn't linked from the change description.</li>
+<li>Post-mortem was written, but the action items were vague
+(&quot;improve review process&quot;). Need to convert into specific,
+trackable items.</li>
+</ul>
+<p>Carol will rewrite the action items by 2026-05-15.</p>
+<h2>5. Open floor</h2>
+<ul>
+<li><em>Bob</em>: any appetite for revisiting the on-call rotation
+length? Six-hour focused shifts have been working but mid-
+week handoffs introduce churn. Park to next sync.</li>
+<li><em>Alice</em>: the <a href="https://example.com/migration-runbook">migration runbook template</a>
+is now in the templates repo. Use it for any future schema
+migration; copies of v1 of the template that exist in older
+branches should be ignored.</li>
+<li><em>Dan</em>: reminder that the all-hands is moved to 2026-05-22.
+Calendar invite is out.</li>
+</ul>
+<hr />
+<p><strong>Next sync</strong>: Monday 2026-05-18, 09:00. Standing agenda
+applies. Send agenda additions to Dan by Friday EOD.</p>

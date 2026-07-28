@@ -1,0 +1,18 @@
+{
+  "attachments": [],
+  "authorId": "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9",
+  "createdAt": "2026-05-11T19:47:52.816Z",
+  "id": "131332",
+  "labels": [],
+  "parentId": "131185",
+  "parentType": "page",
+  "spaceId": "131077",
+  "status": "current",
+  "title": "Tip callout (rich body)",
+  "version": {
+    "authorId": "712020:4b369b3c-df48-4aaf-90ad-a359e1f809ef",
+    "createdAt": "2026-05-13T20:35:04.833Z",
+    "message": "Restore tip macro; drop trailing empty <p /> anchor",
+    "number": 3
+  }
+}

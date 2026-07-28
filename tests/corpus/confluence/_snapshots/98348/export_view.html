@@ -1,0 +1,20 @@
+<h1 id="CodeblockwithcharactersthatneedCDATA-CodeblockwithcharactersthatneedCDATA">Code block with characters that need CDATA</h1>
+<p>The code block body contains <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code>, and <code>]]&gt;</code> sequences
+that would corrupt the storage XHTML if naively interpolated as
+PCDATA. Storage uses CDATA precisely so these characters pass
+through verbatim.</p>
+<pre><code class="language-xml">&lt;root&gt;
+  &lt;element attr=&quot;value&quot;&gt;
+    &lt;child&gt;content with &amp;amp; ampersand&lt;/child&gt;
+  &lt;/element&gt;
+  &lt;!-- The sequence &quot;]]&gt;&quot; must not terminate the CDATA section
+       in storage. The writer needs to split or escape it. --&gt;
+&lt;/root&gt;
+</code></pre>
+<pre><code class="language-bash"># Shell snippet with pipes and redirects that look XML-ish
+ls -la | grep &quot;&lt;TODO&gt;&quot; &gt; /tmp/results 2&gt;&amp;1
+echo &quot;done &amp; exiting&quot;
+</code></pre>
+<p>Round-trip must preserve every character. If the storage writer
+breaks on <code>]]&gt;</code> or escapes <code>&amp;</code> to <code>&amp;amp;</code> inside the CDATA, the
+fixture catches it.</p>

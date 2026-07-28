@@ -1,0 +1,4 @@
+<h1>Linkify bare URLs</h1>
+<p>GFM's &quot;autolink extension&quot; (sometimes called linkify) promotes a bare URL appearing in running prose into a clickable link without requiring CommonMark-style <code>&lt;https://&hellip;&gt;</code> angle brackets or <code>[label](url)</code> syntax. Confluence storage renders this as a plain <code>&lt;a href=&quot;&hellip;&quot;&gt;&hellip;&lt;/a&gt;</code> whose text matches the href.</p>
+<p>Visit https://example.com for the project home page, or look at https://example.org/path/to/file.html for a deep link with a fragment like https://example.net/api#section-2.</p>
+<p>Bare URLs also work mid-sentence: the spec at https://commonmark.org/ defines the baseline, and the GFM extensions live at https://github.github.com/gfm/. Trailing punctuation should not be folded into the link &mdash; see https://example.com, which keeps the comma outside the href.</p>

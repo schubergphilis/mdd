@@ -1,0 +1,7 @@
+sharepoint:
+  # Offline-only test corpus. The sync root is the parent directory, which
+  # contains "MDD - Documents/" — the OneDrive-style mirror of the project
+  # test SharePoint site.
+  sync_root: .
+  # No tenant URL: the corpus does not talk to live SharePoint. Integration
+  # tests against the live MDD site use ~/.config/mdd/sharepoint.yaml.

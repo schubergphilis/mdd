@@ -1,0 +1,95 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment
+.python-version
+.env
+.env.*
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/*
+!.claude/worktrees/.template/
+
+# Agent scratch dir (see AGENTS.md → Scratch Files)
+tmp/
+
+# complexipy cache (snapshot baseline `complexipy-snapshot.json` is committed)
+.complexipy_cache/
+
+# Operating systems
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# setuptools-scm generated version file (see [tool.setuptools_scm])
+src/mdd/_version.py
+
+# mdd content mirrors checked out under the tree
+/confluence/
+/sharepoint/
+# Legacy sibling clone — corpus is now vendored under tests/corpus/.
+# Listed so a still-existing local checkout doesn't show up as untracked.
+/test-confluence/
