@@ -21,14 +21,14 @@ Each module also maintains a hand-written `_USAGE` triple-quoted string and a se
 - Every command module under `src/mdd/commands/` is wired into one top-level `argparse.ArgumentParser` built in `src/mdd/cli.py`. No hand-rolled flag loops remain.
 - The home-grown helpers are deleted: `src/mdd/commands/_options.py` in full, the duplicate `_FlagSpec` / `_consume_flags` / `_coerce_value` / `_require_value` block still embedded in `confluence.py`, every per-opts `@dataclass` used purely for parsing, every `_print_usage` helper, every `_USAGE` triple-quoted string, and every `USAGE: list[str]` constant.
 - `src/mdd/commands/_registry.py` is removed; command discovery happens via an explicit import list in `cli.py`. The section-grouped `mdd help` output is replaced by argparse's flat `mdd --help`.
-- Subcommand trees flatten to at most two levels. `mdd <command> <verb>-<noun>` replaces every existing `mdd <command> <verb> <noun>` form. Concrete renames:
+- Subcommand trees flatten to at most two levels. `mdd <command> <verb>-<noun>` replaces every existing `mdd <command> <verb> <noun>` form. Concrete renames (`gitlab` and `lucid` are commands a private wrapper injects through `extra_commands`, not part of this distribution; they are listed because the migration covered them and the shape rule applies to any wrapper's commands too):
   - `mdd confluence sync space …` → `mdd confluence sync-space …`
   - `mdd confluence export page …` → `mdd confluence export-page …`
   - `mdd confluence create page …` → `mdd confluence create-page …`
   - `mdd confluence update page …` → `mdd confluence update-page …`
   - `mdd gitlab list repos` → `mdd gitlab list-repos`
   - `mdd gitlab create repo …` → `mdd gitlab create-repo …`
-  - `mdd lucid list folders` / `mdd lucid list docs …` → `mdd lucid ls [PATH]` (single ls subcommand; see S25)
+  - `mdd lucid list folders` / `mdd lucid list docs …` → `mdd lucid ls [PATH]` (single ls subcommand)
   - `mdd lucid sync folder …` → `mdd lucid sync-folder …`
   - `mdd sharepoint list sites` → `mdd sharepoint list-sites`
   - `mdd sharepoint sync site …` → `mdd sharepoint sync-site …`

@@ -10,7 +10,8 @@ Wherever an `.svg` file appears in a mirror, the SVG is the source of truth and 
 
 This spec adds an `.svg` entry to the converter registry ([S15](S15-converter-registry.md)).
 Once landed, `mdd convert`, `mdd confluence sync`, `mdd sharepoint
-sync`, and `mdd lucid sync` all gain SVG rasterization automatically.
+sync`, and any wrapper-supplied sync command all gain SVG rasterization
+automatically.
 
 Originates from research doc 004.
 
@@ -82,9 +83,8 @@ svg:
 - Push side does **not** swap `<img src=".svg">` for `.svg.png` in
   Confluence storage XHTML. SVGs push as `.svg`; the PNG sibling
   is for Office / external rendering only.
-- Lucid sync (S25) downloads PNG
-  exports directly from the Lucid API, so it does not invoke
-  this rasterizer for Lucid-sourced SVGs.
+- A diagram integration that can export PNG itself (the private Lucid
+  mirror does) bypasses this rasterizer for its own SVGs.
 
 ## Design Approach
 

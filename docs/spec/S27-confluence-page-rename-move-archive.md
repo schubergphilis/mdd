@@ -292,13 +292,13 @@ same fail-closed posture [S26](S26-managed-elsewhere.md) applies
 to `update-page` and `sync-space` pushes — rename / move /
 archive are all writes.
 
-**Confidentiality.** These commands write to Confluence, not to
-GitLab. [S07](S07-data-protection.md)'s blacklist is about Confluence → GitLab
-publishing and does not gate these calls. The `--no-commit`
-default still applies a normal local commit (same as `mdd
-confluence sync-space`); pushing to the GitLab mirror is a
-separate step and runs through the S08 /
-[S07](S07-data-protection.md) path as usual.
+**Confidentiality.** These commands write to Confluence, not to the git
+mirror. [S07](S07-data-protection.md)'s blacklist is about
+Confluence → mirror publishing and does not gate these calls. The
+`--no-commit` default still applies a normal local commit (same as `mdd
+confluence sync-space`); pushing the mirror is a separate step and runs
+through the mirror backend and the
+[S07](S07-data-protection.md) gate as usual.
 
 **Dirty working tree.** Call `mdd.confluence.apply.is_dirty()`
 against the output directory; if true, abort with the same

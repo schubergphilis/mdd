@@ -100,7 +100,7 @@ implementation plan; this section fixes the *topic boundaries*.
 `confluence/sync.py` (1184) → `confluence/sync/` with sub-modules for:
 desired-state queries, local-edit detection, office-publish flow,
 rename/move/archive application, pull, push, deletion application,
-finalize (commit / refresh metadata / push to GitLab), and event
+finalize (commit / refresh metadata / push the mirror), and event
 classification. `__init__.py` exposes `sync_space`, `SyncOptions`,
 `SyncSummary`.
 

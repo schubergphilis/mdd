@@ -98,7 +98,10 @@ shipped in v1:
   the divergence-handling flow; the office-file-edit-by-non-mdd-
   user case.
 - **`mdd-lucid-skill`** — when to use `mdd lucid sync`; how to
-  identify a Lucid mirror; rate-limit considerations.
+  identify a Lucid mirror; rate-limit considerations. Ships with the
+  private SBP wrapper that provides `mdd lucid`, not with this
+  distribution; it is listed here because the bundle format is the same
+  and a wrapper's skills install through the same command.
 - **`mdd-search-skill`** — preferring `mdd search --json` over
   ad-hoc `find` / `grep` for retrieving content from mirrors.
 - **`mdd-rewrite-skill`** — invoking `mdd ai rewrite`; tone-of-

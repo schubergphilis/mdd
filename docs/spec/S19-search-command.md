@@ -33,7 +33,8 @@ mdd search "<query>" [--space SPACE] [--site SITE] [--source TYPE:ID]
   identifier → block mapping. The core registers three built-ins:
   - `confluence.spaces.<key>.output_dir`
   - `sharepoint.sites.<name>.output_dir`
-  - `docs.<name>.output_dir` (per S08's `mdd/docs/<repo>` layout)
+  - `docs.<name>.output_dir` (a plain directory of markdown docs, one
+    entry per mirror repository)
 - A wrapper distribution registers further sources from its CLI entry
   point — the same seam as the mirror-backend registry — so the core
   ships no search filter for an integration it does not have. The SBP

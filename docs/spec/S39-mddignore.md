@@ -10,7 +10,9 @@ Several `mdd` sync commands pull content from remote sources into a local mirror
 
 - [`mdd sharepoint sync-site` / `sync-folder`](S18-sharepoint-sync.md) — reads OneDrive-mirrored SharePoint trees and converts office files to markdown.
 - [`mdd confluence sync`](S14-confluence-sync.md) — reconciles a Confluence space against a local mirror.
-- `mdd lucid sync-folder` — mirrors Lucid Cloud team folders.
+- `mdd lucid sync-folder` — mirrors Lucid Cloud team folders. A
+  wrapper-supplied command (the private SBP layer), included here because
+  it consumes the same matcher.
 
 None of these commands currently expose a way to skip source paths. Every file under the configured root gets pulled and converted. On real corpora this is painful: our "Labs" SharePoint mirror produces a ~12 GB working tree, of which roughly 7 GB lives in `*/Archive/` and `*/old/` subtrees the user has no interest in. The only existing workaround is to delete those folders after each sync, which is tedious and gets undone on the next run.
 
@@ -181,7 +183,8 @@ For users who want to start filtering an existing mirror:
 - [S10](S10-sharepoint-command.md) — `mdd sharepoint` consumes the matcher for OneDrive-backed sync.
 - [S14](S14-confluence-sync.md) — `mdd confluence sync` is the second consumer (follow-up wiring).
 - [S18](S18-sharepoint-sync.md) — bidirectional SharePoint sync; the matcher gates the pull half.
-- S25 — `mdd lucid sync-folder` is the third consumer (follow-up wiring).
+- The private Lucid mirror — `mdd lucid sync-folder`, a wrapper-supplied
+  command, is the third consumer (follow-up wiring).
 
 ## Open questions
 

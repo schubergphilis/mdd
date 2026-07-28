@@ -102,7 +102,7 @@ Office <-> markdown:
   1 pair: DIVERGED (Foo.from-md.docx written for manual port)
 ```
 
-`--push` invokes `mdd gitlab push` (S08) including the
+`--push` hands the mirror to the active mirror backend, including the
 [S07](S07-data-protection.md) confidentiality blacklist. Same gate semantics as
 [S14](S14-confluence-sync.md).
 
@@ -112,23 +112,20 @@ When `--push` runs against a mirror directory that is not yet a git
 work-tree, sync bootstraps it before pushing — matching [S14](S14-confluence-sync.md)
 step 6:
 
-- If `.git` is missing, sync runs `git init -b main` and adds
-  `origin → https://<gitlab.hostname>/<gitlab.sharepoint_group>/<repo-name>.git`.
-  Both `gitlab.hostname` and `gitlab.sharepoint_group` come from
-  `configs/gitlab.yaml` (S08); the house defaults resolve to
-  `gitlab.example.com` and `mdd/sharepoint`. `<repo-name>` is
-  the mapped repo name from `sharepoint-mapping.yaml` (or the normalised
-  site name if no explicit mapping).
-- Before pushing, sync calls `mdd.gitlab.mirror.ensure_gitlab_project()`
-  on `<gitlab.sharepoint_group>/<repo-name>`. If the GitLab project
-  doesn't exist yet, it is created with `visibility="internal"`. If
-  GitLab is unreachable or `glab` isn't installed, the ensure step is
-  skipped and the underlying problem surfaces from the push attempt; the
-  user sees one clear failure rather than two.
+- If `.git` is missing, sync runs `git init -b main` and adds the `origin`
+  the backend resolves for `MirrorTarget("sharepoint", <repo-name>)`,
+  typically `https://<host>/<group>/<repo-name>.git` from the backend's own
+  config. `<repo-name>` is the mapped repo name from
+  `sharepoint-mapping.yaml` (or the normalised site name if no explicit
+  mapping).
+- Before pushing, sync asks the backend to ensure the remote exists. A
+  backend that can create projects does so; one that cannot tell (its CLI
+  is missing, or the host is unreachable) reports `"unreachable"`, the
+  ensure step is skipped, and the underlying problem surfaces from the push
+  attempt — the user sees one clear failure rather than two.
 
-The init + ensure-project logic is shared with `mdd confluence
-sync-space` via the `mdd.gitlab.mirror` module so both commands behave
-identically.
+The init + ensure logic is shared with `mdd confluence sync-space` through
+the same mirror orchestrator, so both commands behave identically.
 
 When `sync-folder` is used directly (no site identity, no mapping),
 bootstrap is skipped: without a known target repo there is nowhere
@@ -201,7 +198,7 @@ step: `MD_TO_DOCX`, `FIRST_SYNC_MD_AUTHORITATIVE` / `MD_ONLY`, and the
 `DIVERGED` candidate render are all skipped and reported on stderr
 (`[skip-write] <name> (--read-only, would have run <action>)`).
 Pull-side actions (`DOCX_TO_MD`, `FIRST_SYNC_DOCX_*`), the local git
-commit, and the optional `--push` to GitLab still run, so the flag
+commit, and the optional `--push` still run, so the flag
 yields a snapshot-style export without any chance of mutating the
 office side.
 
@@ -254,7 +251,6 @@ thread-level parallelism.
 - [015-converter-registry](S15-converter-registry.md) — converter registry used for dispatch
 - [016-confluence-attachment-conversion](S16-confluence-attachment-conversion.md) — converter chain for docx/pptx
 - [017-confluence-office-publishing](S17-confluence-office-publishing.md) — Quarto reverse converter
-- 008-gitlab-command — gitlab push used by --push flag
 - [007-data-protection](S07-data-protection.md) — confidentiality blacklist applied on push
 - [011-convert-pptx](S11-convert-pptx.md) — pptx converter used for office-only files
 

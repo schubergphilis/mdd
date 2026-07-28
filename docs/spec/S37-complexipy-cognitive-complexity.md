@@ -58,7 +58,7 @@ exclude = ["tests/**", "scripts/**", "src/mdd/templates/**"]
 ### CI integration
 
 - A `[tasks.complexipy]` task is added to `.mise.toml` that runs `uv run complexipy src/mdd`.
-- `[tasks.ci]` gains `complexipy` in its `depends` list, so both GitHub Actions and GitLab CI pick it up automatically through `mise run ci` (per S13, the YAML files only invoke mise tasks).
+- `[tasks.ci]` gains `complexipy` in its `depends` list, so every CI pipeline picks it up automatically through `mise run ci` — the workflow YAML only ever invokes mise tasks.
 - No new job in either CI YAML; no new cache key; no new image.
 
 ### Snapshot regeneration task
@@ -75,7 +75,7 @@ exclude = ["tests/**", "scripts/**", "src/mdd/templates/**"]
 
 **Separate `mise run complexipy` task, not bundled into `mise run lint`.** `lint` is ruff-only by convention (S34 invariant: "Ruff is the single static-analysis surface"). Putting complexipy under `lint` would muddy that invariant. A dedicated task surfaces complexipy failures as a distinct CI step and keeps the two tools cleanly separable if a future decision swaps one out.
 
-**No CI YAML changes.** Per S13, the CI pipelines only invoke `mise run ci`. Adding `complexipy` to the `ci` task's `depends` list propagates to both pipelines without YAML edits, which is the property S13 was set up to enforce.
+**No CI YAML changes.** The CI pipelines only invoke `mise run ci`. Adding `complexipy` to the `ci` task's `depends` list propagates to every pipeline without YAML edits, which is the property that arrangement exists to give.
 
 **`src/mdd` as the only analysed path.** Limiting to `src/mdd` (instead of `.`) avoids accidentally scanning `.venv/`, `build/`, `docs/`, or vendored content. Matches the basedpyright `include = ["src", "tests"]` pattern; `tests/` is excluded specifically per the rationale above.
 
@@ -110,7 +110,7 @@ When `complexipy-snapshot.json` changes in a PR:
 ## Related upstream specs
 
 - [000-specs](000-specs.md) — shared conventions
-- S13 — CI is the gate that enforces this spec; both pipelines invoke `mise run ci` and inherit the new dependency automatically.
+- CI is the gate that enforces this spec: pipelines invoke `mise run ci` and inherit the new dependency automatically.
 - [S34](S34-code-quality-gates.md) — this spec resolves S34's open question 1; structural and cognitive complexity together form the complete complexity gate.
 - [S36](S36-module-structure.md) — file-length is heuristic-only; per-function gates are the machine-checked surface. Complexipy adds the cognitive-complexity layer to that surface.
 

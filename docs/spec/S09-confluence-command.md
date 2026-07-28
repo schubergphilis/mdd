@@ -73,16 +73,19 @@ same basename) are a hard error — Confluence keys attachments by
 filename within a page. The v2 attachment endpoints are still maturing;
 the client falls back to v1 for multipart upload as needed.
 
-**Confidentiality.** `--push` (or any pipeline ending in `mdd gitlab
-push`) consults the Confluence blacklist defined in
+**Confidentiality.** `--push` (and therefore any pipeline that ends in a
+mirror push) consults the Confluence blacklist defined in
 [S07](S07-data-protection.md). Local-only export is unrestricted.
 
-**GitLab mirror convention.** Confluence-mastered content is mirrored to
-`https://gitlab.example.com/mdd/confluence/<space-key>`, one
-repo per space. See S08 for the full layout.
-`sync space SPACE` defaults `--output` to `./` when run inside a clone
-of that repo (detected via the GitLab remote URL); otherwise it suggests
-`git clone <remote> && cd <space-key>` first.
+**Mirror convention.** Confluence-mastered content is mirrored to one git
+repository per space. The remote URL comes from the active mirror backend,
+which maps a space key to a project — for the built-in generic-git backend
+that is whatever `origin` the work-tree already has; a deployment-specific
+backend derives it (e.g. `https://<host>/<group>/<space-key>.git`).
+`sync space SPACE` defaults `--output` to `./` when run inside a clone of
+that repository (detected by comparing `origin` with the URL the backend
+resolves); otherwise it suggests `git clone <remote> && cd <space-key>`
+first.
 
 ## Design Approach
 
@@ -348,7 +351,6 @@ confluence:
 ## Related upstream specs
 
 - [007-data-protection](S07-data-protection.md) — op:// secret references, token rules, and the Confluence blacklist
-- 008-gitlab-command — repo-layout convention for Confluence mirror repos
 
 ## Out of scope
 

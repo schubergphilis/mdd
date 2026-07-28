@@ -39,9 +39,10 @@ the blacklist ([S07](S07-data-protection.md)) — which is why prefix
 patterns like `Appraisal*` exist, to catch a family of personal
 appraisal folders.
 
-**Site name → repo name mapping.** GitLab paths cannot contain spaces or
-many special characters, so each site has a normalized repo name used for
-both the output directory and the GitLab repo path. Default
+**Site name → repo name mapping.** Repository paths cannot contain spaces
+or many special characters on any common forge, so each site has a
+normalized repo name used for both the output directory and the remote
+repository path. Default
 normalization: trim whitespace, replace runs of whitespace or any of
 `/\:*?"<>|` with a single `-`, strip leading/trailing `-`, preserve
 case. Example: `HR Documentation` → `HR-Documentation`. The mapping is
@@ -51,8 +52,8 @@ warning so the user can decide whether to add an explicit mapping.
 
 **Confidentiality.** The blacklist from
 [S07](S07-data-protection.md) governs whether a site mirror can be
-pushed to GitLab. The match is on the canonical site name (before
-repo-name mapping), so the blacklist is independent of the GitLab repo
+pushed to a remote. The match is on the canonical site name (before
+repo-name mapping), so the blacklist is independent of the repository
 name. Local-only export is unrestricted; only the `--push` path is gated.
 
 **Per-file rules.** Walk the document library recursively. For each
@@ -161,7 +162,6 @@ sharepoint:
 
 - [000-specs](000-specs.md) — shared conventions
 - [007-data-protection](S07-data-protection.md) — blacklist governing confidential site push
-- 008-gitlab-command — GitLab repo convention for SharePoint mirrors
 - [011-convert-pptx](S11-convert-pptx.md) — pptx conversion used by export rule 3
 
 ## Out of scope

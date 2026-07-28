@@ -11,7 +11,7 @@ non-image attachments — `.docx`, `.pptx`, `.pdf`, `.svg` — are downloaded an
 run through the converter registry ([S15](S15-converter-registry.md)), producing markdown
 siblings inside the page's `<page-name>-attachments/` directory. The original
 binary stays for fidelity; the markdown sibling lets readers grep, diff, and
-review in the GitLab mirror without leaving the browser.
+review in the git mirror without leaving the browser.
 
 This is the **pull side** of the bidirectional Office story described in
 research 002. The push side (rendering markdown to office-format attachments)

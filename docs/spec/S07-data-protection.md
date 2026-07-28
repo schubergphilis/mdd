@@ -11,13 +11,13 @@ Two rules apply to every `mdd` command:
 1. **Credentials** are resolved from 1Password at runtime via the `op` CLI;
    raw tokens never appear in config, env vars, or on disk.
 2. **Confidentiality blacklist** lists Confluence spaces and SharePoint
-   sites that must never be pushed to GitLab. Every `mdd` command that
+   sites that must never be pushed to a remote. Every `mdd` command that
    could publish content to a git remote consults the blacklist first.
 
 This is the canonical reference for both rules;
-S08 (GitLab),
-[S09](S09-confluence-command.md) (Confluence), and
-[S10](S10-sharepoint-command.md) (SharePoint) defer to it.
+[S09](S09-confluence-command.md) (Confluence),
+[S10](S10-sharepoint-command.md) (SharePoint), and any mirror backend a
+deployment supplies defer to it.
 
 ## Requirements
 
@@ -65,7 +65,7 @@ S08 (GitLab),
 
 1. **Mandatory blacklist for both Confluence and SharePoint.** A config
    file lists Confluence space keys and SharePoint site names that must
-   not be pushed to GitLab. Both lists are required to exist (may be
+   not be pushed to a remote. Both lists are required to exist (may be
    empty arrays); a missing key is a hard error to force a deliberate
    choice.
 2. **Blacklist config is committed to git.** It's the inverse of secret —
@@ -90,30 +90,30 @@ S08 (GitLab),
      but does **not** match `Advisory Board`. `Appraisal*` matches
      `Appraisal`, `Appraisals`, `Appraisals - Alice Example`,
      `Appraisal Cycle 2026`.
-4. **The gate fires before any GitLab interaction.** `mdd gitlab push`,
-   `mdd gitlab create-repo`, and the `--push` paths in `mdd confluence` /
-   `mdd sharepoint` all call the same blacklist helper.
+4. **The gate fires before any remote interaction.** The `--push` paths
+   in `mdd confluence` / `mdd sharepoint`, and a mirror backend's own
+   push and remote-create steps, all call the same blacklist helper.
 5. **`--force` does not override the blacklist.** Removing an entry
    requires editing the config file, which leaves a diff in git history.
    This is intentional friction.
 6. **Local-only export is unrestricted.** The blacklist gates publishing,
    not local conversion. A user can export an `Appraisals` site to a
-   non-git directory for personal use; it just cannot end up on GitLab.
+   non-git directory for personal use; it just cannot end up on a remote.
 
 ## Design Approach
 
 **Credential resolver.** A single helper (`src/mdd/utils/secrets.py`)
 resolves `op://...` references via `op read`, caches results in process
 memory for one CLI run, and redacts the token from any error/repr. All
-config loaders (Confluence, GitLab, Lucid, AI) call it; there is no
+config loader (Confluence, AI, and any a wrapper adds) calls it; there is no
 other code path for secrets.
 
 **Blacklist helper.** A single helper (`src/mdd/utils/blacklist.py`) is
-imported wherever a publish path exists. If a code path can write to
-GitLab, it must call one of `check_confluence` / `check_sharepoint`
+imported wherever a publish path exists. If a code path can write to a
+remote, it must call one of `check_confluence` / `check_sharepoint`
 first. The helper also detects which source system a work-tree mirrors
-(frontmatter scan + GitLab remote URL inspection) so `mdd gitlab push`
-can look up the right blacklist without the caller telling it.
+(frontmatter scan + `origin` URL inspection) so a backend's push can look
+up the right blacklist without the caller telling it.
 
 ## Config schema
 
@@ -177,7 +177,6 @@ asks the user to unlock.
 
 ## Related upstream specs
 
-- 008-gitlab-command — GitLab command; defers to this spec for data-protection rules
 - [009-confluence-command](S09-confluence-command.md) — Confluence command; defers to this spec for data-protection rules
 - [010-sharepoint-command](S10-sharepoint-command.md) — SharePoint command; defers to this spec for data-protection rules
 

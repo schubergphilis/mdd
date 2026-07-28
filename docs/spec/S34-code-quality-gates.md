@@ -126,7 +126,7 @@ These six files are the priority refactor list.
 ## Amendment (2026-06-08): adopt flake8-bandit (`S`)
 
 The original spec rejected `S` as "noisy … security review is a separate
-concern." S43's supply-chain work
+concern." The packaging and supply-chain work
 reframes that: source-level security smells *are* a standing quality
 concern for a tool that shells out constantly (`glab`, `quarto`,
 `rsvg-convert`, `op`, `rg`, AppleScript), makes httpx calls, parses XML
@@ -207,7 +207,7 @@ The `mise run lint` task does not change in surface. The new rules are picked up
 ## Related upstream specs
 
 - [000-specs](000-specs.md) — shared conventions
-- S13 — CI is the gate that enforces this spec; both pipelines invoke `mise run lint` and inherit the new rules automatically.
+- CI is the gate that enforces this spec: pipelines invoke `mise run lint` and inherit the new rules automatically.
 - [S01](S01-spec-based-development.md) — this spec exists because the structural quality of the codebase is a durable design concern, not a one-off cleanup task.
 
 ## Open questions

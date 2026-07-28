@@ -14,9 +14,11 @@ Several modules in `mdd` independently re-invent the same three-step pattern whe
 
 Today this pattern is implemented at least five times across the codebase:
 
-- [`src/mdd/confluence/_yaml_coerce.py`](../../src/mdd/confluence/_yaml_coerce.py) — **value-taking** helpers (`str_field`, `int_field`, `str_list`, `dict_list`, `bool_field`, `str_or_none_field`).
+- `src/mdd/confluence/_yaml_coerce.py` — **value-taking** helpers (`str_field`, `int_field`, `str_list`, `dict_list`, `bool_field`, `str_or_none_field`).
 - [`src/mdd/confluence/managed/config.py`](../../src/mdd/confluence/managed/config.py) — a **second**, **dict+key-taking** set (`_str_field(d, key)`, `_str_list_field(d, key)`, `dict_field(d, key)`, `_iter_dicts(d, key)`) used by the externally-managed-publishers config loader. So confluence already has two parallel coercer sets with different signatures.
-- [`src/mdd/lucid/state.py`](../../src/mdd/lucid/state.py) — private `_str_field` / `_int_field` for Lucid's `<title>.json` API responses.
+- the private Lucid mirror's `state.py` (in the SBP wrapper, not this
+  distribution) — private `_str_field` / `_int_field` for Lucid's
+  `<title>.json` API responses.
 - [`src/mdd/converters/svg.py`](../../src/mdd/converters/svg.py) — `_load_svg_block` reads YAML and picks the top-level `svg` key.
 - [`src/mdd/ai/cache.py`](../../src/mdd/ai/cache.py) — `_read_entry` reads a JSON cache envelope inline.
 
@@ -67,7 +69,7 @@ The new module is `src/mdd/utils/frontmatter.py`. Its public surface is intentio
 - A **`---`-delimited frontmatter splitter** — `split_frontmatter(text: str) -> tuple[str, str] | None` — that returns `(yaml_block, body)` or `None` when the text doesn't open with `---`. This consolidates the eight near-identical implementations currently in `src/mdd/sharepoint/diff.py`, `src/mdd/sharepoint/export.py`, `src/mdd/sharepoint/apply/sync_block.py`, `src/mdd/sharepoint/apply/actions.py`, and `src/mdd/confluence/state.py`.
 - A **JSON load helper** — `parse_json_mapping(text: str) -> Mapping[str, object] | None` — symmetric to `parse_yaml_mapping` for the API-response and on-disk-cache call sites.
 
-Concrete models live with their domain — `src/mdd/confluence/models.py` for Confluence frontmatter, `src/mdd/lucid/models.py` for Lucid `DocMeta`, etc. — and import `FrontmatterModel` from `mdd.utils.frontmatter`. This keeps each model close to the code that uses it and avoids growing a centralised "all models" file.
+Concrete models live with their domain — `src/mdd/confluence/models.py` for Confluence frontmatter, a wrapper's own `models.py` for its sources, etc. — and import `FrontmatterModel` from `mdd.utils.frontmatter`. This keeps each model close to the code that uses it and avoids growing a centralised "all models" file.
 
 ### Concrete model coverage (v1 scope)
 
@@ -76,7 +78,7 @@ The first wave of S40 work adds models for the densest shapes:
 1. **`ConfluenceFrontmatter`** — the `confluence:` block in `.md` files: `space_key`, `space_id`, `page_id`, `parent_id`, `title`, `status`, `version`, `labels`, `attachments`, `attachments_skipped`. Replaces the dual `_yaml_coerce` + `_str_field` reader sets in `confluence/state.py`, `confluence/mutate.py`, and `confluence/create.py`.
 2. **`ExternalPublishersConfig`** and its sub-models — `PublisherEntry`, `ManagedSpaceEntry`, `ManagedSubtreeEntry` (these dataclasses already exist in `confluence/managed/config.py`; they migrate to `BaseModel` and the parser collapses to a single `model_validate` call).
 3. **`SharepointSync`** — the `sharepoint.sync` block from `sharepoint/diff.py`. The repeated `split_frontmatter` + `dict(cast(...))` envelope in the sharepoint stack collapses into a single helper call.
-4. **`LucidDocMeta`** — replaces the dataclass in `lucid/state.py`. The `<title>.json` JSON envelope is validated end-to-end on parse.
+4. **`LucidDocMeta`** — replaces the dataclass in the private Lucid mirror's `state.py`. The `<title>.json` JSON envelope is validated end-to-end on parse.
 5. **`SvgConfig`** — replaces `_load_svg_block` in `converters/svg.py`.
 6. **`AICacheEntry`** — replaces `_read_entry` in `ai/cache.py`.
 
@@ -285,7 +287,7 @@ The migration MRs land under the existing CI: `mise run ci` (which runs `lint`, 
 - [S07](S07-data-protection.md) — `utils/blacklist.py` shares the `src/mdd/utils/` location; both are package-wide utilities. No functional interaction.
 - [S14](S14-confluence-sync.md) — `confluence sync` is the largest consumer (densest helper kit, most fields).
 - [S18](S18-sharepoint-sync.md) — sharepoint sync is the second consumer (split-frontmatter consolidation).
-- S25 — `lucid sync-folder` consumes `LucidDocMeta`.
+- The private Lucid mirror — `lucid sync-folder` consumes `LucidDocMeta`.
 - [S26](S26-managed-elsewhere.md) — externally-managed-publishers config is one of the migrated models.
 - [S34](S34-code-quality-gates.md) — strict-typing posture; no new `# pyright: ignore[reportAny]` in migrated code.
 

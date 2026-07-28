@@ -1,6 +1,6 @@
 # 014 - confluence sync command
 
-**Purpose:** `mdd confluence sync` is the primary bidirectional verb for keeping a GitLab mirror repo in lockstep with its Confluence space.
+**Purpose:** `mdd confluence sync` is the primary bidirectional verb for keeping a git mirror repo in lockstep with its Confluence space.
 
 **Status:** Implemented (2026-05-08)
 
@@ -47,7 +47,7 @@ reconciliation algorithm below flows directly from those two facts.
 - Operations applied in a fixed order to satisfy preconditions: renames/moves → collision resolution → archive/unarchive → new local pages → content pulls → content pushes → deletions → metadata-only refresh.
 - Filename collision resolution: append `(page-id)` to **both** colliding files (not just the incomer).
 - Git operations via `subprocess.run` (mv, rm, add, commit, status); no new Python git library dependency.
-- Optional push via `mdd gitlab push` (S08), including the [S07](S07-data-protection.md) confidentiality blacklist gate.
+- Optional push through the active mirror backend, including the [S07](S07-data-protection.md) confidentiality blacklist gate.
 
 ## Subcommands
 
@@ -177,33 +177,35 @@ sync exits 0 with "Nothing to sync." and no commit.
 ### Step 6 — Optional push
 
 If `--push` is passed sync makes sure the mirror directory is a git
-work-tree with an the mirror GitLab instance `origin` remote before invoking
-`mdd gitlab push` (S08):
+work-tree with an `origin` remote, then hands it to the active mirror
+backend. Every provider-specific step below is a backend method, so which
+forge this ends up on is a wiring decision, not part of this spec:
 
-- If `.git` is missing, sync runs `git init -b main` and adds
-  `origin → https://<gitlab.hostname>/<gitlab.confluence_group>/<space-key>.git`.
-  Both `gitlab.hostname` and `gitlab.confluence_group` come from
-  `configs/gitlab.yaml` (S08); the house defaults
-  resolve to `gitlab.example.com` and `mdd/confluence`. This
-  lets `--push` bootstrap a previously offline export — the user can
+- If `.git` is missing, sync runs `git init -b main` and adds the `origin`
+  the backend resolves for `MirrorTarget("confluence", <space-key>)`. The
+  built-in generic-git backend resolves nothing (a plain clone already has
+  its remote); a deployment-specific backend derives one, typically
+  `https://<host>/<group>/<space-key>.git` from its own config. This lets
+  `--push` bootstrap a previously offline export — the user can
   `mdd confluence sync-space <KEY> --output ./<KEY> --push` and have
   the directory turn into a tracked mirror in one shot.
 - After init (or if the repo already existed), all dirty/untracked
   files are staged and committed with the structured Conventional
   Commit message from Step 5. For a fresh init this is the initial
   commit; sections with zero items collapse to the bare subject line.
-- Before pushing, sync calls `mdd.gitlab.repos.ensure_repo()` on
-  `<gitlab.confluence_group>/<space-key>`. If the GitLab project doesn't
-  exist yet, it's created with `internal` visibility — covering the
-  cold-start case where a space has never been mirrored. If
-  reachability check fails (e.g. VPN disconnected), the ensure step is
-  skipped and the underlying problem surfaces from the push attempt;
-  the user gets one clear error, not two.
-- The push itself goes through `push_worktree` (S08)
-  and the [S07](S07-data-protection.md) confidentiality blacklist gate.
-  If the current branch has no upstream tracking yet (first push), sync
-  uses `git push -u origin <branch>`, rebasing onto `origin/<branch>`
-  first if the remote already has commits.
+- Before pushing, sync asks the backend to ensure the remote exists. A
+  backend that can create projects does so — covering the cold-start case
+  where a space has never been mirrored — and reports `"unreachable"`
+  instead of failing when it cannot tell (e.g. a VPN is down, or its CLI
+  is missing). In that case the ensure step is skipped and the underlying
+  problem surfaces from the push attempt; the user gets one clear error,
+  not two.
+- The push itself goes through the backend's `push`, which applies its own
+  host allow-list plus the [S07](S07-data-protection.md) confidentiality
+  blacklist gate. If the current branch has no upstream tracking yet
+  (first push), the generic implementation uses
+  `git push -u origin <branch>`, rebasing onto `origin/<branch>` first if
+  the remote already has commits.
 
 If `--push` is passed but the run produced no commit and the mirror
 was already a git repo (truly nothing to do), sync skips the push —
@@ -238,8 +240,8 @@ Same conflict semantics as `update page` in [S09](S09-confluence-command.md).
 
 No new config keys. Sync uses the same `confluence.url`,
 `confluence.username`, `confluence.api_token`, and per-space
-`output_dir` from [S09](S09-confluence-command.md). The mirror-repo / GitLab-clone
-detection from S08 also applies unchanged.
+`output_dir` from [S09](S09-confluence-command.md). The mirror-repo
+clone detection described there applies unchanged.
 
 ## Frontmatter additions
 
@@ -254,7 +256,6 @@ clarifications:
 
 - [000-specs](000-specs.md) — shared conventions
 - [007-data-protection](S07-data-protection.md) — confidentiality blacklist gate applied on `--push`
-- 008-gitlab-command — `mdd gitlab push` invoked for optional push; mirror-repo detection reused
 - [009-confluence-command](S09-confluence-command.md) — HTTP client, URL parsing, filename sanitization, frontmatter schema, attachment sync, body conversion, and per-verb primitives reused
 
 ## Out of scope
