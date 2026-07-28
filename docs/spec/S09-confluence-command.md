@@ -47,12 +47,20 @@ rewritten with the new version and updated attachment manifest.
 
 1. **Strip the "Confluence export" callout** (the blockquote at the top
    of the markdown body) before rendering. It exists for readers of the
-   GitLab mirror, not for the Confluence page itself.
+   git mirror, not for the Confluence page itself.
 2. **Append an MDD footer** to the rendered storage XHTML pointing at
-   the GitLab mirror URL — one short `<sub><em>` line. The footer is
-   idempotent (replaces any previous footer rather than appending), and
-   omitted with a warning if no GitLab remote is detected. It is the
-   only `mdd`-injected element on the Confluence page.
+   the mirror's browse URL for that file — one short `<sub><em>` line.
+   The footer is idempotent (replaces any previous footer rather than
+   appending), and omitted with a warning when no URL is available. It
+   is the only `mdd`-injected element on the Confluence page.
+
+   The URL comes from the active mirror backend's `web_url()`, not from
+   any host `mdd` holds itself: which host is "ours" and what a browse
+   URL looks like there is deployment knowledge. A backend with no
+   remote, or no browse convention for its forge (the built-in generic
+   git one), returns `None` and the footer is skipped. The shared git
+   plumbing — read `origin`, reject a work-tree on another host, encode
+   the branch and relative path — is `mdd.mirror.web.git_blob_url`.
 
 **Image attachment sync** runs in both `create` and `update`. The
 renderer scans storage XHTML for image references and dispatches on

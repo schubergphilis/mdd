@@ -7,16 +7,15 @@ The callout uses the same strip-then-insert pattern as the MDD footer.
 from __future__ import annotations
 
 import re
-import subprocess
-from pathlib import Path
-from urllib.parse import quote, urlsplit
+from typing import TYPE_CHECKING
 
+from mdd.mirror.registry import default_backend
 from mdd.utils.logging import get_logger
 
-log = get_logger(__name__)
+if TYPE_CHECKING:
+    from pathlib import Path
 
-_DEFAULT_MIRROR_HOST = "gitlab.example.com"
-_SSH_URL_RE = re.compile(r"^git@([^:]+):(.+?)(?:\.git)?$")
+log = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Export header strip
@@ -113,29 +112,29 @@ _FOOTER_PATTERN = re.compile(
 )
 
 
-def _build_footer(gitlab_url: str) -> str:
-    escaped = gitlab_url.replace("&", "&amp;").replace('"', "&quot;")
+def _build_footer(mirror_url: str) -> str:
+    escaped = mirror_url.replace("&", "&amp;").replace('"', "&quot;")
     return (
         f"<p><sub><em>MDD markdown version of this page at "
         f'<a href="{escaped}">{escaped}</a></em></sub></p>'
     )
 
 
-def insert_mdd_footer(body_xhtml: str, gitlab_url: str | None) -> str:
+def insert_mdd_footer(body_xhtml: str, mirror_url: str | None) -> str:
     """Insert or replace the MDD footer in storage XHTML.
 
-    If ``gitlab_url`` is ``None``, emit a warning to stderr and return ``body_xhtml``
+    If ``mirror_url`` is ``None``, emit a warning to stderr and return ``body_xhtml``
     unchanged.
 
     The footer is idempotent: if a prior footer matching
     ``MDD markdown version of this page at`` is present, it is replaced; otherwise
     the footer is appended.
     """
-    if gitlab_url is None:
-        log.warning("no GitLab remote detected; MDD footer will not be inserted.")
+    if mirror_url is None:
+        log.warning("no mirror URL for this file; MDD footer will not be inserted.")
         return body_xhtml
 
-    footer = _build_footer(gitlab_url)
+    footer = _build_footer(mirror_url)
 
     if _FOOTER_PATTERN.search(body_xhtml):
         return _FOOTER_PATTERN.sub(footer, body_xhtml)
@@ -144,120 +143,26 @@ def insert_mdd_footer(body_xhtml: str, gitlab_url: str | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# GitLab URL computation
+# Mirror URL lookup
 # ---------------------------------------------------------------------------
 
 
-def get_gitlab_url(md_path: Path, *, allowed_host: str = _DEFAULT_MIRROR_HOST) -> str | None:  # noqa: PLR0911
-    """Compute the GitLab web URL for a markdown file in a Git repository.
+def get_mirror_url(md_path: Path) -> str | None:
+    """Return the browse URL for *md_path* in its mirror, or ``None``.
 
-    Converts the clone URL to a web URL and appends the relative path:
-
-    ``git@gitlab.example.com:mdd/confluence/SPACE.git``
-    →
-    ``https://gitlab.example.com/mdd/confluence/SPACE/-/blob/<branch>/<relpath>``
-
-    Returns ``None`` if anything fails (not in a git repo, no remote, wrong host,
-    etc.).
+    Which host is "ours" and what a browse URL looks like there is deployment
+    knowledge, so this asks the registered default
+    :class:`~mdd.mirror.protocol.MirrorBackend` (spec S44) rather than holding
+    a host of its own. ``None`` — no backend wired (library use), the backend
+    has no browse convention, or the file is not in a mirror it recognises —
+    means the footer is left out.
     """
     try:
-        remote_result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(md_path.parent),
-        )
-    except FileNotFoundError, subprocess.TimeoutExpired:
+        backend = default_backend()
+    except RuntimeError:
+        # No dispatcher wired this process; nothing can claim a URL.
         return None
-
-    if remote_result.returncode != 0:
-        return None
-
-    remote_url = remote_result.stdout.strip()
-
-    try:
-        toplevel_result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(md_path.parent),
-        )
-    except FileNotFoundError, subprocess.TimeoutExpired:
-        return None
-
-    if toplevel_result.returncode != 0:
-        return None
-
-    repo_root = Path(toplevel_result.stdout.strip())
-
-    try:
-        rel_path = md_path.resolve().relative_to(repo_root.resolve())
-    except ValueError:
-        return None
-
-    # Convert clone URL to web URL — rejects non-allowed hosts
-    web_base = clone_url_to_web(remote_url, allowed_host=allowed_host)
-    if web_base is None:
-        return None
-
-    # Resolve the current branch; fall back to 'main' for detached HEAD
-    branch = "main"
-    try:
-        branch_result = subprocess.run(
-            ["git", "symbolic-ref", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(md_path.parent),
-        )
-        if branch_result.returncode == 0:
-            detected = branch_result.stdout.strip()
-            if detected:
-                branch = detected
-    except FileNotFoundError, subprocess.TimeoutExpired:
-        pass  # keep fallback 'main'
-
-    # Percent-encode each path/branch segment so spaces and other URL-unsafe
-    # characters in page titles produce a link that browsers and GitLab resolve.
-    # quote() with an empty safe set encodes "/" too, so segments are encoded
-    # individually and rejoined with literal "/" separators.
-    rel_str = "/".join(quote(part, safe="") for part in rel_path.parts)
-    branch_str = quote(branch, safe="")
-    return f"{web_base}/-/blob/{branch_str}/{rel_str}"
-
-
-def clone_url_to_web(remote_url: str, *, allowed_host: str = _DEFAULT_MIRROR_HOST) -> str | None:
-    """Convert a git clone URL to a web base URL.
-
-    Handles:
-    - ``git@host:path/repo.git`` → ``https://host/path/repo``
-    - ``https://host/path/repo.git`` → ``https://host/path/repo``
-    - ``https://host/path/repo`` → ``https://host/path/repo``
-
-    Returns ``None`` if the remote host does not match *allowed_host*
-    (case-insensitive).
-    """
-    url = remote_url.strip()
-
-    # SSH form: git@host:path/repo(.git)?
-    ssh_match = _SSH_URL_RE.match(url)
-    if ssh_match:
-        host = ssh_match.group(1).lower()
-        if host != allowed_host.lower():
-            return None
-        path = ssh_match.group(2)
-        return f"https://{host}/{path}"
-
-    # HTTPS form
-    if url.startswith(("https://", "http://")):
-        parsed = urlsplit(url)
-        if (parsed.hostname or "").lower() != allowed_host.lower():
-            return None
-        return url.removesuffix(".git")
-
-    return None
+    return backend.web_url(md_path)
 
 
 # ---------------------------------------------------------------------------

@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from mdd.confluence.header import (
-    clone_url_to_web,
-    get_gitlab_url,
+    get_mirror_url,
     insert_mdd_footer,
     strip_export_header,
     strip_export_title_h1,
 )
+from tests.mirror_stub import stub_backend
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -179,146 +178,31 @@ class TestInsertMddFooter:
         assert "<a href=" in result
 
 
-class TestCloneUrlToWeb:
-    def test_ssh_url(self) -> None:
-        result = clone_url_to_web("git@gitlab.example.com:mdd/confluence/SPACE.git")
-        assert result == "https://gitlab.example.com/mdd/confluence/SPACE"
+class TestGetMirrorUrl:
+    """The footer asks the registered default backend; it holds no host itself (S44)."""
 
-    def test_https_url_with_git_suffix(self) -> None:
-        result = clone_url_to_web("https://gitlab.example.com/mdd/confluence/SPACE.git")
-        assert result == "https://gitlab.example.com/mdd/confluence/SPACE"
-
-    def test_https_url_without_suffix(self) -> None:
-        result = clone_url_to_web("https://gitlab.example.com/mdd/confluence/SPACE")
-        assert result == "https://gitlab.example.com/mdd/confluence/SPACE"
-
-    def test_unknown_url_returns_none(self) -> None:
-        result = clone_url_to_web("ftp://example.com/repo")
-        assert result is None
-
-    def test_github_ssh_url_returns_none(self) -> None:
-        """A host outside the configured allow-list must be rejected."""
-        result = clone_url_to_web("git@github.com:foo/bar.git")
-        assert result is None
-
-    def test_github_https_url_returns_none(self) -> None:
-        result = clone_url_to_web("https://github.com/foo/bar.git")
-        assert result is None
-
-    def test_allowed_host_override(self) -> None:
-        """allowed_host parameter allows other GitLab instances."""
-        result = clone_url_to_web(
-            "git@other.gitlab.example.com:mdd/repo.git",
-            allowed_host="other.gitlab.example.com",
-        )
-        assert result == "https://other.gitlab.example.com/mdd/repo"
-
-
-class TestGetGitlabUrl:
-    def _make_fake_run(self, tmp_path: Path, *, remote_url: str, branch: str = "main"):  # type: ignore[no-untyped-def]
-        """Return a fake subprocess.run callable for get_gitlab_url tests."""
-
-        def fake_run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-            if "get-url" in cmd:
-                return subprocess.CompletedProcess(cmd, returncode=0, stdout=remote_url + "\n")
-            if "--show-toplevel" in cmd:
-                return subprocess.CompletedProcess(cmd, returncode=0, stdout=str(tmp_path) + "\n")
-            if "symbolic-ref" in cmd:
-                return subprocess.CompletedProcess(cmd, returncode=0, stdout=branch + "\n")
-            return subprocess.CompletedProcess(cmd, returncode=1, stdout="")
-
-        return fake_run
-
-    def test_returns_none_when_git_not_available(self, tmp_path: Path) -> None:
+    def test_returns_the_backends_url(self, tmp_path: Path) -> None:
         md_path = tmp_path / "Page.md"
         md_path.write_text("# Test")
-        with patch(
-            "mdd.confluence.header.subprocess.run",
-            side_effect=FileNotFoundError,
-        ):
-            result = get_gitlab_url(md_path)
-        assert result is None
+        url = "https://git.test.example/mirrors/SPACE/-/blob/main/Page.md"
 
-    def test_returns_none_when_no_remote(self, tmp_path: Path) -> None:
+        with stub_backend(web_url=url) as backend:
+            result = get_mirror_url(md_path)
+
+        assert result == url
+        assert backend.web_urls_asked == [md_path]
+
+    def test_returns_none_when_the_backend_has_no_url(self, tmp_path: Path) -> None:
         md_path = tmp_path / "Page.md"
         md_path.write_text("# Test")
 
-        def fake_run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-            return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="")
+        with stub_backend():
+            assert get_mirror_url(md_path) is None
 
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-        assert result is None
-
-    def test_returns_url_when_git_remote_present(self, tmp_path: Path) -> None:
-        md_path = tmp_path / "subdir" / "Page.md"
-        md_path.parent.mkdir(parents=True)
-        md_path.write_text("# Test")
-
-        remote = "git@gitlab.example.com:mdd/confluence/SPACE.git"
-        fake_run = self._make_fake_run(tmp_path, remote_url=remote)
-
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-
-        assert result is not None
-        assert "https://gitlab.example.com/mdd/confluence/SPACE" in result
-        assert "Page.md" in result
-        assert "/-/blob/main/" in result
-
-    def test_non_main_branch_included_in_url(self, tmp_path: Path) -> None:
-        """The actual current branch should appear in the URL, not hard-coded 'main'."""
+    def test_returns_none_when_no_default_backend_is_wired(self, tmp_path: Path) -> None:
+        """Library use with no dispatcher: no footer rather than an exception."""
         md_path = tmp_path / "Page.md"
         md_path.write_text("# Test")
 
-        remote = "git@gitlab.example.com:mdd/confluence/SPACE.git"
-        fake_run = self._make_fake_run(tmp_path, remote_url=remote, branch="develop")
-
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-
-        assert result is not None
-        assert "/-/blob/develop/" in result
-        assert "/-/blob/main/" not in result
-
-    def test_github_remote_returns_none(self, tmp_path: Path) -> None:
-        """A remote on a different host must return None (S09 footers link to the mirror)."""
-        md_path = tmp_path / "Page.md"
-        md_path.write_text("# Test")
-
-        fake_run = self._make_fake_run(tmp_path, remote_url="git@github.com:foo/bar.git")
-
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-
-        assert result is None
-
-    def test_spaces_in_path_are_percent_encoded(self, tmp_path: Path) -> None:
-        """Multi-word titles yield paths with spaces; the URL must percent-encode them."""
-        md_path = tmp_path / "Labs Home" / "Demoes" / "Connected Ship.md"
-        md_path.parent.mkdir(parents=True)
-        md_path.write_text("# Test")
-
-        remote = "git@gitlab.example.com:mdd/confluence/Labs-Non-Prod.git"
-        fake_run = self._make_fake_run(tmp_path, remote_url=remote)
-
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-
-        assert result is not None
-        assert " " not in result
-        assert "/-/blob/main/Labs%20Home/Demoes/Connected%20Ship.md" in result
-
-    def test_special_chars_in_branch_are_percent_encoded(self, tmp_path: Path) -> None:
-        """A branch name with a slash or space must be encoded in the URL."""
-        md_path = tmp_path / "Page.md"
-        md_path.write_text("# Test")
-
-        remote = "git@gitlab.example.com:mdd/confluence/SPACE.git"
-        fake_run = self._make_fake_run(tmp_path, remote_url=remote, branch="feat/my branch")
-
-        with patch("mdd.confluence.header.subprocess.run", side_effect=fake_run):
-            result = get_gitlab_url(md_path)
-
-        assert result is not None
-        assert "/-/blob/feat%2Fmy%20branch/Page.md" in result
+        with patch("mdd.confluence.header.default_backend", side_effect=RuntimeError("no default")):
+            assert get_mirror_url(md_path) is None

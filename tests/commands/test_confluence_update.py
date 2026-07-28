@@ -220,7 +220,7 @@ class TestUpdatePageYes:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.update import update_page
 
@@ -239,7 +239,7 @@ class TestUpdatePageYes:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.update import update_page
 
@@ -266,7 +266,7 @@ class TestUpdatePageEmptyDiff:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
             patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
         ):
             from mdd.confluence.update import update_page
@@ -289,7 +289,7 @@ class TestUpdatePageEmptyDiff:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
             patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
             caplog.at_level("INFO", logger="mdd.confluence.update"),
         ):
@@ -356,7 +356,7 @@ class TestUpdatePageNonTTY:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
             patch("mdd.confluence.update.sys.stdin") as mock_stdin,
             caplog.at_level("ERROR", logger="mdd.confluence.update"),
         ):
@@ -390,7 +390,7 @@ class TestUpdatePageCLI:
         with (
             patch("mdd.commands.confluence.load_config", return_value=mock_config),
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
         ):
             result = cmd_confluence(["update-page", str(md_path), "--dry-run", "--yes"])
 
@@ -423,7 +423,7 @@ class TestUpdatePage409Conflict:
 
         with (
             patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.update.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
         ):
             result = update_page(md_path, _make_config(), yes=True)
 

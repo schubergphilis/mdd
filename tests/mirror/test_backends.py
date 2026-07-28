@@ -31,6 +31,9 @@ class TestLocalOnlyBackend:
     def test_not_reachable(self) -> None:
         assert LocalOnlyBackend().reachable() is False
 
+    def test_web_url_is_none(self, tmp_path: Path) -> None:
+        assert LocalOnlyBackend().web_url(tmp_path / "Page.md") is None
+
     def test_push_is_a_misuse(self, tmp_path: Path) -> None:
         with pytest.raises(RuntimeError, match="no remote"):
             LocalOnlyBackend().push(tmp_path)
@@ -48,6 +51,10 @@ class TestGenericGitBackend:
 
     def test_reachable(self) -> None:
         assert GenericGitBackend().reachable() is True
+
+    def test_web_url_is_none(self, tmp_path: Path) -> None:
+        """No browse convention is guessed for a plain git remote (S44)."""
+        assert GenericGitBackend().web_url(tmp_path / "Page.md") is None
 
     def test_push_refuses_non_repo(self, tmp_path: Path) -> None:
         with pytest.raises(MirrorPushError, match="not inside a git work-tree"):

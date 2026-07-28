@@ -41,6 +41,17 @@ class GenericGitBackend:
     def reachable(self) -> bool:
         return True
 
+    def web_url(self, path: Path) -> str | None:  # noqa: ARG002
+        """Return ``None``: a plain git remote has no known browse convention.
+
+        Deriving one would mean guessing the host's blob-path shape
+        (``/-/blob/`` on GitLab, ``/blob/`` on GitHub, ``/src/branch/`` on
+        Gitea) and that the origin is browsable at all — a wrong guess
+        publishes a dead link. A backend that knows its forge implements this
+        on top of :func:`mdd.mirror.web.git_blob_url` instead.
+        """
+        return None
+
     def push(self, path: Path, *, message: str | None = None) -> None:
         """Commit any dirty changes with *message* and ``git push`` the work-tree."""
         self.guard_remote(path)

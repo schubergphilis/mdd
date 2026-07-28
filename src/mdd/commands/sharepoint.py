@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import yaml  # pyright: ignore[reportMissingModuleSource]
 
+from mdd.mirror.hints import clone_hint
 from mdd.sharepoint.mapping import load_mapping, repo_name
 from mdd.sharepoint.sync import SyncError, SyncRootMissing, list_sites, resolve_sync_root
 from mdd.utils.blacklist import BlacklistConfigError, BlacklistError
@@ -215,11 +216,8 @@ def _resolve_site_output_dir(
     if detected is not None:
         return detected
     log.error(
-        "Hint: run inside a clone of the site mirror repo, or pass --output <dir>.\n"
-        "  git clone https://gitlab.example.com/mdd/sharepoint/%s"
-        " && cd %s",
-        site_name,
-        site_name,
+        "Hint: run inside a clone of the site mirror repo, or pass --output <dir>.\n%s",
+        clone_hint("sharepoint", repo_name(site_name, mapping)),
     )
     return 1
 

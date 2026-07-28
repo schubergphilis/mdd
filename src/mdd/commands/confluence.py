@@ -25,6 +25,7 @@ from mdd.confluence.update import update_page
 from mdd.confluence.url import URLMismatchError
 from mdd.confluence.url import parse as parse_url
 from mdd.confluence.whoami import cmd_whoami
+from mdd.mirror.hints import clone_hint
 from mdd.utils.config import ConfigError
 from mdd.utils.logging import get_logger
 from mdd.utils.mddignore import MddIgnore
@@ -276,11 +277,8 @@ def _resolve_sync_output_dir(space_key: str, output_dir: Path | None) -> Path | 
     if detected is not None:
         return detected.resolve()
     log.error(
-        "Hint: run inside a clone of the space mirror repo, or pass --output <dir>.\n"
-        "  git clone https://gitlab.example.com/mdd/confluence/%s"
-        " && cd %s",
-        space_key,
-        space_key,
+        "Hint: run inside a clone of the space mirror repo, or pass --output <dir>.\n%s",
+        clone_hint("confluence", space_key),
     )
     return 1
 

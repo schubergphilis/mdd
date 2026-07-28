@@ -28,11 +28,18 @@ STUB_GROUP = "mirrors"
 class StubBackend:
     """Resolves every target to ``https://git.test.example/mirrors/<key>.git``."""
 
-    def __init__(self, *, on_push: Callable[[Path, str | None], None] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        on_push: Callable[[Path, str | None], None] | None = None,
+        web_url: str | None = None,
+    ) -> None:
         self.pushes: list[tuple[Path, str | None]] = []
         self.ensured: list[MirrorTarget] = []
         self.guarded: list[Path] = []
+        self.web_urls_asked: list[Path] = []
         self._on_push = on_push
+        self._web_url = web_url
 
     def resolve_remote(self, target: MirrorTarget) -> str:
         return f"https://{STUB_HOST}/{STUB_GROUP}/{target.key}.git"
@@ -47,6 +54,12 @@ class StubBackend:
     def reachable(self) -> bool:
         return True
 
+    def web_url(self, path: Path) -> str | None:
+        # Defaults to None — the no-footer case — so tests that do not care
+        # about the footer are unaffected by this method existing.
+        self.web_urls_asked.append(path)
+        return self._web_url
+
     def push(self, path: Path, *, message: str | None = None) -> None:
         self.pushes.append((path, message))
         if self._on_push is not None:
@@ -55,14 +68,17 @@ class StubBackend:
 
 @contextmanager
 def stub_backend(
-    *, name: str = "stub-test", on_push: Callable[[Path, str | None], None] | None = None
+    *,
+    name: str = "stub-test",
+    on_push: Callable[[Path, str | None], None] | None = None,
+    web_url: str | None = None,
 ) -> Generator[StubBackend]:
     """Register a :class:`StubBackend` as the default for the duration.
 
     Restores the previous default and de-registers the stub on exit, so
     tests stay independent of each other's wiring.
     """
-    backend = StubBackend(on_push=on_push)
+    backend = StubBackend(on_push=on_push, web_url=web_url)
     previous_default = default_backend_name()
     previous_entry = BACKENDS.get(name)
     BACKENDS[name] = backend

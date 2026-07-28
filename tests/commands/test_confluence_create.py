@@ -124,7 +124,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -144,7 +144,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -162,7 +162,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -182,7 +182,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -201,7 +201,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -219,7 +219,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -235,7 +235,7 @@ class TestCreatePageHappyPath:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
             caplog.at_level("INFO", logger="mdd.confluence.create"),
         ):
             from mdd.confluence.create import create_page
@@ -318,7 +318,7 @@ class TestTitleResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -337,7 +337,7 @@ class TestTitleResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -355,7 +355,7 @@ class TestTitleResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -374,7 +374,7 @@ class TestTitleResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -393,7 +393,7 @@ class TestTitleResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -418,7 +418,7 @@ class TestSpaceKeyResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -435,7 +435,7 @@ class TestSpaceKeyResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -479,7 +479,7 @@ class TestParentResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -497,7 +497,7 @@ class TestParentResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -515,7 +515,7 @@ class TestParentResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -532,7 +532,7 @@ class TestParentResolution:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -577,7 +577,7 @@ class TestAPIErrors:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -631,7 +631,7 @@ class TestExportHeaderStripping:
 
         with (
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             from mdd.confluence.create import create_page
 
@@ -670,7 +670,7 @@ class TestCreatePageCLI:
         with (
             patch("mdd.commands.confluence.load_config", return_value=mock_config),
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             result = cmd_confluence(["create-page", str(md_path), "--space", "SCRATCH"])
 
@@ -688,7 +688,7 @@ class TestCreatePageCLI:
         with (
             patch("mdd.commands.confluence.load_config", return_value=mock_config),
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             cmd_confluence(["create-page", str(md_path), "--space", "SCRATCH", "--parent", "77777"])
 
@@ -705,7 +705,7 @@ class TestCreatePageCLI:
         with (
             patch("mdd.commands.confluence.load_config", return_value=mock_config),
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             cmd_confluence(
                 ["create-page", str(md_path), "--space", "SCRATCH", "--title", "Override"]
@@ -724,7 +724,7 @@ class TestCreatePageCLI:
         with (
             patch("mdd.commands.confluence.load_config", return_value=mock_config),
             patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
-            patch("mdd.confluence.create.get_gitlab_url", return_value=None),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
         ):
             cmd_confluence(
                 [

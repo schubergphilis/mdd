@@ -37,7 +37,7 @@ from mdd.confluence.attachments import (
 from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
-from mdd.confluence.header import get_gitlab_url, insert_mdd_footer, strip_export_header
+from mdd.confluence.header import get_mirror_url, insert_mdd_footer, strip_export_header
 from mdd.confluence.ir import render_confluence_storage
 from mdd.confluence.models import ConfluenceBlock, ConfluenceV2PageMinimal
 from mdd.confluence.url import parse as parse_url
@@ -304,7 +304,7 @@ def _render_create_xhtml(body_stripped: str, md_path: Path, page_id: str) -> str
     except (ValueError, KeyError) as exc:
         _abort_with_recovery_hint(f"markdown conversion: {exc}", page_id)
         raise _CreateAbort(1) from exc
-    return insert_mdd_footer(body_xhtml, get_gitlab_url(md_path))
+    return insert_mdd_footer(body_xhtml, get_mirror_url(md_path))
 
 
 def _put_final_create(

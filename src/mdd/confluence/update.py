@@ -17,7 +17,7 @@ from mdd.confluence.diff import unified_xhtml_diff
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import (
-    get_gitlab_url,
+    get_mirror_url,
     insert_mdd_footer,
     strip_export_header,
     strip_export_title_h1,
@@ -340,7 +340,7 @@ def _render_body_xhtml(md_path: Path, body_stripped: str, remote_storage: str) -
     except (ValueError, KeyError) as exc:
         log.error("markdown conversion: %s", exc)
         raise _UpdateAbort(1) from exc
-    return insert_mdd_footer(body_xhtml, get_gitlab_url(md_path))
+    return insert_mdd_footer(body_xhtml, get_mirror_url(md_path))
 
 
 def _print_diff_or_noop(body_xhtml: str, remote_storage: str) -> str:

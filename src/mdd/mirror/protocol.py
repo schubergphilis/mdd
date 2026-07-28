@@ -72,6 +72,8 @@ class MirrorBackend(Protocol):
     - :meth:`push` — perform the actual push. Generic git for most
       backends, but a seam method so a provider (GitLab) can route it
       through its own guarded push implementation.
+    - :meth:`web_url` — the browse URL for a mirrored file, for callers
+      that link back to the mirror (the Confluence page footer).
     """
 
     def resolve_remote(self, target: MirrorTarget) -> str | None:
@@ -92,4 +94,15 @@ class MirrorBackend(Protocol):
 
     def push(self, path: Path, *, message: str | None = None) -> None:
         """Commit any dirty changes with *message* and push the work-tree at *path*."""
+        ...
+
+    def web_url(self, path: Path) -> str | None:
+        """Return the browse URL for the mirrored file at *path*, or ``None``.
+
+        ``None`` means "no link available" — the backend has no remote, the
+        file is not in a mirror it recognises, or the backend has no browse
+        convention. Callers omit the link rather than failing.
+        :func:`mdd.mirror.web.git_blob_url` is the shared implementation for
+        git-forge backends.
+        """
         ...

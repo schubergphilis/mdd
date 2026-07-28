@@ -33,6 +33,10 @@ class LocalOnlyBackend:
     def reachable(self) -> bool:
         return False
 
+    def web_url(self, path: Path) -> str | None:  # noqa: ARG002
+        # No remote, so there is no page to link a mirrored file to.
+        return None
+
     def push(self, path: Path, *, message: str | None = None) -> None:  # noqa: ARG002
         # A local-only backend never pushes; the orchestrator only calls
         # push when a remote was resolved, so reaching here is a caller

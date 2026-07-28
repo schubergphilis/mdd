@@ -34,6 +34,9 @@ class _StubBackend:
     def push(self, path: Path, *, message: str | None = None) -> None:
         return
 
+    def web_url(self, path: Path) -> str | None:
+        return None
+
 
 @pytest.fixture(autouse=True)
 def _clean_registry() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
