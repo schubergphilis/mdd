@@ -1,6 +1,6 @@
 <img src="assets/mdd-logo.png" alt="mdd" width="360">
 
-# mdd — Markdown Does Docs
+# MDD — MDD Does Docs
 
 Bidirectional sync between Markdown-in-git and the places documents
 actually live: Confluence Cloud, SharePoint/OneDrive, and Office files.
