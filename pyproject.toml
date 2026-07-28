@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=82.0.1", "setuptools-scm>=10.2.0", "wheel"]
+requires = ["setuptools>=82.0.1", "setuptools-scm>=10.2.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -149,7 +149,7 @@ dev = [
     "vulture>=2.16",
     "radon>=6.0.1",
     "refurb>=2.3.1",
-    "setuptools-scm>=10.2.0",
+    "setuptools-scm>=10.2.1",
     "pip-audit>=2.10.1",
     "cyclonedx-bom>=7.3.0",
 ]
