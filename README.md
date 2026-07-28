@@ -1,3 +1,5 @@
+<img src="assets/mdd-logo.png" alt="mdd" width="360">
+
 # mdd — Markdown Does Docs
 
 Bidirectional sync between Markdown-in-git and the places documents
