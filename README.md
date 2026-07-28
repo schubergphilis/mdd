@@ -141,6 +141,12 @@ shared conventions.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). `mise run ci` is the gate.
 
+## Security
+
+Please report vulnerabilities privately, not as a GitHub issue. See
+[`SECURITY.md`](SECURITY.md) for the reporting channels, what is in
+scope, and what to expect.
+
 ## Licence
 
 Copyright 2026 Schuberg Philis B.V.
