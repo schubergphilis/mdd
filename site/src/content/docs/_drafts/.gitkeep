@@ -1,0 +1,4 @@
+# Article drafts land here, as _<slug>.md.
+# The underscore on the FILENAME is what keeps them out of the build:
+# docsLoader() globs **/[^_]*.{md,mdx}, which matches the filename, not the
+# directory. Promotion is `git mv` to docs/articles/<slug>.md.
