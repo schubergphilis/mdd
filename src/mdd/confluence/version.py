@@ -1,6 +1,6 @@
-"""Version-drift detection between local frontmatter and Confluence (spec S27).
+"""Version-drift detection between local frontmatter and Confluence.
 
-Both ``mdd.confluence.update.update_page`` and the S27 mutate orchestrators
+Both ``mdd.confluence.update.update_page`` and the mutate orchestrators
 (``rename-page`` / ``move-page`` / ``archive-page`` / ``unarchive-page``)
 need to refuse pushing to Confluence when the remote ``version.number`` is
 ahead of the local frontmatter ``version``.  The check is extracted here so
@@ -47,7 +47,7 @@ def check_version_drift(
     have already handled "missing local version" with its own error (the
     pre-flight in ``update_page`` does this — it prints a missing-version
     message and returns 1 before getting here).  Treating ``None`` as
-    "skip" keeps this helper trivially callable from the S27 mutate
+    "skip" keeps this helper trivially callable from the mutate
     orchestrators, which may or may not have a local version depending on
     whether the user already ran a sync.
     """

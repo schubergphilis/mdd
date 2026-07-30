@@ -1,4 +1,4 @@
-"""Git mv / rm helpers and attachment dir management for sync (spec S14)."""
+"""Git mv / rm helpers and attachment dir management for sync."""
 
 from __future__ import annotations
 
@@ -150,7 +150,7 @@ def resolve_collision_pair(
 ) -> tuple[Path, Path]:
     """Rename both *path_a* and *path_b* to include their page IDs.
 
-    Per spec: ``Title (12345).md`` and ``Title (67890).md``.
+    Result: ``Title (12345).md`` and ``Title (67890).md``.
     Both get the suffix — not just the newcomer.
 
     Returns the new paths (a, b).

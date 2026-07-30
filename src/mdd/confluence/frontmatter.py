@@ -1,7 +1,7 @@
-"""Read and write YAML frontmatter in Markdown files (spec S09 + 017).
+"""Read and write YAML frontmatter in Markdown files.
 
-Extended in spec S17 to carry ``publish_office`` and ``publish_office_state``
-fields inside the ``confluence:`` block:
+The ``confluence:`` block also carries the ``publish_office`` and
+``publish_office_state`` fields:
 
   confluence:
     publish_office: docx            # or pptx, or [docx, pptx]
@@ -57,7 +57,7 @@ def read(path: Path) -> tuple[dict[str, Any], str]:
     if not isinstance(parsed, dict):
         return {}, content
 
-    result: dict[str, Any] = dict(parsed.items())  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]  # raw dict[str, Any] read helper — typed model migration happens at call sites (S40)
+    result: dict[str, Any] = dict(parsed.items())  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]  # raw dict[str, Any] read helper — callers convert to typed models
     return result, body
 
 

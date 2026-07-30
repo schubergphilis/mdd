@@ -1,15 +1,15 @@
-"""Orchestrators for ``mdd confluence rename / move / archive / unarchive`` (spec S27).
+"""Orchestrators for ``mdd confluence rename / move / archive / unarchive``.
 
 Each public function (``rename_page`` / ``move_page`` / ``archive_page`` /
 ``unarchive_page``) mutates Confluence first, then refreshes the local
-mirror via the existing S14 apply path
+mirror via the existing sync apply path
 (:mod:`mdd.confluence.sync.renames`), then commits a structured
 ``chore(mirror):`` summary.
 
-Argument-bundling notes (S34 6-arg ceiling): callers pass a
-:class:`MutateOptions` dataclass instead of five flat ``config / dry_run /
-no_commit / yes / message`` keyword arguments.  Same pattern as
-:class:`mdd.confluence.client.PutPageOptions` from P06 Phase 1.
+Argument bundling: callers pass a :class:`MutateOptions` dataclass instead
+of five flat ``config / dry_run / no_commit / yes / message`` keyword
+arguments, keeping these functions under the project's 6-argument ceiling.
+Same pattern as :class:`mdd.confluence.client.PutPageOptions`.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ log = get_logger(__name__)
 class MutateOptions:
     """Bundle of flags shared by every mutate orchestrator.
 
-    Bundled so that ``rename_page`` / ``move_page`` stay within S34's
+    Bundled so that ``rename_page`` / ``move_page`` stay within the
     6-argument ceiling.  Defaults mirror what the CLI runners pass when a
     flag is omitted.
     """
@@ -201,7 +201,7 @@ def _check_managed(
     client: ConfluenceClient,
     managed_config: ManagedConfig,
 ) -> None:
-    """Refuse the mutation when the remote page is managed-elsewhere (S26)."""
+    """Refuse the mutation when the remote page is managed-elsewhere."""
     body_storage = _extract_storage_body(page_data)
     page_info = build_page_info_from_page_data(page_data, body_storage)
     classification = classify_page(page_info, managed_config, client)
@@ -215,7 +215,7 @@ def _check_managed(
 
 
 def _check_version(local_version: int, remote_version: int) -> None:
-    """Refuse when the remote version is ahead of the local copy (S27)."""
+    """Refuse when the remote version is ahead of the local copy."""
     try:
         check_version_drift(local_version, remote_version)
     except VersionDriftError as exc:
@@ -584,7 +584,7 @@ def _finish_rename(
         new_path = _apply_rename_or_move(event, page_state, page_state.md_path.parent)
         # No `title` in extra_updates: the body-H1 rewrite in
         # `apply_renames_moves` is the single source of truth for the
-        # title-on-disk (P03 phase 6 / #130).  `confluence.title:` in
+        # title-on-disk (#130).  `confluence.title:` in
         # frontmatter is a deprecated audit field no consumer reads.
         # Pass new_title_for_slug so the `confluence.url` trailing slug
         # is refreshed to match the new title (#130 F2).
@@ -654,7 +654,7 @@ def _materialise_chain(
 
     Returns the list of materialised steps so the commit body can list them.
     Raises :class:`ApplyError`, :class:`ConfluenceError`, or :class:`OSError`
-    if a step fails — partial materialisation is acceptable per S27 and the
+    if a step fails — partial materialisation is acceptable, and the
     caller surfaces the recovery hint.
     """
     materialised: list[_MaterialisedStep] = []
@@ -681,13 +681,11 @@ def _build_move_commit_body(
     new_path: Path,
     repo_dir: Path,
 ) -> str:
-    """Compose the structured body for a ``chore(mirror): move ...`` commit (S27).
+    """Compose the structured body for a ``chore(mirror): move ...`` commit.
 
     The body lists every materialised ancestor and the moved file in
-    repo-relative form, mirroring the example in S27 §Local tree
-    materialisation on move.  Returns ``""`` when no materialisation
-    happened — the commit then carries the subject only, matching the
-    pre-S27-materialisation shape.
+    repo-relative form.  Returns ``""`` when no materialisation happened —
+    the commit then carries the subject only.
     """
     if not materialised:
         return ""
@@ -730,14 +728,14 @@ def _finish_move(
     client: ConfluenceClient,
     opts: MutateOptions,
 ) -> int:
-    """Apply the local refresh + commit half of ``move_page`` (S27).
+    """Apply the local refresh + commit half of ``move_page``.
 
     Walks the new parent's ancestor chain (
     :func:`mdd.confluence.tree.ancestor_chain_for_move`), materialises
     any link that is missing (``pull_single_page``) or flat
     (``promote_flat_to_dir``), then ``git_mv``s the moved file into the
     now-present parent directory and refreshes its frontmatter.
-    Materialised paths are listed in the commit body per S27's example.
+    Materialised paths are listed in the commit body.
 
     Partial materialisation on failure is acceptable: the Confluence
     move is the source of truth and is not rolled back; ``sync-space``

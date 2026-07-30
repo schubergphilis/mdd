@@ -1,4 +1,4 @@
-"""Unified diff of Confluence storage XHTML (spec S09)."""
+"""Unified diff of Confluence storage XHTML."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Confluence page-id-or-URL parser (spec S09)."""
+"""Confluence page-id-or-URL parser."""
 
 from __future__ import annotations
 
