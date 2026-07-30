@@ -1,0 +1,26 @@
+---
+// Overrides Starlight's default Footer to add the site's build date.
+//
+// S06 is explicit that this is the *build* date, not the commit sha: a sha
+// implies the pages were verified against that commit, which they were not.
+// `lastUpdated` (Starlight's own, git-derived, still shown via the default
+// Footer below) says when a given page's content last changed; this says
+// when the site itself was produced. `new Date()` runs once, at build time,
+// in Astro's frontmatter script, so every page gets the same value from a
+// single static build.
+import Default from '@astrojs/starlight/components/Footer.astro';
+
+const buildDate = new Date().toISOString().slice(0, 10);
+---
+
+<Default {...Astro.props}><slot /></Default>
+<p class="build-date">Site built {buildDate}.</p>
+
+<style>
+	.build-date {
+		margin-top: 0.5rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		text-align: center;
+	}
+</style>

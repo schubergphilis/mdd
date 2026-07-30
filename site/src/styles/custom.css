@@ -1,0 +1,90 @@
+/* Self-hosted webfonts. Merriweather is used for long-form prose, Merriweather
+   Sans for UI chrome (see the `--sl-font` mapping below). Only the weights
+   actually used (400 and 700, both faces) are imported, to keep the shipped
+   font subset small. Both faces are SIL Open Font License 1.1. Loading them
+   this way (rather than linking Google Fonts) keeps every asset the site
+   ships redistributable under a licence compatible with this project's own,
+   and avoids sending readers' IP addresses to a third party. */
+@import '@fontsource/merriweather/400.css';
+@import '@fontsource/merriweather/700.css';
+@import '@fontsource/merriweather-sans/400.css';
+@import '@fontsource/merriweather-sans/700.css';
+
+/* LSD Warm theme, mapped onto Starlight's design tokens. Palette source:
+   colors/lsd-colors.json in https://github.com/lsimons/lsimons-dotfiles
+   (Apache-2.0). Starlight derives all surfaces/text/borders from an accent
+   ramp (low/accent/high), a gray ramp (1=lightest..6/7=darkest in dark mode,
+   inverted in light) and black/white, so overriding those restyles the whole
+   site. Dark mode is `:root`; light mode is `:root[data-theme='light']`. */
+:root {
+	/* LSD Warm Dark */
+	--sl-color-accent-low: #4a2f08;
+	--sl-color-accent: #c17a23;
+	--sl-color-accent-high: #eabb79;
+	--sl-color-white: #ffebd2; /* headings */
+	--sl-color-gray-1: #f0dcc4;
+	--sl-color-gray-2: #dfcab2; /* body text (fg) */
+	--sl-color-gray-3: #8a7761; /* muted */
+	--sl-color-gray-4: #6b5b44; /* dim */
+	--sl-color-gray-5: #3a2b16; /* borders / hairlines */
+	--sl-color-gray-6: #1f1000; /* nav & sidebar bg */
+	--sl-color-black: #1a0c00; /* page bg */
+}
+:root[data-theme='light'] {
+	/* LSD Warm Light */
+	--sl-color-accent-low: #f6e4c4;
+	--sl-color-accent: #c17a23;
+	--sl-color-accent-high: #8f5610; /* darkened for link contrast on snow */
+	--sl-color-white: #241100; /* headings (fg) */
+	--sl-color-gray-1: #3e290f;
+	--sl-color-gray-2: #4a3418; /* body text */
+	--sl-color-gray-3: #594329; /* dim */
+	--sl-color-gray-4: #765e44; /* faint */
+	--sl-color-gray-5: #dbcbb9; /* borders */
+	--sl-color-gray-6: #f0dfc9;
+	--sl-color-gray-7: #f7e9d6;
+	--sl-color-black: #faf1f3; /* page bg (snow) */
+}
+
+/* Fonts: Merriweather Sans for on-screen/UI (Starlight's global --sl-font, so
+   nav/header/sidebar/labels), Merriweather for long-form prose (the rendered
+   markdown body), and a system-first monospace stack for code. Font choice
+   doesn't vary by theme, so these live at :root. */
+:root {
+	--sl-font: 'Merriweather Sans', sans-serif;
+	--sl-font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas,
+		monospace;
+}
+.sl-markdown-content {
+	font-family: 'Merriweather', Georgia, serif;
+}
+
+/* Keep the main content column white in light mode so images with white
+   backgrounds blend in; the header and sidebars keep the off-white LSD Warm
+   surface. `.main-pane` is only the content column. Dark mode keeps its warm-
+   dark content background. */
+:root[data-theme='light'] .main-pane {
+	background-color: #ffffff;
+}
+
+/* Make a whole card clickable (the card is wrapped in a `.card-link` anchor)
+   with a subtle lift-and-highlight on hover - used on the splash landing
+   page. */
+.card-link {
+	display: block;
+	height: 100%;
+	text-decoration: none;
+	color: inherit;
+}
+.card-link .card {
+	height: 100%;
+	transition:
+		transform 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+.card-link:hover .card {
+	transform: translateY(-3px);
+	border-color: var(--sl-color-text-accent);
+	box-shadow: 0 0.5rem 1rem -0.5rem rgba(0, 0, 0, 0.4);
+}

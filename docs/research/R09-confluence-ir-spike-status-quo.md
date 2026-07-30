@@ -22,7 +22,7 @@ measurement of the baseline.
 
 ## Harness and corpus state
 
-- Harness: [scripts/ir_experiment/](../../scripts/ir_experiment/) at
+- Harness: `scripts/ir_experiment/` at
   commit landing this note.
 - Corpus: `test-confluence/MDD/_snapshots/`, 35 captured pages
   (`mise run refresh-corpus` run on 2026-05-12 against the same
@@ -374,7 +374,7 @@ narrative trivial to extract.
   specification.
 - [Research note 008](R08-confluence-ir-experiment-harness.md) —
   the harness that produced this report.
-- [`scripts/ir_experiment/`](../../scripts/ir_experiment/) — the
+- `scripts/ir_experiment/` — the
   harness code itself.
 
 ## Next research note

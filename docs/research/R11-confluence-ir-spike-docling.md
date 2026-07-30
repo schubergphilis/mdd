@@ -24,7 +24,7 @@ to bolt Confluence semantics on top?"
 
 ## Harness and corpus state
 
-- Harness: [scripts/ir_experiment/](../../scripts/ir_experiment/) at
+- Harness: `scripts/ir_experiment/` at
   commit landing this note. Same as note 009 plus the
   `pipelines/docling.py` adapter and wall-clock timing instrumentation.
 - Corpus: `test-confluence/MDD/_snapshots/`, the same 35 captured
@@ -360,7 +360,7 @@ real maintenance cost.
   the harness that produced this report.
 - [Research note 009](R09-confluence-ir-spike-status-quo.md) —
   status-quo baseline, directly comparable numbers.
-- [`scripts/ir_experiment/pipelines/docling.py`](../../scripts/ir_experiment/pipelines/docling.py) —
+- `scripts/ir_experiment/pipelines/docling.py` —
   the pipeline adaptor.
 - HTML report: the harness also emitted a side-by-side HTML diff
   report with the same data plus the timing slowdown table. It is

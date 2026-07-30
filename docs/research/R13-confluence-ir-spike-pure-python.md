@@ -402,9 +402,9 @@ Truncated to non-perfect rows; the other 27 fixtures all score
   docling spike.
 - [Research note 012](R12-confluence-ir-comparison.md) — the
   comparison and (now revised) recommendation.
-- [`scripts/ir_experiment/pipelines/pure_python/`](../../scripts/ir_experiment/pipelines/pure_python/)
+- `scripts/ir_experiment/pipelines/pure_python/`
   — the pipeline implementation.
-- [`tests/ir_experiment/test_pure_python_pipeline.py`](../../tests/ir_experiment/test_pure_python_pipeline.py)
+- `tests/ir_experiment/test_pure_python_pipeline.py`
   — JSON round-trip and metric-threshold tests.
 - HTML report: the harness also emitted an HTML diff report with the
   same data plus per-fixture diffs and the timing slowdown table. It
