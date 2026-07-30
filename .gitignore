@@ -70,6 +70,8 @@ env/
 
 # git worktrees
 .worktrees/
+# Claude Code agent worktrees (`Agent` tool with isolation: "worktree")
+.claude/worktrees/
 
 # Agent scratch dir
 tmp/
