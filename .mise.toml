@@ -225,3 +225,7 @@ run = "rm -rf site/dist site/.astro site/src/content/docs/{guide,articles,refere
 [tasks.derive-dark-logo]
 description = "Regenerate site/src/assets/mdd-logo-dark.png from assets/mdd-logo.png"
 run = "uv run python scripts/derive-dark-logo.py"
+
+[tasks.derive-dark-svg-assets]
+description = "Regenerate the dark SVG assets and the site's copies from assets/*.svg"
+run = "uv run python scripts/derive-dark-svg-assets.py"

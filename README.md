@@ -8,6 +8,11 @@ Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
 remote document management systems. Engineers and AI agents can work with
 Markdown while everyone else can continue working with the tools they know.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/mdd-infographic-dark.svg">
+  <img src="assets/mdd-infographic.svg" alt="MDD sits between the Confluence and SharePoint sites an organisation already uses and a git repository of Markdown that engineers and AI agents work in, pulling pages one way and pushing reviewed edits back the other. It also converts .docx, .pptx and .pdf files to Markdown." width="760">
+</picture>
+
 📖 **Documentation: <https://schubergphilis.github.io/mdd/>**
 
 ## ⚠️ Beta software - use with care

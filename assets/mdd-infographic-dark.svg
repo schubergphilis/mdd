@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 540" width="760" height="540"
+     role="img" aria-labelledby="title desc">
+  <!--
+    Generated from assets/mdd-infographic.svg by
+    `mise run derive-dark-svg-assets`. Do not edit; edit the source
+    and re-run the task.
+  -->
+  <!--
+    Light-mode source of truth for the project infographic. The dark variant
+    (assets/mdd-infographic-dark.svg) and the site's copies under
+    site/src/assets/ are generated from this file by
+    `mise run derive-dark-svg-assets`; edit this file, never those.
+
+    Every colour comes from the palette block in <style> below, and each light
+    hex maps to exactly one dark hex, which is what makes that derivation a
+    plain search-and-replace. If you introduce a new colour here, add it to
+    the script's mapping too.
+
+    Text is real <text>, not outlines, so it stays selectable and searchable.
+    The webfont cannot be loaded (the file is embedded with <img>, which gives
+    the SVG its own document with no access to the page's fonts), so the stack
+    below degrades to the reader's system sans-serif. Boxes are sized with
+    slack for that.
+
+    Keep the opening <svg> tag near the top of the file: Astro's image-size
+    probe only scans the first kilobyte to recognise an SVG at all, and a long
+    preamble ahead of the tag makes the site build fail with NoImageMetadata.
+  -->
+  <title id="title">How MDD is used</title>
+  <desc id="desc">MDD sits between the Confluence and SharePoint sites an organisation
+    already uses and a git repository of Markdown that engineers and AI agents work in,
+    pulling pages one way and pushing reviewed edits back the other. It also converts
+    .docx, .pptx and .pdf files to Markdown. The result: review before push, agent-ready
+    docs, and no migration for anyone else.</desc>
+
+  <style>
+    /* Palette: LSD Warm, the same ramp site/src/styles/custom.css maps onto
+       Starlight's tokens. ink/muted are text, accent is the amber, card and
+       card-edge are the panel surfaces, soft is the amber wash. */
+    text { font-family: 'Merriweather Sans', 'Segoe UI', Helvetica, Arial, sans-serif; }
+
+    .card { fill: #24130A; stroke: #3F2E19; stroke-width: 2; }
+    .card-hub { fill: #4A2F08; stroke: #EABB79; stroke-width: 2.5; }
+    .rule { stroke: #3F2E19; stroke-width: 2; }
+    .disc { fill: #4A2F08; }
+
+    /* Line art: `ln` is the slate outline, `ac` the amber highlight inside
+       it, `acf` a solid amber fill for arrowheads and dots. Stroke widths are
+       set here rather than with `stroke-width` attributes on the elements: a
+       CSS declaration beats a presentation attribute, so an attribute would
+       be silently ignored. Anything that needs a different weight gets its own
+       class. */
+    .ln { fill: none; stroke: #FFEBD2; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .ac { fill: none; stroke: #EABB79; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .acf { fill: #EABB79; stroke: none; }
+    /* Butt caps, unlike the round ones elsewhere: a round cap would overhang
+       its end point by half a stroke, so a tail would reach further than the
+       arrowhead tip facing it and the two arrows in a gap would no longer line
+       up. Butt caps make the drawn extent exactly the coordinates below. */
+    .lane { fill: none; stroke: #EABB79; stroke-width: 5; stroke-linecap: butt; stroke-linejoin: round; }
+
+    /* The hub mark keeps assets/mdd-icon.svg's own weights, which are set for
+       its 240-unit box; the group below scales them down with everything
+       else, so at 0.3833 they land a shade heavier than the 4 above -- the
+       same relationship they have in the icon on its own. */
+    .hub-out { fill: none; stroke: #FFEBD2; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+    .hub-arrow { fill: none; stroke: #EABB79; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+    .hub-line { fill: none; stroke: #EABB79; stroke-width: 10; stroke-linecap: round; }
+    .hub-head { fill: #EABB79; stroke: #EABB79; stroke-width: 8; stroke-linejoin: round; }
+
+    .t-lead { font-size: 22px; font-weight: 700; fill: #FFEBD2; }
+    /* Only a little larger than .t-lead: the hub is set apart by the amber
+       card, not by breaking the shared baseline grid. */
+    .t-hub { font-size: 25px; font-weight: 700; fill: #FFEBD2; }
+    .t-sub { font-size: 15.5px; fill: #B39B80; }
+    .t-lane { font-size: 15px; font-weight: 700; fill: #EABB79; }
+    .t-conv { font-size: 17px; font-weight: 700; fill: #FFEBD2; }
+    .t-conv-sub { font-size: 15px; fill: #B39B80; }
+    .t-why { font-size: 19px; font-weight: 700; fill: #FFEBD2; }
+    .t-why-sub { font-size: 15.5px; fill: #B39B80; }
+  </style>
+
+  <defs>
+    <!-- The hub mark is assets/mdd-icon.svg, inlined so the infographic is a
+         single self-contained file. Its knockout masks keep the two document
+         stacks readable where they overlap. -->
+    <mask id="hub-cut-a-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="53" y="35" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="hub-cut-b-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="111" y="111" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="hub-cut-b-stack" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <g fill="#000" stroke="#000" stroke-width="24">
+        <rect x="111" y="111" width="76" height="94" rx="14"/>
+        <rect x="128" y="128" width="76" height="94" rx="14"/>
+      </g>
+    </mask>
+  </defs>
+
+  <!-- ===== Left: the tools the rest of the organisation already uses ===== -->
+  <rect class="card" x="35" y="20" width="190" height="250" rx="16"/>
+  <g transform="translate(102,44)">
+    <rect class="ln" x="2" y="6" width="52" height="42" rx="6"/>
+    <line class="ln" x1="2" y1="19" x2="54" y2="19"/>
+    <g class="acf">
+      <circle cx="9" cy="12.5" r="2.2"/>
+      <circle cx="17" cy="12.5" r="2.2"/>
+      <circle cx="25" cy="12.5" r="2.2"/>
+    </g>
+    <line class="ac" x1="13" y1="30" x2="43" y2="30"/>
+    <line class="ac" x1="13" y1="39" x2="33" y2="39"/>
+  </g>
+  <text class="t-lead" x="130" y="134" text-anchor="middle">Confluence</text>
+  <text class="t-lead" x="130" y="161" text-anchor="middle">SharePoint</text>
+  <text class="t-sub" x="130" y="202" text-anchor="middle">what everyone else</text>
+  <text class="t-sub" x="130" y="223" text-anchor="middle">already uses</text>
+
+  <!-- ===== Centre: MDD itself ===== -->
+  <rect class="card-hub" x="285" y="20" width="190" height="250" rx="16"/>
+  <!-- The three cards share one grid: a 72-unit icon band ending at y=108,
+       title baselines at 134 and 161, and sub-label baselines at 202 and 223.
+       The mark is drawn in a 240-unit box, so 0.30 fits the band and keeps its
+       12-unit strokes landing at 3.6, near enough the 4 the flanking icons
+       use that the three read as one weight. -->
+  <g transform="translate(344,36) scale(0.30)">
+    <!-- sync arrows: a clockwise loop around the two stacks -->
+    <path class="hub-arrow" d="M152,36 H170 A16,16 0 0 1 186,52 V72"/>
+    <path class="hub-head" d="M186,88 L172,70 L200,70 Z"/>
+    <path class="hub-arrow" d="M88,204 H70 A16,16 0 0 1 54,188 V168"/>
+    <path class="hub-head" d="M54,152 L68,170 L40,170 Z"/>
+    <!-- upper-left stack -->
+    <g mask="url(#hub-cut-b-stack)">
+      <path class="hub-out" mask="url(#hub-cut-a-front)"
+            d="M112,35 V32 Q112,18 98,18 H50 Q36,18 36,32 V98 Q36,112 50,112 H53"/>
+      <rect class="hub-out" x="53" y="35" width="76" height="94" rx="14"/>
+      <g class="hub-line">
+        <line x1="68" y1="59" x2="114" y2="59"/>
+        <line x1="68" y1="80" x2="114" y2="80"/>
+        <line x1="68" y1="101" x2="92" y2="101"/>
+      </g>
+    </g>
+    <!-- lower-right stack -->
+    <path class="hub-out" mask="url(#hub-cut-b-front)"
+          d="M128,205 V208 Q128,222 142,222 H190 Q204,222 204,208 V142 Q204,128 190,128 H187"/>
+    <rect class="hub-out" x="111" y="111" width="76" height="94" rx="14"/>
+    <g class="hub-line">
+      <line x1="126" y1="135" x2="172" y2="135"/>
+      <line x1="126" y1="156" x2="172" y2="156"/>
+      <line x1="126" y1="177" x2="150" y2="177"/>
+    </g>
+  </g>
+  <text class="t-hub" x="380" y="134" text-anchor="middle">MDD</text>
+  <text class="t-lead" x="380" y="161" text-anchor="middle">Does Docs</text>
+  <text class="t-sub" x="380" y="202" text-anchor="middle">near-lossless</text>
+  <text class="t-sub" x="380" y="223" text-anchor="middle">two-way sync</text>
+
+  <!-- ===== Right: where engineers and agents work ===== -->
+  <rect class="card" x="535" y="20" width="190" height="250" rx="16"/>
+  <g transform="translate(602,44)">
+    <circle class="ln" cx="14" cy="12" r="6"/>
+    <circle class="ln" cx="14" cy="48" r="6"/>
+    <line class="ln" x1="14" y1="18" x2="14" y2="42"/>
+    <circle class="ac" cx="44" cy="26" r="6"/>
+    <path class="ac" d="M14,36 Q14,26 26,26 H38"/>
+  </g>
+  <text class="t-lead" x="630" y="134" text-anchor="middle">Markdown</text>
+  <text class="t-lead" x="630" y="161" text-anchor="middle">in git</text>
+  <text class="t-sub" x="630" y="202" text-anchor="middle">what engineers and</text>
+  <text class="t-sub" x="630" y="223" text-anchor="middle">AI agents prefer</text>
+
+  <!-- ===== The two lanes: pull rightwards, push back leftwards. The git-side
+             pair carries the labels, since pull and push are what an operator
+             actually runs; the remote side is just the other half of the same
+             traffic, so one "sync" between its arrows says enough. ===== -->
+  <!-- Every arrow keeps clear of both cards it spans: the 60-unit gaps run
+       225-285 and 475-535, and each arrow lives in the 233-277 / 483-527
+       inset. Tails need the wider margin of the two, because `stroke-linecap:
+       round` extends them by half a stroke beyond their end point while an
+       arrowhead stops exactly at its tip. -->
+  <g class="lane">
+    <path d="M233,118 H263"/>
+    <path class="acf" d="M277,118 L263,110 L263,126 Z"/>
+    <path d="M277,172 H247"/>
+    <path class="acf" d="M233,172 L247,164 L247,180 Z"/>
+    <path d="M483,118 H513"/>
+    <path class="acf" d="M527,118 L513,110 L513,126 Z"/>
+    <path d="M527,172 H497"/>
+    <path class="acf" d="M483,172 L497,164 L497,180 Z"/>
+  </g>
+  <text class="t-lane" x="255" y="150" text-anchor="middle">sync</text>
+  <text class="t-lane" x="505" y="102" text-anchor="middle">push</text>
+  <text class="t-lane" x="505" y="197" text-anchor="middle">pull</text>
+
+  <!-- ===== A second way in: Office and PDF files ===== -->
+  <g class="lane">
+    <path d="M380,298 V292"/>
+    <path class="acf" d="M380,278 L372,292 L388,292 Z"/>
+  </g>
+  <rect class="card" x="285" y="306" width="190" height="66" rx="14"/>
+  <text class="t-conv" x="380" y="333" text-anchor="middle">.docx .pptx .pdf</text>
+  <text class="t-conv-sub" x="380" y="355" text-anchor="middle">converted to Markdown</text>
+
+  <!-- ===== Why people run it ===== -->
+  <line class="rule" x1="35" y1="410" x2="725" y2="410"/>
+  <g>
+    <circle class="disc" cx="150" cy="444" r="15"/>
+    <path class="ac" d="M143,444 L148,450 L157,438"/>
+    <text class="t-why" x="150" y="488" text-anchor="middle">Review before push</text>
+    <text class="t-why-sub" x="150" y="512" text-anchor="middle">diff first, then confirm</text>
+  </g>
+  <g>
+    <circle class="disc" cx="380" cy="444" r="15"/>
+    <path class="ac" d="M373,444 L378,450 L387,438"/>
+    <text class="t-why" x="380" y="488" text-anchor="middle">Agent-ready docs</text>
+    <text class="t-why-sub" x="380" y="512" text-anchor="middle">plain Markdown, in git</text>
+  </g>
+  <g>
+    <circle class="disc" cx="610" cy="444" r="15"/>
+    <path class="ac" d="M603,444 L608,450 L617,438"/>
+    <text class="t-why" x="610" y="488" text-anchor="middle">No migration</text>
+    <text class="t-why-sub" x="610" y="512" text-anchor="middle">the org keeps its tools</text>
+  </g>
+</svg>

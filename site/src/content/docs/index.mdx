@@ -2,11 +2,27 @@
 title: mdd
 description: Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
 template: splash
+# The site turns this on globally, but a landing page has no single body of
+# content whose age a reader could act on, and the footer's build date already
+# says when the site was produced.
+lastUpdated: false
 # The only hand-authored page on the site, so the only one whose source really
 # does live here. Every other page gets an editUrl from scripts/sync-docs.py.
 editUrl: https://github.com/schubergphilis/mdd/edit/main/site/src/content/docs/index.mdx
 hero:
+  # Short, because the hero gives most of its width to the infographic and the
+  # full name would wrap over three lines in what is left. The infographic's
+  # centre card and the site title in the header both spell it out.
+  title: MDD
   tagline: Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
+  # Two variants of one drawing. An SVG embedded this way is its own document
+  # and cannot see the page's `data-theme`, so the palette has to be baked in;
+  # `mise run derive-dark-svg-assets` generates the dark one and these copies
+  # from assets/mdd-infographic.svg.
+  image:
+    light: ../../assets/mdd-infographic.svg
+    dark: ../../assets/mdd-infographic-dark.svg
+    alt: MDD sits between the Confluence and SharePoint sites an organisation already uses and a git repository of Markdown that engineers and AI agents work in, pulling pages one way and pushing reviewed edits back the other.
   actions:
     - text: Start
       link: /mdd/guide/install/

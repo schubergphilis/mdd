@@ -67,6 +67,50 @@
 	background-color: #ffffff;
 }
 
+/* Centre the search box in the header bar. Starlight's header is a three-column
+   grid whose first column stretches to meet the main content column's left
+   edge and whose last takes only what the theme and social controls need, so
+   the search box - the middle column - starts wherever the title happens to
+   end. Equal side columns put it in the middle of the bar instead; the middle
+   column's cap matches the search button's own `max-width: 22rem`, so the
+   button is unchanged, only moved. Below 50rem Starlight lays the header out
+   with flexbox and a different arrangement, which this leaves alone. */
+@media (min-width: 50rem) {
+	.header {
+		grid-template-columns: 1fr minmax(0, 22rem) 1fr;
+	}
+	/* The third column is no longer sized to its contents, so the theme and
+	   social controls have to be pinned to its far end themselves. */
+	.header > .right-group {
+		justify-self: end;
+	}
+}
+
+/* Hand the splash hero's width to the infographic. Starlight's hero grid is
+   7fr/4fr with the image capped at 25rem, which suits a logo; this one is a
+   labelled diagram, and it is only worth showing at a size where the labels
+   read, which is near its own 760-unit width. So the ratio is inverted and the
+   cap dropped: the image takes the whole of its column.
+
+   The first track is the copy and the second the image (Starlight gives the
+   image `order: 2`), and the heading wraps in a 30% column - accepted, because
+   the diagram carries the page. Starlight's own rules live in the
+   `starlight.core` cascade layer, so these unlayered ones win without needing
+   extra specificity. */
+@media (min-width: 50rem) {
+	.hero {
+		grid-template-columns: 3fr 7fr;
+		/* Half of Starlight's clamp(2.5rem, 1rem + 10vmin, 10rem). That much
+		   breathing room suits a hero that is a headline and a button; this one
+		   is mostly diagram, and the padding pushed the cards below the fold on
+		   a laptop. */
+		padding-block: clamp(1.25rem, calc(0.5rem + 5vmin), 5rem);
+	}
+	.hero > img {
+		width: 100%;
+	}
+}
+
 /* Make a whole card clickable (the card is wrapped in a `.card-link` anchor)
    with a subtle lift-and-highlight on hover - used on the splash landing
    page. */
