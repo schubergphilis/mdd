@@ -1,27 +1,27 @@
 # Contributing
 
-Thanks for taking the time to look at `mdd`.
+Thanks for taking the time to look at `mdd`!
 
 Contributions are governed by the [Apache-2.0 licence](LICENSE), and
 participation by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Getting set up
+## Setting up
 
 ```bash
 mise install          # python + uv
 mise run install      # uv sync --all-groups
-mise run ci           # the full gate
+mise tasks            # list development commands
+mise run ci           # the ci gate
 ```
-
-Three external tools are exercised by the unit suite and must be on
-`PATH`: `quarto`, `rsvg-convert` (librsvg) and `rg` (ripgrep).
 
 ## The gate
 
-`mise run ci` is the contract. It runs, in order: conflict-marker check,
-`ruff check` + `ruff format --check`, `basedpyright` in strict mode, the
-`complexipy` cognitive-complexity gate, `pip-audit` over the dependency
-closure, the unit suite, and the IR round-trip and coverage suites.
+`mise run ci` is the basic contract. It runs, in order: conflict-marker
+check, `ruff check` + `ruff format --check`, `basedpyright` in strict mode,
+the `complexipy` cognitive-complexity gate, `pip-audit` over the dependency
+closure, the unit suite with coverage checks (aim >90% for new code).
+
+GitHub will also run the IR round-trip suite: `mise run ir-roundtrip-bench`.
 
 A pull request is expected to be green before review. In particular:
 
@@ -34,6 +34,8 @@ A pull request is expected to be green before review. In particular:
   with no code is rejected outright.
 - **Tests for behaviour changes.** Anything talking to a live service is
   marked `@pytest.mark.integration` and stays out of the default run.
+  Likewise anything that depends on Microsoft Office is marked
+  `@pytest.mark.office`.
 
 ## Design docs
 
@@ -49,9 +51,9 @@ design without depending on any working document to be readable.
 `style`, `refactor`, `test`, `build`, `ci`, `perf`, `revert`,
 `improvement`, `chore`.
 
-## A note on how this is built
+## Using AI agents
 
 `mdd` is written largely by AI agents under human review. That does not
 change what is expected of a contribution — the gate is the gate — but it
-does mean the codebase carries unusually detailed inline rationale.
+does mean the codebase needs detailed inline rationale.
 Please keep that up: explain *why*, not *what*.
