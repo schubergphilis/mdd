@@ -217,7 +217,7 @@ def _render_confluence_link(
     # ``<ac:link><ri:user/></ac:link>`` (no ``<ac:link-body>``) round-trips
     # without spuriously injecting a link-body on the next render. The
     # previous fallback (``body_text or tok.target``) collapsed the bare
-    # and self-titled forms onto the same markdown shape. See issue #85.
+    # and self-titled forms onto the same markdown shape.
     body_text = "".join(body_parts)
     out.append(f"[{body_text}]({escape_url(uri)})")
 

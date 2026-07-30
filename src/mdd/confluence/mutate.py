@@ -400,7 +400,7 @@ def _replace_url_slug(url: str, new_title: str) -> str:
     replace just the segment after the last ``/`` so we don't have to
     know which URL shape the tenant uses (``/wiki/spaces/...`` vs
     ``/spaces/...``).  Returns the original URL unchanged when it has
-    no trailing segment to rewrite (#130 F2).
+    no trailing segment to rewrite.
     """
     if not url or "/" not in url:
         return url
@@ -411,7 +411,7 @@ def _replace_url_slug(url: str, new_title: str) -> str:
 
 
 def _resolve_updated_at(api_result: dict[str, Any]) -> str:
-    """Pick a current timestamp for ``confluence.updated_at`` (#130 F5).
+    """Pick a current timestamp for ``confluence.updated_at``.
 
     Prefers the API's ``version.createdAt`` when present (PUT responses
     populate it).  Falls back to ``datetime.now(UTC)`` for endpoints
@@ -434,10 +434,10 @@ def _refresh_metadata_after_mutate(
 
     The rename/move/archive handlers only handle the path change or status
     flip; the version + audit + URL fields must be written by the
-    orchestrator (#130).
+    orchestrator.
 
     When ``new_title_for_slug`` is provided, the trailing slug component
-    of ``confluence.url`` is rewritten to match (#130 F2).
+    of ``confluence.url`` is rewritten to match.
     """
     try:
         fm, body = read_frontmatter(md_path)
@@ -584,10 +584,10 @@ def _finish_rename(
         new_path = _apply_rename_or_move(event, page_state, page_state.md_path.parent)
         # No `title` in extra_updates: the body-H1 rewrite in
         # `apply_renames_moves` is the single source of truth for the
-        # title-on-disk (#130).  `confluence.title:` in
+        # title-on-disk.  `confluence.title:` in
         # frontmatter is a deprecated audit field no consumer reads.
         # Pass new_title_for_slug so the `confluence.url` trailing slug
-        # is refreshed to match the new title (#130 F2).
+        # is refreshed to match the new title.
         _refresh_metadata_after_mutate(new_path, api_result, new_title_for_slug=new_title)
     except (ApplyError, OSError) as exc:
         log.error("%s", _recovery_hint(exc))
@@ -846,7 +846,7 @@ def _finish_archive(
         _apply_archive_refresh(event, page_state)
         # The archive handler only flips status; we still need to write the
         # bumped version / updated_at from the API response.  Status is
-        # lowercase end-to-end (#130 F4).
+        # lowercase end-to-end.
         _refresh_metadata_after_mutate(
             page_state.md_path,
             api_result,

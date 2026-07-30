@@ -11,8 +11,8 @@ raw-HTML blocks (e.g. ``<details>…</details>``) are valid storage XML.
 Other ``RawBlock`` formats are wrapped in an HTML comment + ``<pre>``
 (visible, surface-loss).
 
-Spike fix 2: ``<ol start="1">`` is always emitted (not suppressed when
-the default) so round-trips preserve the attribute verbatim.
+``<ol start="1">`` is always emitted (not suppressed even though 1 is the
+default) so round-trips preserve the attribute verbatim.
 
 Public surface: :func:`render_confluence_storage`. Topic-grouped
 sub-modules: ``entities``, ``code``, ``links``, ``macros``, ``inlines``,

@@ -109,7 +109,7 @@ def print_dry_run_plan(pairs: list[tuple[Path, Path]], *, read_only: bool) -> No
 
     The plan goes to stdout as program output (intended to be piped/grepped),
     not through ``logging`` — keeping it stable for shell workflows. When the
-    orchestrator enables ``T201`` in :file:`pyproject.toml` (issue #122)
+    orchestrator enables ``T201`` in :file:`pyproject.toml`
     these calls will require a ``# noqa: T201  # program output for piping``
     marker.
     """

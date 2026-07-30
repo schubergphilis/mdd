@@ -517,7 +517,7 @@ def sync_folder(  # noqa: PLR0913
                 sync_state=sync_state,
             )
         except CorruptSourceError:
-            # Issue #129: empty or non-Office-ZIP source files are a permanent,
+            # Empty or non-Office-ZIP source files are a permanent,
             # uninteresting condition — count them separately so they don't
             # drown out genuine errors in the run summary.
             name = docx_path.name if docx_path.exists() else md_path.name

@@ -123,7 +123,7 @@ def _substitute_one_entity(
     # Inside tags, XML-predefined entities pass through so lxml's attribute
     # parser handles them natively. HTML5-only entities inside attribute
     # values still need PUA substitution (lxml would silently drop them
-    # under ``recover=True``; issue #90).
+    # under ``recover=True``).
     if in_tag and name in _XML_PREDEFINED_ENTITIES:
         return entity_str, m.end()
     char = _resolve_entity_char(name)
@@ -151,7 +151,7 @@ def _substitute_entities_with_pua_markers(
     parsing. HTML5-only entities (``rsquo``, ``mdash``, ``hellip``, ``nbsp``,
     …) inside attribute values are *also* substituted to PUA markers so the
     character survives; lxml would otherwise raise ``ERR_UNDECLARED_ENTITY``
-    and silently drop the reference under ``recover=True`` (issue #90). The
+    and silently drop the reference under ``recover=True``. The
     PUA codepoint becomes part of the attribute value as a plain Unicode
     character, then ``_reentity_pua`` restores it on the way out.
     Attribute-level ``entity_form`` is intentionally *not* recorded — we
@@ -477,7 +477,7 @@ def _attach_origin_to_inlines(
     ``Link``, ``Image``) also have their attribute string fields decoded —
     not back to ``&entity;`` form (per the design comment on
     :func:`_substitute_entities_with_pua_markers`) but to the Unicode
-    character so the value is usable downstream. issue #90.
+    character so the value is usable downstream.
     """
     result: list[Inline] = []
     for tok in inlines:

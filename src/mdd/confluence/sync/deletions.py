@@ -33,7 +33,7 @@ def _delete_path_fs(path: Path) -> None:
 
     Used when the sync output directory is not a git working tree
     (e.g. ``--read-only`` mirrors or fresh ``--output`` directories): shelling
-    out to ``git rm`` would fail with ``fatal: not a git repository`` (#88).
+    out to ``git rm`` would fail with ``fatal: not a git repository``.
     """
     path.unlink(missing_ok=True)
     att_dir = attachments_dir(path)
@@ -46,7 +46,7 @@ def _delete_path(path: Path, output_dir: Path, summary: SyncSummary, label: str)
 
     Branches on whether *output_dir* is a git working tree: git repos go through
     ``git rm`` so the index is updated alongside the worktree; plain mirrors use
-    ``Path.unlink`` / ``shutil.rmtree`` (#88).
+    ``Path.unlink`` / ``shutil.rmtree``.
     """
     try:
         if is_git_repo(output_dir):

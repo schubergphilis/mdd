@@ -61,7 +61,7 @@ def _read_heading(node: Any, ctx: IRContext | None) -> list[Block]:
 
 
 def _read_paragraph(node: Any, ctx: IRContext | None) -> list[Block]:
-    # Spike fix 1: preserve empty <p> nodes rather than dropping them.
+    # Preserve empty <p> nodes rather than dropping them.
     # Empty paragraphs are meaningful in Confluence (they carry structural
     # position in the page) and must survive the reader for round-trips.
     return [
@@ -90,9 +90,10 @@ def _read_bullet_list(node: Any, ctx: IRContext | None) -> list[Block]:
 def _read_ordered_list(node: Any, ctx: IRContext | None) -> list[Block]:
     start_attr = node.get("start")
     start = int(start_attr) if start_attr and start_attr.isdigit() else 1
-    # Track whether source had an explicit start attribute; preserving-mode
-    # writer uses this to avoid the spike-fix-#2 default `start="1"`
-    # injection when the source omitted it.
+    # Track whether source had an explicit start attribute. `start` defaults
+    # to 1, so without this hint the preserving-mode writer would inject a
+    # redundant `start="1"` on lists that omitted the attribute, showing up
+    # as spurious drift on round-trip.
     omit_start = start_attr is None
     compact = not bool(node.text)
     return [

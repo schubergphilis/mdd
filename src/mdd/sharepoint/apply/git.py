@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from mdd.utils.git import is_dirty, run_git
 
 # Re-export ``is_dirty`` so existing ``from mdd.sharepoint.apply.git import is_dirty``
-# (and the symbol-table mocking under tests/) keeps working (issue #123).
+# (and the symbol-table mocking under tests/) keeps working.
 __all__ = ["git_commit", "is_dirty"]
 
 if TYPE_CHECKING:

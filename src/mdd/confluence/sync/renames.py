@@ -55,8 +55,7 @@ def _rewrite_first_h1(md_path: Path, new_title: str) -> None:
     :func:`mdd.confluence.update._extract_title`), so a rename that does
     not also rewrite the H1 would leave the old title in place — and the
     next ``mdd confluence update-page`` would push the old title back to
-    Confluence. See `#130
-    <https://gitlab.example.com/mdd/mdd/-/issues/130>`_.
+    Confluence.
     """
     fm, body = read_frontmatter(md_path)
     lines = body.splitlines(keepends=True)
@@ -110,7 +109,7 @@ def _apply_one_rename_move(
         if event.kind in (EventKind.RENAME, EventKind.RENAME_MOVE):
             # Title-on-disk is the body H1;
             # rewriting it here keeps update-page from resurrecting the
-            # old title via _extract_title (#130).
+            # old title via _extract_title.
             _rewrite_first_h1(new_path, desired_page.title)
         if page_id in mirror.tracked:  # pyright: ignore[reportAny]
             _replace_tracked_path(mirror, page_id, new_path)

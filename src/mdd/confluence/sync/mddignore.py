@@ -1,4 +1,4 @@
-"""Apply the ``.mddignore`` matcher to a Confluence sync (issue #118).
+"""Apply the ``.mddignore`` matcher to a Confluence sync.
 
 Confluence "directories" are not filesystem paths — they are page-title
 hierarchies. For each page in the desired-state map we therefore build a
