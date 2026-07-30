@@ -70,7 +70,7 @@ env/
 .claude/worktrees/*
 !.claude/worktrees/.template/
 
-# Agent scratch dir (see AGENTS.md → Scratch Files)
+# Agent scratch dir
 tmp/
 
 # complexipy cache (snapshot baseline `complexipy-snapshot.json` is committed)

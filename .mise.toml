@@ -1,12 +1,8 @@
-# mise: https://mise.jdx.dev/
+# mise: https://mise.en.dev/
 #
 # `mise install` installs everything under [tools]; `mise run <task>`
-# dispatches to uv. `pyproject.toml`'s `requires-python` remains
+# dispatches to `uv`. `pyproject.toml`'s `requires-python` remains
 # authoritative — mise reads it.
-#
-# This is the open-source task set. The private wrapper keeps the
-# release, multi-remote and GitLab-pipeline tasks, which have no meaning
-# outside its own hosting.
 
 [tools]
 python = "3.14"
