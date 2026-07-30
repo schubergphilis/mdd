@@ -165,7 +165,10 @@ run = "bun run dev"
 description = "Build the static site into site/dist"
 depends = ["docs-astro-check"]
 dir = "site"
-run = "bun run build"
+# Remove the previous build first. Astro leaves orphaned output behind when a
+# page's slug changes, and the link check reads whatever is in dist/ — a stale
+# page reports broken links that no longer exist in the source.
+run = ["rm -rf dist", "bun run build"]
 
 [tasks.docs-preview]
 description = "Preview the production build"
@@ -203,9 +206,17 @@ run = [
   "vale --minAlertLevel=error docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts",
 ]
 
+[tasks.docs-links]
+description = "Check every internal link in the built site resolves to a served page"
+# The sync step checks that a link's target file exists in the repository.
+# This checks that the URL it emitted is one the site actually serves — a
+# different question, and the only one a reader experiences.
+depends = ["docs-build"]
+run = "uv run python scripts/check-site-links.py"
+
 [tasks.docs-check]
-description = "Full documentation gate — prose lint, astro check, site build"
-depends = ["docs-vale", "docs-build"]
+description = "Full documentation gate — prose lint, astro check, site build, link check"
+depends = ["docs-vale", "docs-links"]
 
 [tasks.docs-clean]
 description = "Remove site build artefacts and synced content"

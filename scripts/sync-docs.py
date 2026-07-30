@@ -80,7 +80,7 @@ INLINE_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 REF_DEF_RE = re.compile(r"^(\s{0,3}\[[^\]]+\]:\s*)(\S+)(.*)$")
 FENCE_RE = re.compile(r"^(\s{0,3})(`{3,}|~{3,})")
 LIST_MARKER_RE = re.compile(r"^([-*+]|\d+[.)])\s")
-CODE_SPAN_RE = re.compile(r"(`+)((?:(?!\1).)+?)\1")
+CODE_SPAN_RE = re.compile(r"(`+)((?:(?!\1).)+?)\1", re.DOTALL)
 INLINE_LINK_TEXT_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 EMPHASIS_RE = re.compile(r"(\*{1,3}|_{1,3})(?!\s)(.+?)(?<!\s)\1")
 SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
@@ -350,25 +350,50 @@ def unmask_code_spans(content: str, spans: list[str]) -> str:
     return content
 
 
-def rewrite_line(
-    content: str, source: Path, lineno: int, site_paths: dict[Path, str], repo_root: Path
+def _rewrite_reference_definitions(
+    text: str, source: Path, start_line: int, site_paths: dict[Path, str], repo_root: Path
 ) -> tuple[str, list[str]]:
-    ref_match = REF_DEF_RE.match(content)
-    if ref_match is not None:
-        prefix, url, rest = ref_match.groups()
-        new_url, violation = rewrite_url(url, source, lineno, site_paths, repo_root)
-        return f"{prefix}{new_url}{rest}", ([violation] if violation else [])
-
-    masked, spans = mask_code_spans(content)
+    """Reference-style definitions (`[label]: url`) are anchored to one
+    physical line each, unlike inline links, so these are rewritten per line
+    before the block is treated as a single unit for the rest.
+    """
     violations: list[str] = []
-
-    def replace(match: re.Match[str]) -> str:
-        text, raw_url = match.group(1), match.group(2)
-        url, title = split_url_title(raw_url)
-        new_url, violation = rewrite_url(url, source, lineno, site_paths, repo_root)
+    rewritten: list[str] = []
+    for offset, line in enumerate(text.splitlines(keepends=True)):
+        content = line.splitlines()[0] if line.splitlines() else ""
+        match = REF_DEF_RE.match(content)
+        if match is None:
+            rewritten.append(line)
+            continue
+        prefix, url, rest = match.groups()
+        new_url, violation = rewrite_url(url, source, start_line + offset, site_paths, repo_root)
         if violation:
             violations.append(violation)
-        return f"[{text}]({new_url}{title})"
+        rewritten.append(line.replace(content, f"{prefix}{new_url}{rest}", 1))
+    return "".join(rewritten), violations
+
+
+def rewrite_block(
+    text: str, source: Path, start_line: int, site_paths: dict[Path, str], repo_root: Path
+) -> tuple[str, list[str]]:
+    """Rewrite every link in one contiguous run of non-code lines, treated as
+    a single unit so a link that wraps across a line break is still caught —
+    processing line by line would silently pass a wrapped link straight
+    through, unrewritten and unreported.
+    """
+    text, violations = _rewrite_reference_definitions(
+        text, source, start_line, site_paths, repo_root
+    )
+    masked, spans = mask_code_spans(text)
+
+    def replace(match: re.Match[str]) -> str:
+        link_text, raw_url = match.group(1), match.group(2)
+        url, title = split_url_title(raw_url)
+        match_line = start_line + masked.count("\n", 0, match.start())
+        new_url, violation = rewrite_url(url, source, match_line, site_paths, repo_root)
+        if violation:
+            violations.append(violation)
+        return f"[{link_text}]({new_url}{title})"
 
     rewritten = INLINE_LINK_RE.sub(replace, masked)
     return unmask_code_spans(rewritten, spans), violations
@@ -379,42 +404,89 @@ def _fence_close(line: str, fence_char: str, fence_len: int) -> bool:
     return re.match(pattern, line) is not None
 
 
+def _fence_open(content: str) -> re.Match[str] | None:
+    """Match a genuine opening code fence, as distinct from a run of
+    backticks used as an inline code-span delimiter in running prose (for
+    example, four backticks wrapping literal text that itself contains
+    triple backticks). CommonMark's rule: a backtick fence's info string may
+    not itself contain a backtick, since that would be ambiguous with a code
+    span; a tilde fence has no such restriction.
+    """
+    match = FENCE_RE.match(content)
+    if match is None:
+        return None
+    if match.group(2)[0] == "`" and "`" in content[match.end() :]:
+        return None
+    return match
+
+
+@dataclass
+class _FenceState:
+    char: str = ""
+    length: int = 0
+
+
+def _classify_line(content: str, fence: _FenceState, list_active: bool) -> tuple[bool, bool]:
+    """Return (is_passthrough, new_list_active) for one physical line.
+
+    A passthrough line — fenced code, a fence delimiter, an indented code
+    line, or blank — is emitted unchanged and never joins a link-rewriting
+    block. Everything else is prose and gets grouped into a block by the
+    caller.
+    """
+    if fence.char:
+        if _fence_close(content, fence.char, fence.length):
+            fence.char, fence.length = "", 0
+        return True, list_active
+    fence_match = _fence_open(content)
+    if fence_match is not None:
+        fence.char, fence.length = fence_match.group(2)[0], len(fence_match.group(2))
+        return True, list_active
+    if not content.strip():
+        return True, list_active
+    stripped = content.lstrip(" ")
+    indent = len(content) - len(stripped)
+    if LIST_MARKER_RE.match(stripped) and indent <= 3:
+        list_active = True
+    elif indent < 4:
+        list_active = False
+    return indent >= 4 and not list_active, list_active
+
+
 def rewrite_links_in_body(
     body: str, source: Path, site_paths: dict[Path, str], repo_root: Path, start_line: int = 1
 ) -> tuple[str, list[str]]:
     violations: list[str] = []
-    out_lines: list[str] = []
-    fence_char = ""
-    fence_len = 0
+    out_parts: list[str] = []
+    fence = _FenceState()
     list_active = False
+    prose_lines: list[str] = []
+    prose_start = start_line
+
+    def flush_prose() -> None:
+        if not prose_lines:
+            return
+        block_text = "".join(prose_lines)
+        new_text, block_violations = rewrite_block(
+            block_text, source, prose_start, site_paths, repo_root
+        )
+        out_parts.append(new_text)
+        violations.extend(block_violations)
+        prose_lines.clear()
+
     for lineno, line in enumerate(body.splitlines(keepends=True), start=start_line):
         content = line.splitlines()[0] if line.splitlines() else ""
-        if fence_char:
-            out_lines.append(line)
-            if _fence_close(content, fence_char, fence_len):
-                fence_char, fence_len = "", 0
+        passthrough, list_active = _classify_line(content, fence, list_active)
+        if passthrough:
+            flush_prose()
+            out_parts.append(line)
             continue
-        fence_match = FENCE_RE.match(content)
-        if fence_match is not None:
-            fence_char, fence_len = fence_match.group(2)[0], len(fence_match.group(2))
-            out_lines.append(line)
-            continue
-        if not content.strip():
-            out_lines.append(line)
-            continue
-        stripped = content.lstrip(" ")
-        indent = len(content) - len(stripped)
-        if LIST_MARKER_RE.match(stripped) and indent <= 3:
-            list_active = True
-        elif indent < 4:
-            list_active = False
-        if indent >= 4 and not list_active:
-            out_lines.append(line)
-            continue
-        new_content, line_violations = rewrite_line(content, source, lineno, site_paths, repo_root)
-        violations.extend(line_violations)
-        out_lines.append(line.replace(content, new_content, 1))
-    return "".join(out_lines), violations
+        if not prose_lines:
+            prose_start = lineno
+        prose_lines.append(line)
+
+    flush_prose()
+    return "".join(out_parts), violations
 
 
 def render_page(page: Page, site_paths: dict[Path, str], repo_root: Path) -> RenderResult:
