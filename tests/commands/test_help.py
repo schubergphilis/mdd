@@ -1,6 +1,5 @@
 """Tests for the help subcommand (alias for --help)."""
 
-import importlib.util
 from typing import TYPE_CHECKING
 
 from mdd.cli import main
@@ -9,8 +8,11 @@ if TYPE_CHECKING:
     import pytest
 
 
-# The provider-neutral command set every distribution ships.
-_CORE_COMMANDS = (
+# The provider-neutral command set this distribution ships. Site-specific
+# groups a wrapper injects via `extra_commands` are not asserted here; that
+# seam is covered end-to-end by `TestExtraCommandsDispatch` in
+# tests/test_cli.py with a self-contained fake command module.
+_EXPECTED_COMMANDS = (
     "echo",
     "help",
     "convert",
@@ -26,17 +28,6 @@ _CORE_COMMANDS = (
     "sharepoint",
     "skills",
 )
-
-# Site-specific groups injected by this distribution's entry point via
-# `extra_commands` (spec S44). A distribution that does not ship them is
-# still valid, so they are asserted only when their module is importable.
-_SITE_COMMANDS = tuple(
-    name
-    for name, module in (("gitlab", "mdd.commands.gitlab"), ("lucid", "mdd.commands.lucid"))
-    if importlib.util.find_spec(module) is not None
-)
-
-_EXPECTED_COMMANDS = _CORE_COMMANDS + _SITE_COMMANDS
 
 
 class TestHelp:
