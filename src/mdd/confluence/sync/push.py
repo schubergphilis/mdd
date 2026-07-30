@@ -26,7 +26,7 @@ log = get_logger(__name__)
 
 @dataclass
 class PushCtx:
-    """Cross-cutting state for content-push helpers (S34 PLR0913)."""
+    """Cross-cutting state for content-push helpers (keeps PLR0913 happy)."""
 
     client: ConfluenceClient
     config: ConfluenceConfig

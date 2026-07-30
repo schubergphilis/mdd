@@ -5,8 +5,6 @@ namespace declarations so a single parser pass works.  HTML5 entities
 (``&hellip;``, ``&rsquo;``, ``&nbsp;``, ...) are substituted to their
 Unicode characters before parsing because lxml silently drops unknown
 entities.
-
-See spec S29 for the full element coverage table and fallback policy.
 """
 
 from __future__ import annotations
@@ -421,8 +419,7 @@ def _decode_text_like(tok: Inline, pua_to_entity: dict[str, str]) -> Inline:
         new_content, entity_form = _decode_pua_in_text(tok.content, pua_to_entity)
         # raw_bytes intentionally empty for Text / Code — the writer
         # consults `content` + `entity_form` directly; storing the UTF-8
-        # encoding here would just double the sidecar size (spec S31
-        # open question 1).
+        # encoding here would just double the sidecar size.
         origin = Origin(source_format="confluence-storage", entity_form=entity_form)
         return replace(tok, content=new_content, origin=origin)
     assert isinstance(tok, RawInline)  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction
@@ -537,9 +534,8 @@ def parse_confluence_storage(
     # re-emit named entities (`&mdash;`, `&hellip;`, `&quot;`, …) in either
     # mode. lxml unconditionally decodes them to their Unicode codepoints
     # during parse, and `_attach_origin_to_blocks` is the cheap part of
-    # Origin (entity_form only — no raw_bytes capture); see spec S31 for
-    # why we draw the preserving vs normalising line at raw_bytes rather
-    # than at entity_form.
+    # Origin (entity_form only — no raw_bytes capture), so the preserving
+    # vs normalising line is drawn at raw_bytes, not at entity_form.
     text, pua_to_entity = _substitute_entities_with_pua_markers(storage)
 
     wrapped = f'<root xmlns:ac="{_AC}" xmlns:ri="{_RI}">{text}</root>'

@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 class SyncOptions:
     """Bundle of ``sync_space`` options that aren't core positional args.
 
-    Created so the public signature stays under the PLR0913 ``max-args`` limit
-    (S34). ``dry_run`` is the only frequently-used flag in tests; the rest are
+    Created so the public signature stays under the PLR0913 ``max-args``
+    limit. ``dry_run`` is the only frequently-used flag in tests; the rest are
     knobs for the CLI / orchestrator.
     """
 
@@ -28,14 +28,14 @@ class SyncOptions:
     managed_config: ManagedConfig | None = None
     skip_attachments: bool = False
     read_only: bool = False
-    # Spec S39 — source-side ``.mddignore`` matcher. ``None`` (the default)
-    # disables filtering entirely; sync behaviour is byte-identical to the
-    # pre-S39 path. When set, pages whose rel-path (built from the page-title
-    # chain that produces the on-disk markdown filename) matches the matcher
-    # are skipped before download. Already-tracked pages are NEVER deleted on
+    # Source-side ``.mddignore`` matcher. ``None`` (the default) disables
+    # filtering entirely; sync behaviour is byte-identical to the unfiltered
+    # path. When set, pages whose rel-path (built from the page-title chain
+    # that produces the on-disk markdown filename) matches the matcher are
+    # skipped before download. Already-tracked pages are NEVER deleted on
     # the basis of a newly-added pattern — the matcher only blocks new pulls.
     matcher: MddIgnore | None = None
-    # Spec S39 opt-in cleanup. When True, ``sync_space`` walks the mirror
+    # Opt-in cleanup. When True, ``sync_space`` walks the mirror
     # tree once via ``matcher.walk_prunable`` BEFORE the normal sync and
     # deletes every file the matcher flags. Mutually exclusive with
     # ``read_only`` (the CLI rejects the combination at parse time). Under
@@ -67,15 +67,15 @@ class SyncSummary:
     commit_sha: str = ""
     office_uploaded: int = 0
     office_cache_hits: int = 0
-    # managed-elsewhere skips (spec S26): {publisher_name: count}
+    # managed-elsewhere skips: {publisher_name: count}
     managed_skips: dict[str, int] = field(default_factory=dict)
-    # Spec S39 — pages dropped by the ``.mddignore`` matcher before download.
+    # Pages dropped by the ``.mddignore`` matcher before download.
     # ``skipped_ignored_paths`` records POSIX-style rel-paths (directories
     # carry a trailing ``/`` so dry-run output distinguishes prunes from
     # per-page skips, matching the SharePoint summary shape).
     skipped_ignored: int = 0
     skipped_ignored_paths: list[str] = field(default_factory=list)
-    # Spec S39 — already-synced files deleted by the ``--prune-ignored``
+    # Already-synced files deleted by the ``--prune-ignored``
     # flag. ``skipped`` is source-side filtering; ``pruned`` is local
     # cleanup of already-synced content; the two never overlap. Under
     # ``--dry-run`` the counter still ticks up but no file is removed

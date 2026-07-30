@@ -2,15 +2,15 @@
 
 These helpers narrow ``Any``-typed values pulled from Confluence
 API response dicts.  They are NOT for user-edited YAML (which goes
-through the typed :mod:`mdd.utils.frontmatter` layer per spec S40);
-they exist because the v2 API surface is large and only partially
-modelled, and the few fields the managed-page classifier reads
+through the typed :mod:`mdd.utils.frontmatter` layer); they exist
+because the v2 API surface is large and only partially modelled,
+and the few fields the managed-page classifier reads
 (``id``, ``parentId``, ``ancestors[]``, ``version.authorId``,
 ``update.restrictions.user.results[]``) are easier to access via
 these helpers than to fully model.
 
-When the broader v2-response modelling effort lands (S40 §Out of
-scope) this module disappears.
+When the broader v2-response modelling effort lands this module
+disappears.
 """
 
 from __future__ import annotations
