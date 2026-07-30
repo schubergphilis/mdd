@@ -1,4 +1,4 @@
-"""Filesystem cache backend for AI responses (spec S20).
+"""Filesystem cache backend for AI responses.
 
 Cache key is a SHA-256 hash of the canonical serialisation of:
   - model name
@@ -18,8 +18,7 @@ The on-disk entry is validated through :class:`CacheEntry`, a
 ``FrontmatterModel`` subclass with ``extra="forbid"``: unknown keys
 (schema drift) cause the entry to be treated as a miss and dropped.
 The ``v`` field is typed as ``int`` rather than ``Literal[1]`` so
-existing on-disk caches stay readable across schema bumps
-(spec S40 §Risks / watch-outs).
+existing on-disk caches stay readable across schema bumps.
 """
 
 from __future__ import annotations
@@ -62,7 +61,7 @@ def build_cache_key(
     in canonical order.  The serialisation is deterministic (sorted keys,
     no whitespace).
 
-    *cache_key_extra* lets callers (e.g. spec S21 rewrite) inject additional
+    *cache_key_extra* lets callers (e.g. rewrite) inject additional
     material (style prompt hash, etc.) into the key without polluting the
     call signature.
     """

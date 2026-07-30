@@ -1,4 +1,4 @@
-"""AI-powered directory INDEX.md generator with per-file summary caching (spec S21).
+"""AI-powered directory INDEX.md generator with per-file summary caching.
 
 Usage::
 
@@ -97,7 +97,7 @@ def _body_hash(body: str) -> str:
 
 
 def _is_managed_file(fm: dict[str, Any]) -> bool:
-    """Return True if the frontmatter indicates a managed-elsewhere page (spec S26).
+    """Return True if the frontmatter indicates a managed-elsewhere page.
 
     Checks ``confluence.managed_by`` stamped during pull-side export.
     """
@@ -206,7 +206,7 @@ def _writeback_summary(
     body_hash: str,
     client: Client,
 ) -> None:
-    """Write the fresh summary back into the source frontmatter, honouring spec S26.
+    """Write the fresh summary back into the source frontmatter.
 
     Managed-elsewhere pages (`confluence.managed_by`) are skipped with a warning;
     only locally-owned files get updated.
