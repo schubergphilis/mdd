@@ -8,7 +8,7 @@
 
 This spec refactors the existing internal surface — no new user-facing command. The registry unblocks attachment conversion in Confluence sync ([S16](S16-confluence-attachment-conversion.md)), SVG rasterization ([S24](S24-svg-rasterization.md)), and SharePoint sync ([S18](S18-sharepoint-sync.md)) — all of which need to call the same "convert this file to its markdown form" logic from outside the `convert` command.
 
-Originates from research doc 002 (attachments).
+Originates from research note R02 (attachments).
 
 ## Requirements
 

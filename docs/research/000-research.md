@@ -58,9 +58,10 @@ measurements reproduced in the notes are the durable part.
 ## Relationship to specs
 
 Specs are self-contained: they MUST NOT link out to research notes,
-and any content a spec depends on is copied into the spec — see the
-cross-reference convention in
-[`docs/spec/000-specs.md`](../spec/000-specs.md). Two specs credit a
-note by number in prose (`research note R08`, `research note R13`)
-without linking; that is the most a spec should do. Research notes
-may freely link to specs and to each other.
+and any content a spec depends on is copied into the spec. A spec may
+credit the note a design came from by number, in prose and without a
+link (`Originates from research note R03.`) — that is the most a spec
+should do. See the cross-reference convention in
+[`docs/spec/000-specs.md`](../spec/000-specs.md).
+
+Research notes may freely link to specs and to each other.

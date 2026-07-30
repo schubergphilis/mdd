@@ -8,7 +8,7 @@
 
 `mdd skills install` deploys the bundled skills into `~/.claude/skills/`.
 
-Originates from research doc 003.
+Originates from research note R03.
 
 ## Requirements
 

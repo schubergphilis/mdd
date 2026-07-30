@@ -51,8 +51,8 @@ Run `uv run python scripts/spec-list.py` to recreate this overview:
 
 Spec files use the `SNN-<slug>.md` form (e.g. `S07-data-protection.md`).
 Numbers are assigned in order, starting at 1, zero-padded to two digits.
-Plans live under `docs/plan/` with a `PNN-` prefix and research notes
-under `docs/research/` with an `RNN-` prefix.
+Research notes live under `docs/research/` with an `RNN-` prefix; see
+[`000-research.md`](../research/000-research.md).
 
 ## Existence check before adding a new spec
 
@@ -101,10 +101,14 @@ See S14 for the reconciliation algorithm.
 
 When prose requires a bare number (e.g. in a table row), keep the link: `[S07](S07-data-protection.md)`.
 
-Spec files MUST NOT link to or name-reference `docs/plan/` (PNN) or
-`docs/research/` (RNN) artefacts. Plans and research notes are
-working / process documents; specs are the durable design record.
-Copy any relevant content into the spec instead of linking out.
+Spec files MUST NOT link to `docs/research/` (RNN) artefacts, and MUST
+NOT depend on one to be understood. Research notes are working /
+process documents; specs are the durable design record. Copy any
+relevant content into the spec instead of linking out.
+
+A spec MAY credit the note a design came from by number, in prose and
+without a link — `Originates from research note R03.` — as long as the
+spec still reads completely on its own.
 
 ## Status convention
 

@@ -13,7 +13,7 @@ page. Confluence readers get a downloadable office-format copy that
 always reflects the markdown master.
 
 This is the **push side** of the bidirectional Office story from
-research 002. The pull side (downloading and converting attachments)
+research note R02. The pull side (downloading and converting attachments)
 is [S16](S16-confluence-attachment-conversion.md).
 
 ## Requirements

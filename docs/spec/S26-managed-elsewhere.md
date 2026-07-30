@@ -11,7 +11,7 @@ Pages authored by external automation systems (e.g. `docs-pipeline` Sphinx publi
 This spec extends `mdd confluence sync` ([S14](S14-confluence-sync.md)) and the related
 push paths ([S09](S09-confluence-command.md) `update page`, [S17](S17-confluence-office-publishing.md) office publishing,
 [S21](S21-ai-rewrite-and-index.md) `ai rewrite --apply`, [S21](S21-ai-rewrite-and-index.md) `ai index --apply`).
-Originates from research doc 005.
+Originates from research note R05.
 
 ## Requirements
 

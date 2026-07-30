@@ -12,7 +12,7 @@ The report is itself a markdown file under `docs/review/` (or a
 similar configured path). It gets committed by the user as part of
 the review workflow; subsequent reports stay in git history.
 
-Originates from research doc 003.
+Originates from research note R03.
 
 ## Requirements
 
@@ -163,7 +163,7 @@ Runs all three sub-modes, sharing the BM25 index across them
 - Cross-mirror review (e.g. duplicates spanning Confluence and
   SharePoint). Useful but adds complexity; deferred until intra-
   mirror review proves valuable.
-- Embedding-based similarity. Deferred per research 003; revisit
+- Embedding-based similarity. Deferred per research note R03; revisit
   if BM25 quality limits review usefulness.
 - Continuous review (cron job that re-runs on schedule). Spec is
   on-demand only; cron lives outside `mdd`.

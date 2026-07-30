@@ -14,7 +14,7 @@ analogous `export space` alias.) The snapshot/one-way-export flow is
 provided by `sync site --read-only`, matching the equivalent flag on
 `mdd confluence sync-space`.
 
-Originates from research doc 002.
+Originates from research note R02.
 
 ## Subcommands
 

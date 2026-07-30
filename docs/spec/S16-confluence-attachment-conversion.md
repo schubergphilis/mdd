@@ -14,7 +14,7 @@ binary stays for fidelity; the markdown sibling lets readers grep, diff, and
 review in the git mirror without leaving the browser.
 
 This is the **pull side** of the bidirectional Office story described in
-research 002. The push side (rendering markdown to office-format attachments)
+research note R02. The push side (rendering markdown to office-format attachments)
 is [S17](S17-confluence-office-publishing.md).
 
 ## Requirements
