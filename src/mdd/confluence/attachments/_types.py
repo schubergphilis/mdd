@@ -13,7 +13,7 @@ class AttachmentCollisionError(Exception):
 class AttachmentManifestEntry:
     """Metadata about a downloaded attachment.
 
-    Fields added in spec S16:
+    Converter fields, all None unless the attachment was converted:
     - converted_to: filename of the converter output (e.g. "Foo.docx.md"), or None.
     - converter: converter name/ID (e.g. "docling-docx"), or None.
     - converter_version: version string of the converter, or None.
@@ -29,7 +29,7 @@ class AttachmentManifestEntry:
 
 @dataclass
 class AttachmentSyncSummary:
-    """Per-page attachment sync statistics (spec S16)."""
+    """Per-page attachment sync statistics."""
 
     synced: int = 0
     converted: int = 0

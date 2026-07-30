@@ -1,4 +1,4 @@
-"""Download and upload Confluence page attachments (spec S09 + 016).
+"""Download and upload Confluence page attachments.
 
 Public surface (re-exported from topic-grouped sub-modules):
 

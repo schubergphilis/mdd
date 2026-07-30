@@ -56,7 +56,7 @@ mdd confluence create-page docs/new-page.md --space MYSPACE --parent <id-or-url>
 mdd confluence export-page <page-id-or-url>
 ```
 
-**Rename / move / archive / unarchive a page** (spec S27):
+**Rename / move / archive / unarchive a page**:
 ```
 mdd confluence rename-page    docs/page.md "New Title"        --yes
 mdd confluence move-page      docs/page.md --parent <id|url|other.md>
