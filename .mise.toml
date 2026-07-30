@@ -210,3 +210,7 @@ depends = ["docs-vale", "docs-build"]
 [tasks.docs-clean]
 description = "Remove site build artefacts and synced content"
 run = "rm -rf site/dist site/.astro site/src/content/docs/{guide,articles,reference,spec,research}"
+
+[tasks.derive-dark-logo]
+description = "Regenerate site/src/assets/mdd-logo-dark.png from assets/mdd-logo.png"
+run = "uv run python scripts/derive-dark-logo.py"

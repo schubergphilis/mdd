@@ -47,6 +47,23 @@ What does not need a citation: things a reader can verify by running a command,
 definitions given earlier in the same article, and general background that is
 not specific to this project.
 
+**Density is a floor on coverage, not a target for frequency.** Applied
+literally, this rule produces prose nobody can read — a link on every clause,
+often landing mid-phrase on a verb, so the reader's eye leaves the sentence
+several times per sentence. That has already happened once. Three limits:
+
+- **At most one citation per sentence.** Where consecutive sentences draw on
+  the same source, cite once and move on.
+- **Put the link at the end of the sentence or clause it supports**, never on a
+  verb or an arbitrary fragment inside it. A trailing
+  `([S31](../spec/S31-ir-normalization-and-whitespace.md))` reads better than a
+  link buried on the words "deliberately refuses".
+- **Read a paragraph aloud.** If you stumble over where the links sit, move
+  them.
+
+A reviewer can check a claim that is cited at the end of its sentence just as
+easily. Nothing is lost.
+
 ### 2. Preserve reversals
 
 Dead ends, rejected options, and superseded recommendations are the payload.
@@ -161,6 +178,19 @@ Voice — this repository has one writer with an established voice:
 
 Content rules:
 
+- **Show something before you explain it.** An article about a conversion
+  shows the input and the output; an article about a failure mode shows the
+  failure. Use real bytes from a committed file — `tests/corpus/` and the
+  fixtures under `tests/` exist for this — never an invented illustration.
+  Three short blocks, not three screens.
+- **Do not open in notation.** Metric codes, phase numbers and internal
+  shorthand (`M1`, `R3`, `P03 phase 5`) are how the corpus talks to itself. A
+  reader has not learned them and should not have to. If a number matters, say
+  what it measures in words. One piece of shorthand, introduced once, is the
+  most an article should ask for.
+- **Lead with what is true now.** Superseded measurements belong in the
+  reversal that explains them, in a sentence, not in a table the article then
+  admits is historical.
 - Never assert a fact a generator could state. An article does not enumerate
   flags or list command output; it explains why the design is the way it is.
 - Do not invent numbers. If you quote a benchmark or a fidelity percentage, it
@@ -169,7 +199,15 @@ Content rules:
 
 ## Step 4 — Self-check before reporting
 
-Read your own draft against the three constraints, in this order:
+First, the question the other checks cannot ask: **would somebody who does not
+already know this understand it?** Read the draft as an operator who runs
+`mdd` and has never opened a spec. Where does it assume the corpus's
+vocabulary? Where does it assert something it could have shown? An article
+that is accurate, well cited, and impossible to follow has failed — this has
+happened, and the author of the system being described was the one who could
+not follow it.
+
+Then read it against the three constraints, in this order:
 
 1. **Reversals.** Which decisions in this article had a losing option? Is each
    one named? If the article reads as a straight line from problem to solution,
