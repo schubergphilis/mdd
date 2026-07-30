@@ -1,4 +1,4 @@
-"""mdd sharepoint — SharePoint OneDrive mirror command (spec S10, extended by 018)."""
+"""mdd sharepoint — SharePoint OneDrive mirror command."""
 
 from __future__ import annotations
 
@@ -148,8 +148,8 @@ def _run_list_sites(ns: argparse.Namespace) -> int:
 
 
 def _print_sync_summary(summary: SyncRunSummary) -> None:
-    # Spec S39: a ``--dry-run`` prune pass increments ``pruned_ignored``
-    # but performs no deletion; surface that distinction in the log.
+    # A ``--dry-run`` prune pass increments ``pruned_ignored`` but performs no
+    # deletion; surface that distinction in the log.
     pruned_label = (
         "pruned (ignored, dry-run)" if summary.pruned_ignored_dry_run else "pruned (ignored)"
     )
@@ -186,7 +186,7 @@ def _print_sync_summary(summary: SyncRunSummary) -> None:
 
 
 def _load_mddignore(dest_root: Path, ignore_paths: list[Path] | None) -> MddIgnore:
-    """Build the S39 matcher from *dest_root*/.mddignore plus CLI ``--ignore`` paths."""
+    """Build the ignore matcher from *dest_root*/.mddignore plus CLI ``--ignore`` paths."""
     cli_tuple: tuple[Path, ...] = tuple(ignore_paths) if ignore_paths else ()
     return MddIgnore.load(dest_root, cli_tuple)
 
@@ -226,7 +226,7 @@ _PRUNE_READONLY_CONFLICT = "--read-only and --prune-ignored are mutually exclusi
 
 
 def _check_prune_readonly(ns: argparse.Namespace, *, read_only: bool, prune_ignored: bool) -> None:
-    """Reject ``--read-only`` + ``--prune-ignored`` at parse time (spec S39).
+    """Reject ``--read-only`` + ``--prune-ignored`` at parse time.
 
     Uses the subparser stashed on the namespace via ``set_defaults`` so the
     error path goes through ``argparse``'s standard formatter (exit code 2,
@@ -361,9 +361,8 @@ def _add_sync_common(p: argparse.ArgumentParser) -> None:
         metavar="FILE",
         help=(
             "Path to an additional `.mddignore`-style file whose patterns are "
-            "unioned with `<output>/.mddignore` (spec S39). May be supplied "
-            "multiple times; with no flag and no dest-root file, sync "
-            "behaviour is identical to the pre-S39 default (no filtering)."
+            "unioned with `<output>/.mddignore`. May be supplied multiple "
+            "times; with no flag and no dest-root file, nothing is filtered."
         ),
     )
     _ = p.add_argument(
@@ -371,8 +370,8 @@ def _add_sync_common(p: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Before syncing, delete every file under <output> whose path "
-            "matches the loaded `.mddignore` matcher (spec S39 opt-in "
-            "cleanup). One INFO log line per deletion. Combine with "
+            "matches the loaded `.mddignore` matcher. "
+            "One INFO log line per deletion. Combine with "
             "--dry-run to preview without deleting. Mutually exclusive "
             "with --read-only."
         ),
@@ -386,7 +385,7 @@ def register(
     sp = subparsers.add_parser(
         "sharepoint",
         help="Mirror SharePoint OneDrive folders to Markdown",
-        description="SharePoint OneDrive mirror command (spec S10, extended by 018).",
+        description="Mirror SharePoint OneDrive folders to and from local Markdown.",
     )
     sub = sp.add_subparsers(dest="subcommand", required=True, metavar="<subcommand>")
 

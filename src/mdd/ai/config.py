@@ -1,4 +1,4 @@
-"""AI config loader (spec S20)."""
+"""AI config loader."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from mdd.ai.models import AiAuthError
 from mdd.utils.config import ConfigError, load_yaml
 from mdd.utils.secrets import SecretError, parse_secret_ref, resolve_secret
 
-# Neutral fallback: a LiteLLM proxy on its default port. The real gateway
-# is site-specific and belongs in configs/ai.yaml (spec S44 — no site
-# hostname is hard-coded in a module that ships open-source).
+# Neutral fallback: a LiteLLM proxy on its default port. The real gateway is
+# site-specific and belongs in configs/ai.yaml; no site hostname may be
+# hard-coded here.
 _DEFAULT_BASE_URL = "http://localhost:4000/v1"
 _DEFAULT_CACHE_DIR = Path.home() / ".cache" / "mdd" / "ai"
 _DEFAULT_CACHE_TTL_DAYS = 30
@@ -56,13 +56,12 @@ def _find_config_file(explicit: Path | None) -> Path | None:
 
 # Shown whenever the token is missing or rejected. Site deployments point
 # at their own gateway and secret store, so the operational half of this
-# message is config-supplied (`ai.token_hint`) rather than a source
-# literal (spec S44).
+# message is config-supplied (`ai.token_hint`) rather than a source literal.
 _DEFAULT_TOKEN_HINT = (
     "Set `ai.api_token` in configs/ai.yaml or ~/.config/mdd/ai.yaml. "  # noqa: S105  # not a secret: missing-token help text
     "The value may be an `op://` reference resolved through the 1Password CLI."
 )
-_AI_TOKEN_PREFIX = "AI token unavailable. See spec S20 (or `mdd ai --help`) for setup. To fix: "  # noqa: S105  # not a secret: missing-token help text
+_AI_TOKEN_PREFIX = "AI token unavailable. Run `mdd ai --help` for setup. To fix: "  # noqa: S105  # not a secret: missing-token help text
 
 
 def _token_hint(raw_ai: dict[str, Any]) -> str:
