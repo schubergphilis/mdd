@@ -1,7 +1,6 @@
 """Generic commit-and-push orchestration for the sync engines (spec S44).
 
-Extracted from :mod:`mdd.gitlab.workdir` (issue #132 → plan P03 MR A2):
-the provider-agnostic part of ending a sync run — refuse-or-bootstrap
+The provider-agnostic part of ending a sync run — refuse-or-bootstrap
 the work-tree, commit, and (optionally) ensure-the-remote + push —
 driven by a :class:`~mdd.mirror.protocol.MirrorBackend`. The
 provider-specific knowledge (remote URL derivation, project auto-create,

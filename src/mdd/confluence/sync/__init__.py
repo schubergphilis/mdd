@@ -216,8 +216,8 @@ def sync_space(
             client, mirror, config, summary, dry_run=False, managed_config=get_managed_cfg()
         )
 
-    # Steps 5 + 6: commit + optional push (issue #132: delegated to
-    # mdd.gitlab.workdir.commit_and_push via finalize_commit_and_push).
+    # Steps 5 + 6: commit + optional push, delegated to the mirror
+    # orchestrator via finalize_commit_and_push.
     needs_init = opts.push and not is_git_repo(output_dir)
     if not summary.has_changes() and not summary.failures and not needs_init:
         return summary

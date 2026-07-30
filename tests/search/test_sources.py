@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-# A stand-in for what a wrapper registers (sbp-mdd registers `lucid` in
-# exactly this shape, from its CLI entry point).
+# A stand-in for what a wrapper registers from its CLI entry point, in
+# exactly this shape.
 WIDGET = RootSource(
     source_type="widget",
     config_name="widget",
