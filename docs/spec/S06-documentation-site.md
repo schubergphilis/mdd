@@ -438,7 +438,14 @@ abstract. The initial configuration is:
 - A vocabulary accept-list seeded with the project's domain terms
   (`Confluence`, `SharePoint`, `frontmatter`, `roundtrip`, `mddignore`,
   `Quarto`, `docling`).
-- `filter_mode: added`, at warning level.
+- `MinAlertLevel = warning`, but only **errors** gate. Vale's exit code covers
+  everything at or above `MinAlertLevel` and offers no way to print a class of
+  finding without failing on it, so `mise run docs-vale` makes two passes: one
+  with `--no-exit` that shows every warning, and one with
+  `--minAlertLevel=error` that decides the outcome. Misspellings and
+  wrong-cased terms are objective and block. Passive voice is a judgement a
+  reviewer makes; 135 warnings across the first ten pages, most of them correct
+  usage, is advice rather than a gate.
 
 Both rules are chosen for the same reason: much of `mdd`'s audience reads
 English as a second language. Passive constructions and idiom are what that

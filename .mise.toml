@@ -187,12 +187,21 @@ description = "Fetch the pinned Vale style packages (needs the network)"
 run = "vale sync"
 
 [tasks.docs-vale]
-description = "Vale prose lint over hand-written prose"
+description = "Vale prose lint over hand-written prose. Errors gate; warnings advise."
 # Hand-written prose only. Not the design record, which is written for a
 # different reader in a different register — and not the whole of
 # site/src/content/docs/, because once docs-sync has run that directory
 # contains the synced specs and research notes too.
-run = "vale docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts"
+#
+# Two passes. Vale's exit code covers everything at or above MinAlertLevel,
+# with no way to print a class of finding without failing on it, so the first
+# pass shows every warning and the second decides the outcome. Only errors —
+# misspellings and wrong-cased terms — block. Passive voice is a judgement
+# call a reviewer makes, not something that should stop a build.
+run = [
+  "vale --no-exit docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts",
+  "vale --minAlertLevel=error docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts",
+]
 
 [tasks.docs-check]
 description = "Full documentation gate — prose lint, astro check, site build"

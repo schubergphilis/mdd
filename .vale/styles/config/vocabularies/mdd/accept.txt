@@ -5,7 +5,6 @@ Atlassian's
 OneDrive
 Quarto
 Docling
-Pandoc
 Lua
 Starlight
 Astro
@@ -39,3 +38,7 @@ unmerged
 reimplemented
 Rasterizing
 [Mm]irror(ed|ing)?
+auditable
+reframed
+else's
+[Pp]andoc
