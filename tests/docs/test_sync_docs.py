@@ -304,6 +304,25 @@ def test_links_inside_fenced_code_block_are_left_alone(tmp_path: Path) -> None:
     assert "[missing](03-missing.md)" in body
 
 
+def test_backticks_in_a_fence_candidates_info_string_do_not_open_a_fence(tmp_path: Path) -> None:
+    """A backtick run followed by more backticks on the same line is an
+    inline code span escaping literal backticks, not a fence — CommonMark
+    disallows a backtick in a backtick-fence info string. Misreading it as a
+    fence-open would swallow the rest of the file as unrewritten "code".
+    """
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\n"
+        "It emits ```` ```confluence-xml ```` fences around the payload.\n\n"
+        "See [Safety](02-safety.md) afterward.\n",
+    )
+    write_file(tmp_path / "docs" / "guide" / "02-safety.md", "# Safety\n\nBe careful.\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
+    assert "[Safety](/mdd/guide/safety/)" in body
+
+
 def test_links_inside_indented_code_block_are_left_alone(tmp_path: Path) -> None:
     write_file(
         tmp_path / "docs" / "guide" / "01-install.md",
@@ -355,6 +374,65 @@ def test_reference_style_link_definition_is_rewritten(tmp_path: Path) -> None:
     assert sync_docs.run(tmp_path) == 0
     body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
     assert "[safety-ref]: /mdd/guide/safety/" in body
+
+
+# --- links wrapped across a line break --------------------------------------
+#
+# CommonMark permits a newline inside both the link text and the destination.
+# A line-by-line rewriter never sees the whole link and silently leaves it
+# untouched, which 404s once the destination is not the site-relative URL it
+# started as.
+
+
+def test_wrapped_link_text_is_rewritten(tmp_path: Path) -> None:
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\nSee [Safety and\nsecrets](02-safety.md) for details.\n",
+    )
+    write_file(tmp_path / "docs" / "guide" / "02-safety.md", "# Safety\n\nBe careful.\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
+    assert "[Safety and\nsecrets](/mdd/guide/safety/)" in body
+
+
+def test_wrapped_link_destination_is_rewritten(tmp_path: Path) -> None:
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\nSee [Safety](\n02-safety.md) for details.\n",
+    )
+    write_file(tmp_path / "docs" / "guide" / "02-safety.md", "# Safety\n\nBe careful.\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
+    assert "[Safety](/mdd/guide/safety/)" in body
+
+
+def test_wrapped_link_inside_fenced_code_block_is_left_alone(tmp_path: Path) -> None:
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\n```markdown\n[missing and\nmore](03-missing.md)\n```\n\nReal text.\n",
+    )
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
+    assert "[missing and\nmore](03-missing.md)" in body
+
+
+def test_wrapped_broken_link_is_reported_with_correct_line_number(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\nSee [missing](\n03-missing.md) for details.\n",
+    )
+
+    exit_code = sync_docs.run(tmp_path)
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "broken link: 03-missing.md" in captured.err
+    assert "01-install.md:3:" in captured.err
 
 
 # --- raw Markdown twins -----------------------------------------------------

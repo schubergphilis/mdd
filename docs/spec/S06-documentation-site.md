@@ -293,6 +293,7 @@ Checks are split by what makes them fail, not by what kind of check they are.
 | Same check over the design record | code changed | advisory, never fails |
 | Vale prose lint | prose changed | `mise run docs-check` |
 | Repo-relative links resolve | prose changed | `mise run docs-sync` |
+| Emitted URLs resolve against the built site | prose or site config changed | `mise run docs-check` |
 | `astro check` and site build | prose or site config changed | `mise run docs-check` |
 | External link rot | neither; links rot on their own | scheduled workflow |
 
@@ -314,6 +315,18 @@ rejected alternative to resolve against a real command is a category error. The
 check therefore runs over the design record in an advisory mode that reports
 and always exits zero, which keeps the drift visible without making it
 blocking.
+
+The two link checks answer different questions and both are needed. The sync
+step resolves each repo-relative link against the working tree, which catches a
+link to a file that does not exist. It cannot catch a link to a file that does
+exist but is served at a different URL — Starlight lowercases the slug it
+derives from a filename, so `S07-data-protection.md` is published at
+`.../s07-data-protection/`, and a link carrying the filename's case satisfies
+the first check and 404s for every reader. `scripts/check-site-links.py`
+therefore crawls `site/dist/` after the build and resolves every internal
+`href` and `src` against the pages and assets Astro actually emitted. It
+strips fragments rather than verifying anchors, which is a larger job and is
+not attempted.
 
 Code-coupled checks must be in `mise run ci` because a docs-only workflow does
 not run on a Python pull request — and that is precisely the change that
