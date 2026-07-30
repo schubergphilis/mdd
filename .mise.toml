@@ -7,6 +7,10 @@
 [tools]
 python = "3.14"
 uv = "latest"
+# Documentation site only. `mise run ci` never touches these, so a contributor
+# working on Python pays nothing for them beyond `mise install`.
+bun = "1.3"
+vale = "3"
 
 [env]
 _.file = { path = ".env", optional = true }
@@ -61,6 +65,14 @@ description = "pip-audit (OSV) over the dependency closure"
 # logs are not a terminal, so the spinner goes too.
 run = "uv run pip-audit --progress-spinner off"
 
+[tasks.check-mdd-commands]
+description = "Verify every `mdd …` string in user-facing prose is a real command"
+run = "uv run python scripts/check-mdd-commands.py"
+
+[tasks.check-mdd-commands-all]
+description = "Same check, extended over the design record. Advisory: never fails."
+run = "uv run python scripts/check-mdd-commands.py --all"
+
 [tasks.ci]
 description = "Full CI gate"
 depends = [
@@ -72,6 +84,7 @@ depends = [
   "test",
   "ir-roundtrip",
   "ir-coverage",
+  "check-mdd-commands",
 ]
 
 [tasks.version]
@@ -125,3 +138,66 @@ run = "uv run python -m pytest tests/ir/test_benchmarks.py --no-cov -v"
 [tasks.ir-coverage]
 description = "Corpus coverage matrix gate. Writes build/ir-coverage.json."
 run = "uv run python -m pytest tests/ir/test_corpus_coverage.py --no-cov -q"
+
+# --- Documentation site (site/, Astro + Starlight) ---------------------------
+#
+# None of these are part of `mise run ci`: that gate stays Node-free so a
+# contributor changing Python is never asked to install bun. The code-coupled
+# documentation checks (`check-mdd-commands` above) are pure Python and do run
+# in `ci`, because a docs-only workflow would not fire on a Python change.
+
+[tasks.docs-install]
+description = "Install the site dependencies (bun)"
+dir = "site"
+run = "bun install"
+
+[tasks.docs-sync]
+description = "Copy docs/**.md into site/src/content/docs/ with Starlight frontmatter"
+run = "uv run python scripts/sync-docs.py"
+
+[tasks.docs-dev]
+description = "Start the live-reloading dev server"
+depends = ["docs-sync"]
+dir = "site"
+run = "bun run dev"
+
+[tasks.docs-build]
+description = "Build the static site into site/dist"
+depends = ["docs-astro-check"]
+dir = "site"
+run = "bun run build"
+
+[tasks.docs-preview]
+description = "Preview the production build"
+dir = "site"
+run = "bun run preview"
+
+[tasks.docs-astro-check]
+description = "Astro type/content check"
+depends = ["docs-sync"]
+dir = "site"
+run = "bunx astro check"
+
+# `check` and `build` both write under site/.astro/, so they must not run
+# concurrently. mise runs `depends` in parallel, so the order is forced by
+# chaining rather than by listing both under docs-check.
+
+[tasks.docs-vale-sync]
+description = "Fetch the pinned Vale style packages (needs the network)"
+run = "vale sync"
+
+[tasks.docs-vale]
+description = "Vale prose lint over hand-written prose"
+# Hand-written prose only. Not the design record, which is written for a
+# different reader in a different register — and not the whole of
+# site/src/content/docs/, because once docs-sync has run that directory
+# contains the synced specs and research notes too.
+run = "vale docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts"
+
+[tasks.docs-check]
+description = "Full documentation gate — prose lint, astro check, site build"
+depends = ["docs-vale", "docs-build"]
+
+[tasks.docs-clean]
+description = "Remove site build artefacts and synced content"
+run = "rm -rf site/dist site/.astro site/src/content/docs/{guide,articles,reference,spec,research}"

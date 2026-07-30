@@ -452,7 +452,7 @@ provenance follow-ups are already done.
   docling spike.
 - [Research note 013](R13-confluence-ir-spike-pure-python.md) —
   pure-Python IR spike (the revised recommendation).
-- [`scripts/ir_experiment/`](../../scripts/ir_experiment/) — the
+- `scripts/ir_experiment/` — the
   harness and pipelines used in this comparison.
 - HTML reports: the harness also emitted side-by-side HTML diff
   reports per spike. They are not carried in this repository — the

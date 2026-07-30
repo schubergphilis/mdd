@@ -12,8 +12,8 @@ user can resolve them, and the resolution UX today is "go fix it
 manually." We need real bidirectional merge.
 
 Round-tripping a real, macro-heavy Confluence page through
-[`storage_to_md.py`](../../src/mdd/confluence/storage_to_md.py) and
-[`md_to_storage.py`](../../src/mdd/confluence/md_to_storage.py) made
+[`storage_to_md.py`](../../src/mdd/confluence/ir/reader.py) and
+[`md_to_storage.py`](../../src/mdd/confluence/ir/writer/) made
 the deeper problem visible: those two converters share no
 intermediate representation. They each independently encode/decode
 between Confluence storage XHTML and markdown, with `{=confluence}`
@@ -470,20 +470,20 @@ layout, and migration path.
 
 Reading list when the spikes start, in rough order of importance:
 
-- [`src/mdd/confluence/storage_to_md.py`](../../src/mdd/confluence/storage_to_md.py)
+- [`src/mdd/confluence/storage_to_md.py`](../../src/mdd/confluence/ir/reader.py)
   — current XHTML → markdown converter; the Python parser logic
   is reusable in spikes B and C.
-- [`src/mdd/confluence/md_to_storage.py`](../../src/mdd/confluence/md_to_storage.py)
+- [`src/mdd/confluence/md_to_storage.py`](../../src/mdd/confluence/ir/writer/)
   — current markdown → XHTML converter; gets replaced wholesale in
   spikes B and C.
-- [`src/mdd/confluence/sync.py`](../../src/mdd/confluence/sync.py)
+- [`src/mdd/confluence/sync.py`](../../src/mdd/confluence/sync/)
   — the orchestrator with the existing `LOCAL_PUSH` event class
   that any merge engine will plug into.
 - [`src/mdd/confluence/state.py`](../../src/mdd/confluence/state.py)
   — `LocalPage` model; will need fields for cache pointers
   (storage hash, export_view hash, provenance path) when we
   ship.
-- [`src/mdd/confluence/client.py`](../../src/mdd/confluence/client.py)
+- [`src/mdd/confluence/client.py`](../../src/mdd/confluence/client/)
   — currently fetches `body-format=storage` only. Will need a
   method for `body-format=export_view` when we want rendered HTML
   for conflict UX.

@@ -26,7 +26,7 @@ gets us out of the gate.
 
 ## Harness and corpus state
 
-- Harness: [scripts/ir_experiment/](../../scripts/ir_experiment/) at
+- Harness: `scripts/ir_experiment/` at
   commit landing this note. Same as notes 009 + 011 plus the
   `pipelines/pandoc_lua.py` adaptor and the
   `pipelines/confluence_storage.lua` writer.
@@ -392,9 +392,9 @@ definition.
   status-quo baseline.
 - [Research note 011](R11-confluence-ir-spike-docling.md) —
   docling spike, the other contender.
-- [`scripts/ir_experiment/pipelines/pandoc_lua.py`](../../scripts/ir_experiment/pipelines/pandoc_lua.py) —
+- `scripts/ir_experiment/pipelines/pandoc_lua.py` —
   Python adaptor.
-- [`scripts/ir_experiment/pipelines/confluence_storage.lua`](../../scripts/ir_experiment/pipelines/confluence_storage.lua) —
+- `scripts/ir_experiment/pipelines/confluence_storage.lua` —
   custom Lua writer.
 - HTML report: the harness also emitted a side-by-side HTML diff
   report with the same data plus the timing slowdown table. It is

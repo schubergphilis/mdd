@@ -1,0 +1,51 @@
+---
+title: mdd
+description: Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
+template: splash
+hero:
+  tagline: Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
+  actions:
+    - text: Install
+      link: /mdd/guide/install/
+      icon: right-arrow
+      variant: primary
+    - text: Design record
+      link: /mdd/spec/000-specs/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+`mdd` does near-lossless roundtrips between a git repository of Markdown and
+remote document management systems, so engineers and AI agents can work with
+Markdown while everyone else keeps using the tools they know.
+
+<Card title="Beta software - use with care" icon="warning">
+	`mdd` is written almost entirely by AI agents under human review. There is
+	no independent security review and no stable 1.0 release yet. Push
+	operations (like `mdd confluence sync-space`) can clobber production
+	systems. See the [Safety](/mdd/guide/safety/) page before you sync anything
+	that matters.
+</Card>
+
+## Start here
+
+<CardGrid>
+	<LinkCard title="Install" href="/mdd/guide/install/" description="Get mdd running locally." />
+	<LinkCard
+		title="Quickstart"
+		href="/mdd/guide/quickstart/"
+		description="Convert, create and search files, offline, no tenant needed."
+	/>
+	<LinkCard
+		title="Safety"
+		href="/mdd/guide/safety/"
+		description="What can destroy data, and how to avoid it."
+	/>
+	<LinkCard
+		title="Concepts"
+		href="/mdd/guide/concepts/"
+		description="The mirror, the document IR, and sync direction."
+	/>
+</CardGrid>

@@ -1,0 +1,56 @@
+name: Docs
+
+# A site build must fail when the change is proposed, not when it is
+# deployed (S06 requirement 9). Path-filtered so a Python-only pull request
+# doesn't pay for a Node toolchain; `mise run ci` covers the code-coupled
+# documentation checks (the `mdd …` string checker) instead.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'site/**'
+      - '.vale.ini'
+      - 'scripts/sync-docs.py'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install: true
+          cache: true
+
+      - name: Cache bun install cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('site/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      # `docs-astro-check` and `docs-build` both depend on `docs-sync`, which
+      # shells out to `uv run python scripts/sync-docs.py`.
+      - name: Install Python dependencies
+        run: mise run install
+
+      - name: Install site dependencies
+        run: mise run docs-install
+
+      # The synced `write-good` style is gitignored (S06's Vale implementation
+      # note); fetch it before linting.
+      - name: Fetch Vale styles
+        run: mise run docs-vale-sync
+
+      - name: Prose lint, astro check, site build
+        run: mise run docs-check

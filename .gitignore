@@ -96,3 +96,20 @@ src/mdd/_version.py
 # Legacy sibling clone — corpus is now vendored under tests/corpus/.
 # Listed so a still-existing local checkout doesn't show up as untracked.
 /test-confluence/
+
+# Documentation site (site/, Astro + Starlight)
+site/node_modules/
+site/dist/
+site/.astro/
+# Synced from docs/ by scripts/sync-docs.py — build input, not source.
+site/src/content/docs/guide/
+site/src/content/docs/articles/
+site/src/content/docs/reference/
+site/src/content/docs/spec/
+site/src/content/docs/research/
+# Vale styles fetched by `vale sync` from pinned release URLs.
+.vale/styles/write-good/
+# Raw Markdown twins (site/public/<slug>.md), also written by sync-docs.py.
+site/public/guide/
+site/public/articles/
+site/public/reference/

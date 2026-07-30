@@ -89,10 +89,12 @@ pure Markdown corpus.
 mdd/
 ├── docs/                     checked-in Markdown, no build artefacts
 │   ├── guide/                operator documentation (new)
+│   ├── articles/             promoted synthesised articles (new)
 │   ├── reference/            generated, committed (Phase 3+)
 │   ├── research/
 │   └── spec/
 ├── scripts/
+│   ├── check-mdd-commands.py
 │   └── sync-docs.py
 ├── site/                     Astro + Starlight application
 │   ├── astro.config.mjs
@@ -101,13 +103,20 @@ mdd/
 │   └── src/
 │       ├── content/docs/
 │       │   ├── index.mdx     hand-authored landing page
+│       │   ├── _drafts/      unpromoted article drafts (tracked, not built)
 │       │   ├── guide/        synced (gitignored)
+│       │   ├── articles/     synced (gitignored)
 │       │   ├── reference/    synced (gitignored)
 │       │   ├── spec/         synced (gitignored)
 │       │   └── research/     synced (gitignored)
 │       └── styles/custom.css
 └── src/mdd/
 ```
+
+Guide pages carry a numeric filename prefix — `docs/guide/01-install.md` — which
+gives the corpus an order when read on GitHub and supplies the Starlight
+`sidebar.order`. The prefix is stripped from the published slug, so the page is
+served at `/mdd/guide/install/`.
 
 This diverges from the Starlight convention, which puts a project's own site
 in `docs/`, and from the organisation repository, which does the same. The
@@ -242,10 +251,24 @@ enforce them:
   default produce a tidy narrative in which the right answer was reached
   directly; that erases the most interesting content and yields prose with no
   opinions in it.
-- **Never overwrite.** Drafts go to `site/src/content/docs/_drafts/`. The
-  underscore prefix is already what `docsLoader()` ignores, so drafts do not
-  build. Promotion is a `git mv`. Re-running the skill against a promoted
-  article diffs and proposes; it does not overwrite.
+- **Never overwrite.** Drafts go to
+  `site/src/content/docs/_drafts/_<slug>.md`, with an underscore on both the
+  directory and the filename. `docsLoader()`'s glob is `**/[^_]*.{md,mdx}`, and
+  the `[^_]` applies to the filename rather than to any directory above it, so
+  a draft at `_drafts/foo.md` is still loaded and still breaks the build by
+  failing schema validation for having no `title`. Only the underscore on the
+  filename excludes it. Promotion is a `git mv` into `docs/articles/`, which
+  drops both underscores, and from where the article
+  is synced like everything else under `docs/` — requirement 2 applies to
+  articles as much as to anything else, so a published article is Markdown
+  under `docs/`, not a file that only exists inside the Astro application.
+  Drafts are tracked in git, so a draft is reviewable in a pull request before
+  anyone promotes it. Re-running the skill against a promoted article writes a
+  fresh draft and diffs it; it does not overwrite.
+
+  A draft's relative links are written as though it already lived in
+  `docs/articles/`, so they are broken while it sits in `_drafts/`. Nothing
+  checks a draft, and they resolve on promotion.
 
 ### Deployment
 
@@ -267,9 +290,30 @@ Checks are split by what makes them fail, not by what kind of check they are.
 |---|---|---|
 | Generated reference drift | code changed | `mise run ci` |
 | `mdd …` strings resolve against the command tree | code changed | `mise run ci` |
+| Same check over the design record | code changed | advisory, never fails |
 | Vale prose lint | prose changed | `mise run docs-check` |
+| Repo-relative links resolve | prose changed | `mise run docs-sync` |
 | `astro check` and site build | prose or site config changed | `mise run docs-check` |
 | External link rot | neither; links rot on their own | scheduled workflow |
+
+The `mdd …` string check covers prose that documents current behaviour —
+`README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `SECURITY.md`, and `docs/guide/`,
+`docs/articles/` and `docs/reference/`. It does **not** block on `docs/spec/`
+or `docs/research/`, and requirement 7 should be read as scoped accordingly.
+
+Running it over the whole corpus surfaced 95 mismatches, and every one was
+correct. About half are commands that were later renamed — [S35](S35-argparse-cli-parsing.md)
+flattened the CLI, so a spec predating it says `mdd confluence sync` where the
+command is now `mdd confluence sync-space`. The rest are commands that were
+proposed and rejected, or deferred and never built, named in exactly the
+"Rejected"/"Out of scope" sections that make a design record worth keeping.
+
+Neither is a defect. A spec records intent at the time of writing; rewriting it
+to match today's command tree would falsify the record, and requiring a
+rejected alternative to resolve against a real command is a category error. The
+check therefore runs over the design record in an advisory mode that reports
+and always exits zero, which keeps the drift visible without making it
+blocking.
 
 Code-coupled checks must be in `mise run ci` because a docs-only workflow does
 not run on a Python pull request — and that is precisely the change that
@@ -424,9 +468,18 @@ survive the change of register. The tone rules that prose review currently
 catches by hand — `simply`, `seamlessly`, `powerful`, `robust`, `easily` —
 belong in that pass too, as a custom style rather than a packaged one.
 
+**Per-page raw Markdown twins.** `sync-docs.py` writes a second copy of each
+non-demoted page to `site/public/<slug>.md`, so
+`https://schubergphilis.github.io/mdd/guide/install.md` serves an agent the
+page's Markdown. The twin is the link-rewritten body without the Starlight
+frontmatter. Spec and research pages get no twin, on the same demotion
+reasoning that keeps them out of `llms.txt`.
+
 **`.gitignore` additions.** `site/node_modules/`, `site/dist/`,
-`site/.astro/`, and the synced content directories
-(`site/src/content/docs/{guide,spec,research}/`).
+`site/.astro/`, the synced content directories
+(`site/src/content/docs/{guide,articles,reference,spec,research}/`), the raw
+Markdown twins (`site/public/{guide,articles,reference}/`), and the Vale styles
+fetched by `vale sync` (`.vale/styles/write-good/`).
 
 ## Rollout plan
 
