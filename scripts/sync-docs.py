@@ -157,11 +157,16 @@ def build_page(section: Section, path: Path, public_dir: Path) -> Page:
     if section.kind in NUMBERED_KINDS:
         parts[-1], order = strip_numeric_prefix(parts[-1])
     rel_stem = Path(*parts)
-    slug = f"{section.kind}/{rel_stem.as_posix()}"
+    # Starlight lowercases the slug it derives from a filename, so a page
+    # written as `S07-data-protection.md` is served at `.../s07-data-protection/`.
+    # URLs built here must match, or every link to a spec or research note is a
+    # 404. The destination filename keeps its original case.
+    url_stem = rel_stem.as_posix().lower()
+    slug = f"{section.kind}/{url_stem}"
     dest = section.dest / rel_stem.with_suffix(".md")
     twin = None
     if section.kind not in DEMOTED_KINDS:
-        twin = public_dir / section.kind / rel_stem.with_suffix(".md")
+        twin = public_dir / section.kind / f"{url_stem}.md"
     doc_id = derive_doc_id(path.stem) if section.kind in ID_LABEL_KINDS else None
     return Page(section.kind, path, slug, dest, twin, order, doc_id)
 
