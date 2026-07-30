@@ -31,8 +31,12 @@ export default defineConfig({
 			title: 'mdd',
 			description,
 			favicon: '/favicon.png',
+			// The wordmark is a dark slate that disappears against the dark nav
+			// bar, so dark mode gets a recoloured variant. Regenerate it with
+			// `mise run derive-dark-logo` if the source logo changes.
 			logo: {
-				src: './src/assets/mdd-logo.png',
+				light: './src/assets/mdd-logo.png',
+				dark: './src/assets/mdd-logo-dark.png',
 				alt: 'mdd',
 				replacesTitle: false,
 			},
