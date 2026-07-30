@@ -100,6 +100,11 @@ example. Especially handy for deep-linking Confluence and Markdown.
 Design docs live in [docs/spec/](docs/spec/); start from
 [docs/spec/000-specs.md](docs/spec/000-specs.md).
 
+The research notes behind those designs — surveys, spikes, and
+measurements — live in [docs/research/](docs/research/); start from
+[docs/research/000-research.md](docs/research/000-research.md). They
+are working documents, not maintained design records.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). AI agents see [AGENTS.md](AGENTS.md).

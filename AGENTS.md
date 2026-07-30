@@ -8,6 +8,8 @@ Use `mise tasks` to discover build functionality. Remember to use it.
 
 Big features need a spec in `docs/spec/`, see [`000-specs.md`](docs/spec/000-specs.md).
 
+Research notes live in `docs/research/`, see [`000-research.md`](docs/research/000-research.md). They are working documents; specs are the durable record and must not link out to them.
+
 Never run `op read`, `op item get`, `op signin` or any other 1Password CLI command that returns secrets. Do not attempt to resolve `op://` references. Secrets must not end up in session context.
 
 The installed `mdd` may be a wrapped or aliased command, so instead use `uv run mdd`.
