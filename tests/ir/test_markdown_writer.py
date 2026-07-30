@@ -475,7 +475,7 @@ def test_callout_inside_layout_cell_uses_deeper_fence() -> None:
     """A callout nested inside ``:::::layout-cell`` (5 colons) must use a
     fence count strictly greater than 5 — otherwise its ``:::`` close
     fence collides with the outer ``:::layout`` close and the markdown
-    reader prematurely terminates the outermost div. See issue #85.
+    reader prematurely terminates the outermost div.
     """
     doc = Document(
         children=[
@@ -510,7 +510,7 @@ def test_callout_inside_layout_cell_roundtrips() -> None:
     """Round-trip a callout inside a two-column layout cell with trailing
     paragraphs. Without depth-aware fences the callout's ``:::`` close
     pairs with the outer ``:::layout`` open and the trailing paragraphs
-    escape the layout entirely. See issue #85.
+    escape the layout entirely.
     """
     doc = Document(
         children=[

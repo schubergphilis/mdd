@@ -1,4 +1,4 @@
-"""Tests for confluence apply module (spec S14)."""
+"""Tests for confluence apply module."""
 
 from __future__ import annotations
 

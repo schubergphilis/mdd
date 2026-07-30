@@ -1,4 +1,4 @@
-"""Tests for mdd.search.sources — the root-source registry (spec S19/S44)."""
+"""Tests for mdd.search.sources — the root-source registry."""
 
 from __future__ import annotations
 

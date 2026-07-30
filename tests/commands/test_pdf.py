@@ -33,7 +33,7 @@ class TestPdf:
     def test_pptx_failure_reported_to_stderr(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """#53: per-pipeline failures must be reported to stderr."""
+        """Per-pipeline failures must be reported to stderr."""
         pptx = tmp_path / "test.pptx"
         pptx.write_bytes(b"fake")
 
@@ -46,7 +46,7 @@ class TestPdf:
     def test_docx_failure_reported_to_stderr(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """#53: per-pipeline failures must be reported to stderr."""
+        """Per-pipeline failures must be reported to stderr."""
         docx = tmp_path / "test.docx"
         docx.write_bytes(b"fake")
 

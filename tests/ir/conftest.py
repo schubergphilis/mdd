@@ -1,6 +1,6 @@
 """Corpus resolver for the IR round-trip test suite.
 
-The corpus is vendored at ``tests/corpus/confluence/``. Spec S33 §"Test layout".
+The corpus is vendored at ``tests/corpus/confluence/``.
 """
 
 from __future__ import annotations

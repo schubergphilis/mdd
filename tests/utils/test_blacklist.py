@@ -453,12 +453,12 @@ class TestGatePush:
 
 
 # ---------------------------------------------------------------------------
-# Issue #41: nested-key false positive
+# nested-key false positive
 # ---------------------------------------------------------------------------
 
 
 class TestNestedKeyFalsePositive:
-    """Issue #41: frontmatter detection must only inspect top-level YAML keys."""
+    """Frontmatter detection must only inspect top-level YAML keys."""
 
     def _fail_git(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Make git remote get-url return non-zero so frontmatter scan is reached."""

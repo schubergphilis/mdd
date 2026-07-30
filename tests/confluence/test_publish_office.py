@@ -1,4 +1,4 @@
-"""Tests for mdd.confluence.publish_office (spec S17)."""
+"""Tests for mdd.confluence.publish_office."""
 
 from __future__ import annotations
 

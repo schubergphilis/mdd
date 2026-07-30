@@ -1,11 +1,9 @@
-"""Tests for the ``Origin.raw_bytes`` size cap (spec S31 §"Open questions" #1).
+"""Tests for the ``Origin.raw_bytes`` size cap.
 
-Closed 2026-05-13 at 256 KiB (:data:`mdd.ir.nodes.ORIGIN_RAW_BYTES_CAP`).
+The cap is 256 KiB (:data:`mdd.ir.nodes.ORIGIN_RAW_BYTES_CAP`).
 When a reader would record more than the cap, the dataclass drops the bytes
 and flips ``raw_bytes_truncated`` to ``True``; writers then fall back to
 canonical rendering for that node instead of replaying a partial slice.
-
-Plan 106 bucket B, item 4.
 """
 
 from __future__ import annotations

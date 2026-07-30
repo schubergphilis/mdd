@@ -230,11 +230,11 @@ class TestConvertPptxPictures:
         dst = tmp_path / "test.pptx.md"
         convert_pptx(src, dst)
         content = dst.read_text()
-        # Filenames are now content-addressed (sha1(blob)[:16]) — see #93.
+        # Filenames are content-addressed (sha1(blob)[:16]).
         assert "![](test.pptx-attachments/image_" in content
 
     def test_same_blob_dedup_across_slides(self, tmp_path: Path) -> None:
-        """#93: identical blobs across slides write one file and share the link."""
+        """Identical blobs across slides write one file and share the link."""
         from mdd.convert.pptx import convert_pptx
 
         png = _minimal_png()
@@ -370,7 +370,7 @@ class TestConvertPptxFrontmatter:
 
 
 class TestRenderTableHtmlEscaping:
-    """#23: HTML table fallback must escape cell text."""
+    """The HTML table fallback must escape cell text."""
 
     def test_script_tag_escaped_in_html_table(self, tmp_path: Path) -> None:
         from mdd.convert.pptx import _render_table_html  # pyright: ignore[reportPrivateUsage]
@@ -415,7 +415,7 @@ class TestRenderTableHtmlEscaping:
 
 
 class TestNotesTextExceptions:
-    """#69: _notes_text should only catch AttributeError/KeyError, not all exceptions."""
+    """_notes_text should only catch AttributeError/KeyError, not all exceptions."""
 
     def test_propagates_value_error(self) -> None:
         from mdd.convert.pptx import _notes_text  # pyright: ignore[reportPrivateUsage]
@@ -460,7 +460,7 @@ class TestNotesTextExceptions:
 
 
 class TestFrontmatterYamlEncoding:
-    """#24: Frontmatter must use proper YAML encoding, not repr()."""
+    """Frontmatter must use proper YAML encoding, not repr()."""
 
     def test_title_with_apostrophe(self, tmp_path: Path) -> None:
         from mdd.convert.pptx import convert_pptx
@@ -529,7 +529,7 @@ class TestConvertPptxAtomicWrite:
 
 
 class TestUnrecognizedImageDrop:
-    """#91: unsupported image formats (e.g. MPO) drop, never abort the deck."""
+    """Unsupported image formats (e.g. MPO) drop, never abort the deck."""
 
     @staticmethod
     def _patch_image_ext_raises(
@@ -666,7 +666,7 @@ class TestUnrecognizedImageDrop:
 
 
 class TestShapeImageAccessFailures:
-    """#128: ``shape.image`` itself can raise; widen catch so the deck still converts.
+    """``shape.image`` itself can raise; the catch is wide so the deck still converts.
 
     Two upstream python-pptx failure modes propagate past the (now-wider)
     try/except in ``_extract_picture``:
@@ -784,7 +784,7 @@ class TestShapeImageAccessFailures:
 
 
 class TestSkippedShapeWarnings:
-    """#92: roll up per-shape unsupported-type warnings into a single summary."""
+    """Per-shape unsupported-type warnings roll up into a single summary."""
 
     def _make_with_line(self, tmp_path: Path) -> Path:
         """Build a pptx whose shape loop emits LINE shapes that aren't handled."""
@@ -838,7 +838,7 @@ class TestSkippedShapeWarnings:
 
 
 class TestConvertPptxCorruptSource:
-    """Issue #129: convert_pptx raises CorruptSourceError for empty/garbage input."""
+    """convert_pptx raises CorruptSourceError for empty/garbage input."""
 
     def test_zero_byte_pptx_raises_corrupt(self, tmp_path: Path) -> None:
         from mdd.convert import CorruptSourceError

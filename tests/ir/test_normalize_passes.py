@@ -1,7 +1,4 @@
-"""Tests for the normalisation pipeline — one test per pass plus idempotency.
-
-See spec S31 §"Normalisation passes" for the contract each pass must uphold.
-"""
+"""Tests for the normalisation pipeline — one test per pass plus idempotency."""
 
 from __future__ import annotations
 

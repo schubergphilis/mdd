@@ -233,7 +233,7 @@ class TestImage:
         """The Confluence editor decorates ``<ac:image>`` with ``ac:layout``,
         ``ac:original-height``, ``ac:original-width``, ``ac:custom-width`` —
         these must survive the IR so the storage writer can re-emit them.
-        Without this the image renders at the wrong default size. issue #85.
+        Without this the image renders at the wrong default size.
         """
         storage = (
             '<p><ac:image ac:align="left" ac:layout="align-start" '
@@ -252,7 +252,7 @@ class TestImage:
         """``<ac:layout-cell><ac:image ../></ac:layout-cell>`` (image as direct
         block child, no ``<p>`` wrapper) must round-trip without the writer
         injecting a synthetic ``<p>``. The IR needs the same ``_block`` hint
-        on ``ConfluenceImage`` that ``ConfluenceLink`` already has. issue #85.
+        on ``ConfluenceImage`` that ``ConfluenceLink`` already has.
         """
         storage = (
             '<ac:layout><ac:layout-section ac:type="single">'
@@ -270,7 +270,7 @@ class TestImage:
     def test_ri_attachment_version_at_save_round_trip(self) -> None:
         """``<ri:attachment ri:version-at-save="N" />`` pins the attachment
         revision that was current when the page was authored. Lossy round-trip
-        produces a page that refers to an unspecified version. issue #85.
+        produces a page that refers to an unspecified version.
         """
         storage = (
             '<p><ac:image ac:alt="d">'

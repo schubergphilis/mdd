@@ -1,4 +1,4 @@
-"""Tests for confluence sync_diff pure functions (spec S14)."""
+"""Tests for confluence sync_diff pure functions."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ class TestComputeEventsContentEdit:
 
 
 class TestComputeEventsAttachmentsBackfill:
-    """Regression test for issue #86.
+    """Attachment back-fill after a ``--no-attachments`` run.
 
     After a sync run with ``--no-attachments``, exported pages carry an
     ``attachments_skipped: true`` marker.  On a subsequent run *without*

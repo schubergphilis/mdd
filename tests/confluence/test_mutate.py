@@ -1,4 +1,4 @@
-"""Unit tests for the S27 mutate orchestrators (P06 Phase 3).
+"""Unit tests for the mutate orchestrators.
 
 Each test builds a self-contained ``tmp_path`` git repo + a single ``.md``
 file with the expected frontmatter, then drives one of
@@ -418,7 +418,7 @@ class TestArchivePage:
 
         assert rc == 0
         mock_client.archive_page.assert_called_once()
-        # #130 F4: status is lowercase end-to-end on disk.
+        # Status is lowercase end-to-end on disk.
         assert _read_status(md_path) == "archived"
 
     def test_unarchive_flips_status(self, repo: Path) -> None:
@@ -437,7 +437,7 @@ class TestArchivePage:
 
         assert rc == 0
         mock_client.unarchive_page.assert_called_once()
-        # #130 F4: status is lowercase end-to-end on disk.
+        # Status is lowercase end-to-end on disk.
         assert _read_status(md_path) == "current"
 
     def test_archive_dry_run_makes_no_call(self, repo: Path) -> None:
@@ -486,7 +486,7 @@ class TestArchivePage:
 
 
 # ---------------------------------------------------------------------------
-# Issue #130: frontmatter refresh after rename / move / archive
+# frontmatter refresh after rename / move / archive
 # ---------------------------------------------------------------------------
 
 
@@ -660,7 +660,7 @@ class TestIssue130ArchiveRefresh:
 
 
 # ---------------------------------------------------------------------------
-# P05 — move-page materialises missing ancestor mirror dirs (spec S27)
+# move-page materialises missing ancestor mirror dirs
 # ---------------------------------------------------------------------------
 
 
@@ -720,7 +720,7 @@ def _last_commit_message(repo: Path) -> str:
 
 
 class TestMovePageMaterialisation:
-    """P05: move-page materialises missing ancestor mirror dirs (S27)."""
+    """move-page materialises missing ancestor mirror dirs."""
 
     def test_parent_dir_already_exists_no_materialisation(self, repo: Path) -> None:
         """When the parent dir already exists locally, no pulls or promotes happen."""
@@ -892,7 +892,7 @@ class TestMovePageMaterialisation:
         assert "sync-space" in joined
 
     def test_commit_body_lists_materialised_paths(self, repo: Path) -> None:
-        """Spec S27: commit body lists every materialised ancestor + the moved path."""
+        """The commit body lists every materialised ancestor + the moved path."""
         md_path = repo / "Page.md"
         _write_md(md_path, _make_fm(page_id="12345"))
         _commit_all(repo)
@@ -912,14 +912,14 @@ class TestMovePageMaterialisation:
         msg = _last_commit_message(repo)
         # Subject unchanged
         assert 'chore(mirror): move "Old Title" to "New Parent"' in msg
-        # Body has the structured sections from S27's example
+        # Body has the structured sections
         assert "materialised ancestors (pulled from Confluence):" in msg
         assert "New Parent/_index.md  (page 99999)" in msg
         assert "moved:" in msg
         assert "Page.md -> New Parent/Old Title.md" in msg
 
     def test_existing_parent_dir_subject_unchanged_no_body(self, repo: Path) -> None:
-        """No materialisation → commit message has no S27 body (subject only)."""
+        """No materialisation → commit message has no body (subject only)."""
         md_path = repo / "Page.md"
         _write_md(md_path, _make_fm(page_id="12345"))
         parent_dir = repo / "Existing Parent"

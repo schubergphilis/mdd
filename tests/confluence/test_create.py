@@ -1,4 +1,4 @@
-"""Tests for mdd.confluence.create (issue #10: stub-page recovery)."""
+"""Tests for mdd.confluence.create — stub-page recovery."""
 
 from __future__ import annotations
 
@@ -95,7 +95,7 @@ def _read_conf_block(md: Path) -> dict[str, Any]:
 
 
 class TestCreatePageRecovery:
-    """Issue #10: partial failures after stub creation must persist page_id."""
+    """Partial failures after stub creation must persist page_id."""
 
     def test_attachment_sync_failure_writes_page_id_to_frontmatter(self, tmp_path: Path) -> None:
         """If attachment sync fails, frontmatter must already contain page_id."""
@@ -184,7 +184,7 @@ class TestCreatePageRecovery:
 
 
 class TestPartialFrontmatterCompleteness:
-    """Issue #64: partial frontmatter must include url and attachments."""
+    """Partial frontmatter must include url and attachments."""
 
     def test_put_failure_partial_frontmatter_includes_attachments(self, tmp_path: Path) -> None:
         """When PUT fails after attachment sync, manifest must be in frontmatter."""
@@ -266,7 +266,7 @@ class TestExtractPageMeta:
         assert meta["version_created_at"] == "2026-05-21T00:00:00Z"
 
     def test_non_dict_version_and_links_raise(self) -> None:
-        # Spec S40: API-response models propagate ValidationError outward —
+        # API-response models propagate ValidationError outward —
         # an unexpected shape is a real bug, not a silent fallback case.
         from pydantic import ValidationError
 

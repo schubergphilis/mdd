@@ -1,7 +1,4 @@
-"""CLI tests for ``mdd confluence archive-page`` and ``unarchive-page``.
-
-Spec S27 / P06 Phase 4.
-"""
+"""CLI tests for ``mdd confluence archive-page`` and ``unarchive-page``."""
 
 from __future__ import annotations
 

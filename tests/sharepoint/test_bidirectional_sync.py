@@ -1,4 +1,4 @@
-"""Tests for mdd.sharepoint.sync — bidirectional sync orchestrator (spec S18)."""
+"""Tests for mdd.sharepoint.sync — bidirectional sync orchestrator."""
 
 from __future__ import annotations
 
@@ -340,7 +340,7 @@ class TestSyncFolderBasic:
         output = tmp_path / "output"
         output.mkdir()
         # Pre-existing git repo: sync_folder skips bootstrap and goes straight
-        # to commit + push. (Issue #132: ``is_git_repo`` uses
+        # to commit + push. (``is_git_repo`` uses
         # ``git rev-parse --is-inside-work-tree`` so we need a real init.)
         subprocess.run(["git", "init", "-b", "main"], cwd=str(output), check=True)
 
@@ -394,7 +394,7 @@ class TestSyncFolderBasic:
 
         # Both sources untouched
         assert docx.read_bytes() == old_docx
-        # Candidate render lands next to the office file (per spec)
+        # Candidate render lands next to the office file
         assert (site / "Report.from-md.docx").read_bytes() == fake_candidate_data
         # Summary counts diverged
         assert summary.diverged == 1
@@ -451,7 +451,7 @@ class TestSyncFolderBasic:
         assert summary.diverged == 0
 
     def test_md_lands_in_output_not_source(self, tmp_path: Path) -> None:
-        """Regression for issue #84: --output must receive the .md, not the source folder.
+        """Regression: --output must receive the .md, not the source folder.
 
         For both FIRST_SYNC_DOCX (no md yet) and DOCX_TO_MD (md drifted) the
         markdown side must be written under output_dir.
@@ -622,10 +622,9 @@ class TestSyncFolderBasic:
 
 
 # ---------------------------------------------------------------------------
-# Deprecated `export site` / `export folder` forwarders were removed in PR 7
-# of the S35 argparse rollout. The flat `sync-site` / `sync-folder` forms
-# are the only entry points now; see tests/commands/test_sharepoint.py for
-# the full subcommand coverage.
+# The deprecated `export site` / `export folder` forwarders were removed.
+# The flat `sync-site` / `sync-folder` forms are the only entry points now;
+# see tests/commands/test_sharepoint.py for the full subcommand coverage.
 # ---------------------------------------------------------------------------
 
 
@@ -680,7 +679,7 @@ class TestColdStartBootstrap:
 
 
 # ---------------------------------------------------------------------------
-# `.mddignore` source-side filtering — spec S39 walker + summary wiring
+# `.mddignore` source-side filtering — walker + summary wiring
 # ---------------------------------------------------------------------------
 
 
@@ -689,7 +688,7 @@ def _write_ignore(path: Path, *lines: str) -> None:
 
 
 class TestWalkRealFilesPrunes:
-    """``_walk_real_files`` honours the S39 matcher (prune + per-file skip)."""
+    """``_walk_real_files`` honours the ignore matcher (prune + per-file skip)."""
 
     def test_prunes_archive_subtree(self, tmp_path: Path) -> None:
         # Tree with an `Archive/` subdir that the matcher prunes wholesale.
@@ -863,12 +862,12 @@ class TestSyncFolderMatcherSummary:
 
 
 # ---------------------------------------------------------------------------
-# sync_folder — corrupt-source soft-skip (issue #129)
+# sync_folder — corrupt-source soft-skip
 # ---------------------------------------------------------------------------
 
 
 class TestSyncFolderCorruptSource:
-    """Issue #129: empty/corrupt office files are recorded as [SKIP] not [ERROR]."""
+    """Empty/corrupt office files are recorded as [SKIP], not [ERROR]."""
 
     def test_zero_byte_docx_soft_skipped(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -922,7 +921,7 @@ class TestSyncFolderCorruptSource:
 
 
 # ---------------------------------------------------------------------------
-# --prune-ignored — spec S39 opt-in cleanup
+# --prune-ignored — opt-in cleanup
 # ---------------------------------------------------------------------------
 
 

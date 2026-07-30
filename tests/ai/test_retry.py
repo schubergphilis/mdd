@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.retry — retry decorator with Retry-After support (spec S20)."""
+"""Tests for mdd.ai.retry — retry decorator with Retry-After support."""
 
 from __future__ import annotations
 
@@ -186,7 +186,7 @@ class TestWithRetry:
         assert sleep_calls[0] <= RETRY_AFTER_CAP * 1.1 + 0.01
 
     def test_total_attempts_is_five(self) -> None:
-        """Spec: 5 attempts total (1 initial + 4 retries)."""
+        """5 attempts total (1 initial + 4 retries)."""
         call_count = 0
 
         @with_retry

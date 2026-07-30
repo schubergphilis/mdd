@@ -1,4 +1,4 @@
-"""Tests for mdd.mirror.web — the browse-URL plumbing backends share (spec S44).
+"""Tests for mdd.mirror.web — the browse-URL plumbing backends share.
 
 These moved here from tests/confluence/test_header.py when the footer stopped
 holding a host of its own and started asking the registered backend.
@@ -157,7 +157,7 @@ class TestGitBlobUrl:
         assert "/-/blob/main/Page.md" in result
 
     def test_remote_on_other_host_returns_none(self, tmp_path: Path) -> None:
-        """A remote on a different host must return None (S09 footers link to the mirror)."""
+        """A remote on a different host must return None; footers link to the mirror only."""
         md_path = tmp_path / "Page.md"
         md_path.write_text("# Test")
 

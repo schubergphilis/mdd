@@ -1,8 +1,7 @@
 """Round-trip tests for `to_json` / `from_json`.
 
-Spec S28 §"JSON serialization" pins the invariants this test
-guards: round-trip equality, schema version, stable key order,
-human-readable formatting.
+The invariants guarded here: round-trip equality, schema version,
+stable key order, human-readable formatting.
 """
 
 from __future__ import annotations

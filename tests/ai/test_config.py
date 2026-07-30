@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.config — config loading and validation (spec S20)."""
+"""Tests for mdd.ai.config — config loading and validation."""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ class TestLoadValidConfig:
 
 
 class TestSiteDefaultsComeFromConfig:
-    """`mdd.ai` ships open-source, so no site hostname may be a source literal (S44)."""
+    """`mdd.ai` ships open-source, so no site hostname may be a source literal."""
 
     def test_gateway_url_comes_from_config(self, tmp_path: Path) -> None:
         yaml = "ai:\n  api_token: tok\n  base_url: https://gateway.internal/v1\n"
@@ -96,7 +96,7 @@ class TestSiteDefaultsComeFromConfig:
         assert "ask the platform team" in str(exc_info.value)
 
     def test_no_remote_gateway_host_in_the_module_source(self) -> None:
-        """A regression guard for the S44 scrub gate, not a style preference.
+        """A regression guard for the open-source scrub gate, not a style preference.
 
         `mdd.ai` is published, so the only URL its source may contain is a
         loopback fallback. Anything else is a site's gateway leaking into a

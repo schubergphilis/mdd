@@ -165,7 +165,7 @@ class TestDestPath:
         assert dest_path(src, src_root, dest_root) == dest_root / "subdir" / "report.docx.md"
 
     def test_dest_dir_with_file_positional_arg(self, tmp_path: Path) -> None:
-        """#2: --dest-dir combined with a file positional arg must not produce '.md'."""
+        """--dest-dir combined with a file positional arg must not produce '.md'."""
         src = _docx_with_paragraph(tmp_path, "simple-document.docx", "Hello")
         dest_dir = tmp_path / "out"
         dest_dir.mkdir()
@@ -341,12 +341,12 @@ class TestCollectFiles:
         assert ".pdf" in SUPPORTED_EXTENSIONS
 
     def test_doc_not_in_supported_extensions(self) -> None:
-        """#48: .doc is not supported; removed from SUPPORTED_EXTENSIONS."""
+        """.doc is not supported; removed from SUPPORTED_EXTENSIONS."""
         assert ".doc" not in SUPPORTED_EXTENSIONS
 
 
 class TestDocLegacy:
-    """#48: .doc files should be rejected with a helpful message."""
+    """.doc files should be rejected with a helpful message."""
 
     def test_doc_file_exits_nonzero(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.judges duplicate mode and mdd.ai.review integration (spec S22)."""
+"""Tests for mdd.ai.judges duplicate mode and mdd.ai.review integration."""
 
 from __future__ import annotations
 

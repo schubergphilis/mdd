@@ -1,4 +1,4 @@
-"""Tests for mdd confluence sync command (spec S14)."""
+"""Tests for mdd confluence sync command."""
 
 from __future__ import annotations
 
@@ -538,7 +538,7 @@ class TestSyncConflictSkipped:
 
 
 # ---------------------------------------------------------------------------
-# --prune-ignored — spec S39 opt-in cleanup (P04 MR 2, issue #120)
+# --prune-ignored — opt-in cleanup
 # ---------------------------------------------------------------------------
 
 
@@ -618,7 +618,7 @@ class TestSyncSpacePruneIgnoredCli:
     def test_read_only_and_prune_ignored_rejected(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # Spec S39: ``--read-only`` + ``--prune-ignored`` MUST be rejected
+        # ``--read-only`` + ``--prune-ignored`` MUST be rejected
         # at parse time with a clear error and non-zero exit code.
         output_dir = tmp_path / "mirror"
         _init_git_repo(output_dir)

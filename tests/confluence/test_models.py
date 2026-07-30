@@ -1,4 +1,4 @@
-"""Tests for the typed Confluence frontmatter and v2 API models (spec S40)."""
+"""Tests for the typed Confluence frontmatter and v2 API models."""
 
 from __future__ import annotations
 
@@ -75,12 +75,12 @@ class TestConfluenceFrontmatter:
 
     def test_attachment_unknown_key_ignored(self) -> None:
         # Attachment entries are machine-written manifest data whose field set
-        # grows over time (S16); unknown keys are tolerated, not fatal.
+        # grows over time; unknown keys are tolerated, not fatal.
         att = ConfluenceAttachment.model_validate({"filename": "x", "future_field": "abc"})
         assert att.filename == "x"
 
     def test_attachment_converter_fields_round_trip(self) -> None:
-        # Spec S16 converter-cache fields written by export.py.
+        # Converter-cache fields written by export.py.
         att = ConfluenceAttachment.model_validate(
             {
                 "filename": "diagram.svg",

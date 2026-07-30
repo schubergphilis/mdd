@@ -60,7 +60,7 @@ class TestSanitize:
     def test_normal_title_preserved(self) -> None:
         assert sanitize("Architecture Decision Records") == "Architecture Decision Records"
 
-    # --- Unicode space folding (issue #140) ---
+    # --- Unicode space folding ---
 
     def test_nbsp_folded_to_ascii_space(self) -> None:
         # U+00A0 NO-BREAK SPACE between words, as seen in copy-pasted titles.
@@ -75,7 +75,7 @@ class TestSanitize:
     def test_leading_trailing_nbsp_stripped(self) -> None:
         assert sanitize(" Page ") == "Page"
 
-    # --- Path traversal guard (issue #68) ---
+    # --- Path traversal guard ---
 
     def test_dot_dot_slash_neutralised(self) -> None:
         result = sanitize("../../../etc/passwd")

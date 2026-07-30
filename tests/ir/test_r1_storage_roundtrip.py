@@ -4,19 +4,19 @@ Parametrised over every snapshot in the corpus via the ``corpus_snapshots``
 session fixture in ``conftest.py``.  If the corpus is absent the entire
 module skips cleanly via that fixture.
 
-Spec S33 §"R1 — Storage → IR → Storage":
+The R1 contract:
 - Preserving mode: ``render_confluence_storage(parse_confluence_storage(x, mode="preserving"),
   mode="preserving") == x`` byte-for-byte.  Gate.
-- Normalising mode: SequenceMatcher ratio ≥ 0.995 (M1 proxy).  Gate.
+- Normalising mode: SequenceMatcher ratio ≥ 0.995.  Gate.
 
 Per-fixture HTML diffs are written to ``build/ir-diffs/<page_id>_r1_*.html``
 on failure.
 
-Plan 106 D6 (2026-05-13) honours reader-captured whitespace and
-shape metadata in either mode via the typed fields (``omit_start``,
-``compact``, ``trailing_ws``, ``body_leading_ws``, ``body_trailing_ws``,
-``no_wrapper``) and re-substitutes entity-form PUA markers in macro
-params. No fixtures are xfailed for R1 today.
+Reader-captured whitespace and shape metadata are honoured in either
+mode via the typed fields (``omit_start``, ``compact``, ``trailing_ws``,
+``body_leading_ws``, ``body_trailing_ws``, ``no_wrapper``), and
+entity-form PUA markers in macro params are re-substituted. No fixtures
+are xfailed for R1 today.
 """
 
 from __future__ import annotations

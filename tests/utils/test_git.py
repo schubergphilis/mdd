@@ -1,4 +1,4 @@
-"""Tests for mdd.utils.git — shared git subprocess helpers (issue #123)."""
+"""Tests for mdd.utils.git — shared git subprocess helpers."""
 
 from __future__ import annotations
 
