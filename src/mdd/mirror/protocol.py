@@ -3,7 +3,8 @@
 Mirrors the converter-registry pattern (spec S15): a ``Protocol`` plus
 small frozen dataclasses describing the seam's inputs and outputs.
 Concrete backends live in sibling modules (:mod:`mdd.mirror.local`,
-:mod:`mdd.mirror.git`) and provider packages (:mod:`mdd.gitlab.backend`).
+:mod:`mdd.mirror.git`); a wrapper distribution supplies its own
+forge-specific implementation.
 """
 
 from __future__ import annotations
