@@ -1,4 +1,4 @@
-"""AI client wrapping the OpenAI SDK against the LiteLLM proxy (spec S20)."""
+"""AI client wrapping the OpenAI SDK against the LiteLLM proxy."""
 
 from __future__ import annotations
 
@@ -137,8 +137,8 @@ class Client:
         model:
             Override the task-class model selection with a specific model name.
         cache_key_extra:
-            Additional bytes mixed into the cache key (e.g. style-prompt hash
-            for spec S21 rewrites).
+            Additional bytes mixed into the cache key (e.g. the style-prompt
+            hash used by rewrites).
         max_tokens:
             Maximum completion tokens.  None uses the model default.
 
@@ -270,8 +270,9 @@ class Client:
     ) -> EmbedResult:
         """Return embeddings for *text*.
 
-        Reserved API surface for spec S22.  Backed by the OpenAI SDK's
-        ``embeddings.create()`` endpoint on the LiteLLM proxy.
+        No command calls this yet; it is kept for future semantic search.
+        Backed by the OpenAI SDK's ``embeddings.create()`` endpoint on the
+        LiteLLM proxy.
         """
         self._ensure_models_checked()
 

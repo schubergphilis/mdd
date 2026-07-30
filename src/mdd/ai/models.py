@@ -1,4 +1,4 @@
-"""Data models for mdd.ai (spec S20)."""
+"""Data models for mdd.ai."""
 
 from __future__ import annotations
 

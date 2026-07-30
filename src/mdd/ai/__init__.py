@@ -1,4 +1,4 @@
-"""mdd.ai — LiteLLM AI client plumbing (spec S20).
+"""mdd.ai — LiteLLM AI client plumbing.
 
 Public API::
 

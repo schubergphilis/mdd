@@ -1,4 +1,4 @@
-"""Retry decorator with Retry-After header support (spec S20)."""
+"""Retry decorator with Retry-After header support."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import openai
 
 from mdd.ai.models import AiRateLimitedError, AiServerError
 
-# 5 attempts: 1 initial + 4 retries (spec S20).
+# 5 attempts: 1 initial + 4 retries.
 _BASE_DELAYS = (1.0, 2.0, 4.0, 8.0)
 RETRY_AFTER_CAP = 60.0
 _JITTER_FRACTION = 0.1
