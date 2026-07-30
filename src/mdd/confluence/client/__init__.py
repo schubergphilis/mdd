@@ -4,10 +4,10 @@ The dominant public symbol — :class:`ConfluenceClient` — lives in this
 ``__init__.py``. Topic-grouped helper modules sit alongside:
 
 - ``errors`` — :class:`ConfluenceError`.
-- ``retry`` — retry-decision helpers (``should_retry``, ``parse_retry_after``).
 - ``paths`` — path validation and download-URL normalisation.
 
-Request/response trace hooks come from :mod:`mdd.utils.http_trace`.
+Request/response trace hooks come from :mod:`mdd.utils.http_trace`, and
+retry-decision helpers from :mod:`mdd.utils.retry`.
 
 # S36-exception: dominant public class; internal class split is a separate refactor
 """
@@ -24,10 +24,10 @@ import httpx
 
 from mdd.utils.http_trace import format_body, make_event_hooks, trace_bodies_enabled
 from mdd.utils.logging import TRACE, get_logger
+from mdd.utils.retry import backoff_for_response, jittered_delay, should_retry
 
 from .errors import ConfluenceError
 from .paths import assert_relative_api_path, rest_attachment_download_path
-from .retry import backoff_for_response, jittered_delay, should_retry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
