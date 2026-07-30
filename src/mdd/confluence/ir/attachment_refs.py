@@ -2,8 +2,8 @@
 
 The legacy ``storage_to_md`` converter returned an ``AttachmentRef`` list
 alongside the markdown body so callers (``export.py``) could pre-download
-body-referenced attachments before the spec-016 ``sync_all_attachments``
-pass. The IR pipeline keeps that contract: we still want to know which
+body-referenced attachments before the ``sync_all_attachments`` pass.
+The IR pipeline keeps that contract: we still want to know which
 attachments the body references so a single page export does not need to
 walk every attachment on the server.
 
