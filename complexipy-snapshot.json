@@ -1,6 +1,6 @@
 [
   {
-    "path": "mdd/ai/index.py",
+    "path": "src/mdd/ai/index.py",
     "file_name": "index.py",
     "functions": [
       {
@@ -10,7 +10,7 @@
     ]
   },
   {
-    "path": "mdd/ai/rewrite.py",
+    "path": "src/mdd/ai/rewrite.py",
     "file_name": "rewrite.py",
     "functions": [
       {
@@ -20,7 +20,7 @@
     ]
   },
   {
-    "path": "mdd/confluence/client/__init__.py",
+    "path": "src/mdd/confluence/client/__init__.py",
     "file_name": "__init__.py",
     "functions": [
       {
@@ -34,7 +34,7 @@
     ]
   },
   {
-    "path": "mdd/confluence/ir/attachment_refs.py",
+    "path": "src/mdd/confluence/ir/attachment_refs.py",
     "file_name": "attachment_refs.py",
     "functions": [
       {
@@ -44,7 +44,7 @@
     ]
   },
   {
-    "path": "mdd/confluence/ir/elements/__init__.py",
+    "path": "src/mdd/confluence/ir/elements/__init__.py",
     "file_name": "__init__.py",
     "functions": [
       {
@@ -54,7 +54,7 @@
     ]
   },
   {
-    "path": "mdd/confluence/ir/writer/blocks.py",
+    "path": "src/mdd/confluence/ir/writer/blocks.py",
     "file_name": "blocks.py",
     "functions": [
       {
@@ -64,7 +64,7 @@
     ]
   },
   {
-    "path": "mdd/convert/pptx.py",
+    "path": "src/mdd/convert/pptx.py",
     "file_name": "pptx.py",
     "functions": [
       {
@@ -74,7 +74,7 @@
     ]
   },
   {
-    "path": "mdd/ir/identity.py",
+    "path": "src/mdd/ir/identity.py",
     "file_name": "identity.py",
     "functions": [
       {
@@ -84,7 +84,7 @@
     ]
   },
   {
-    "path": "mdd/ir/serialize.py",
+    "path": "src/mdd/ir/serialize.py",
     "file_name": "serialize.py",
     "functions": [
       {
@@ -94,7 +94,7 @@
     ]
   },
   {
-    "path": "mdd/markdown/ir/reader/blocks.py",
+    "path": "src/mdd/markdown/ir/reader/blocks.py",
     "file_name": "blocks.py",
     "functions": [
       {
@@ -104,7 +104,7 @@
     ]
   },
   {
-    "path": "mdd/search/filters.py",
+    "path": "src/mdd/search/filters.py",
     "file_name": "filters.py",
     "functions": [
       {
@@ -114,7 +114,7 @@
     ]
   },
   {
-    "path": "mdd/search/roots.py",
+    "path": "src/mdd/search/roots.py",
     "file_name": "roots.py",
     "functions": [
       {
@@ -124,7 +124,7 @@
     ]
   },
   {
-    "path": "mdd/sharepoint/sync.py",
+    "path": "src/mdd/sharepoint/sync.py",
     "file_name": "sync.py",
     "functions": [
       {
