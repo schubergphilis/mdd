@@ -158,7 +158,7 @@ class TestRenderConfluenceUri:
 
 
 # ---------------------------------------------------------------------------
-# Focused round-trip test from the spec
+# Focused round-trip test
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +257,7 @@ def test_bare_user_mention_roundtrips_without_link_body() -> None:
     The storage writer emits ``<ac:link-body>`` whenever ``body_tokens`` is
     non-empty. If the markdown writer fills in the account id as link text,
     the markdown reader returns a populated ``body_tokens`` and a spurious
-    ``<ac:link-body>`` ends up in the round-tripped storage. See issue #85.
+    ``<ac:link-body>`` ends up in the round-tripped storage.
     """
     doc = Document(
         children=[

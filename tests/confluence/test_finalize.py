@@ -1,4 +1,4 @@
-"""Tests for confluence sync finalize helpers (spec S14)."""
+"""Tests for confluence sync finalize helpers."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class TestBuildMirrorOrRaiseSummary:
-    """`build_mirror_or_raise` reports buckets separately (#87)."""
+    """`build_mirror_or_raise` reports buckets separately."""
 
     def test_attachment_derived_reported_separately(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

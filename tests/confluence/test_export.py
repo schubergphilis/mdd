@@ -1,8 +1,8 @@
 """Tests for `mdd.confluence.export.export_page` console output.
 
-Issue #89: suppress the per-page `attachments synced` summary line when
-nothing was synced. The line should still appear when at least one
-attachment was synced.
+The per-page `attachments synced` summary line is suppressed when nothing
+was synced. The line should still appear when at least one attachment was
+synced.
 """
 
 from __future__ import annotations

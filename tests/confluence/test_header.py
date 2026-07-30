@@ -179,7 +179,7 @@ class TestInsertMddFooter:
 
 
 class TestGetMirrorUrl:
-    """The footer asks the registered default backend; it holds no host itself (S44)."""
+    """The footer asks the registered default backend; it holds no host itself."""
 
     def test_returns_the_backends_url(self, tmp_path: Path) -> None:
         md_path = tmp_path / "Page.md"

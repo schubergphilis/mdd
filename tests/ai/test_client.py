@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.client — Client class with mocked OpenAI SDK (spec S20)."""
+"""Tests for mdd.ai.client — Client class with mocked OpenAI SDK."""
 
 from __future__ import annotations
 

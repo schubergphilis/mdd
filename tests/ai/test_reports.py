@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.reports — markdown rendering of review findings (spec S22)."""
+"""Tests for mdd.ai.reports — markdown rendering of review findings."""
 
 from __future__ import annotations
 

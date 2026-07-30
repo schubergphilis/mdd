@@ -160,9 +160,9 @@ class TestReadSyncState:
     def test_unknown_sharepoint_key_logs_and_returns_empty(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        # P07/S40: an unknown key in the sharepoint block triggers a
-        # ValidationError.  Today's behaviour (silent fallthrough) is
-        # replaced by a logged warning + empty sync state.
+        # An unknown key in the sharepoint block triggers a
+        # ValidationError, which surfaces as a logged warning plus an
+        # empty sync state rather than a silent fallthrough.
         md = tmp_path / "typo.md"
         md.write_text(
             "---\nsharepoint:\n  souce_path: Foo.docx\n---\n# body\n",
@@ -240,7 +240,7 @@ class TestClassifyPairFirstSync:
 
 
 class TestClassifyPairDiffTable:
-    """Tests for the spec S18 diff table."""
+    """Tests for the office/markdown reconciliation diff table."""
 
     def _make_pair(
         self, tmp_path: Path, *, docx_content: bytes, md_content: str
@@ -341,7 +341,7 @@ class TestClassifyPairDiffTable:
 
 
 class TestClassifyPairUpdateOfficeGate:
-    """update_office gates md→office rendering (spec S18).
+    """update_office gates md→office rendering.
 
     When False (the default), any md edit must surface as SKIP_MD_UPDATE
     instead of MD_TO_DOCX or DIVERGED, so office files don't get clobbered

@@ -107,7 +107,7 @@ class TestDownloadForPage:
         assert manifest[0].version == 3
 
     def test_traversal_filename_is_contained(self, tmp_path: Path) -> None:
-        """Issue #12: a filename like '../../evil.txt' must not write outside attachments_dir.
+        """A filename like '../../evil.txt' must not write outside attachments_dir.
 
         The basename is sanitised to 'evil.txt' and written safely inside the dir.
         The file must NOT appear at tmp_path.parent / 'evil.txt'.
@@ -149,7 +149,7 @@ class TestDownloadForPage:
     def test_per_attachment_failure_does_not_abort_page(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Issue #77: a single attachment failure must not abort the page export.
+        """A single attachment failure must not abort the page export.
 
         ``download_for_page`` must catch per-attachment exceptions, log via
         :mod:`mdd.utils.logging`, and continue so the caller can still write

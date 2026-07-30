@@ -1,9 +1,7 @@
 """Tests for the shared content-addressed image writer.
 
-This file grows incrementally with P03 issues: #93 lays down the
-content-addressed dedup + pass-through write contract; later commits
-add TIFF transcode (#94), >4k resize (#95), and WMF rasterize (#96)
-test cases.
+Covers the content-addressed dedup + pass-through write contract, TIFF
+transcode, >4k resize, and WMF rasterize.
 """
 
 from __future__ import annotations
@@ -111,7 +109,7 @@ class TestWriteImageDedup:
         assert len(list((tmp_path / "att").iterdir())) == 2
 
     def test_png_under_cap_is_losslessly_optimized(self, tmp_path: Path) -> None:
-        """In-bounds PNGs are re-optimized (keep-smaller), not written verbatim (S42)."""
+        """In-bounds PNGs are re-optimized (keep-smaller), not written verbatim."""
         from mdd.convert.images import (
             _optimize_png_lossless,  # pyright: ignore[reportPrivateUsage]
             write_image,
@@ -127,7 +125,7 @@ class TestWriteImageDedup:
         assert len(on_disk) <= len(png)
 
     def test_jpeg_under_cap_written_verbatim(self, tmp_path: Path) -> None:
-        """JPEG pass-through stays byte-verbatim — re-encoding it would be lossy (S42)."""
+        """JPEG pass-through stays byte-verbatim — re-encoding it would be lossy."""
         import io as _io
 
         from PIL import Image
@@ -145,10 +143,10 @@ class TestWriteImageDedup:
 
 
 class TestWriteImageResize:
-    """#95: > 4k longest-edge inputs are resized to 4096 px before encode."""
+    """> 4k longest-edge inputs are resized to 4096 px before encode."""
 
     def test_in_spec_png_is_reoptimized_not_resized(self, tmp_path: Path) -> None:
-        """3000×2000 PNG is under the cap: re-optimized losslessly, dimensions kept (S42)."""
+        """3000×2000 PNG is under the cap: re-optimized losslessly, dimensions kept."""
         import io as _io
 
         from PIL import Image, ImageChops
@@ -204,7 +202,7 @@ class TestWriteImageResize:
 
 
 class TestWriteImageWmfRasterize:
-    """#96: WMF/EMF blobs rasterize to PNG, or drop cleanly when no backend."""
+    """WMF/EMF blobs rasterize to PNG, or drop cleanly when no backend."""
 
     def test_rasterizer_success_writes_png(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -354,7 +352,7 @@ def _tiff_blob(colour: tuple[int, int, int] = (128, 64, 200)) -> bytes:
 
 
 class TestWriteImageTiffTranscode:
-    """#94: TIFF blobs transcode to JPEG with pinned, deterministic encoder flags."""
+    """TIFF blobs transcode to JPEG with pinned, deterministic encoder flags."""
 
     def test_tiff_written_as_jpg(self, tmp_path: Path) -> None:
         from mdd.convert.images import write_image
@@ -483,7 +481,7 @@ def _gradient_png(compress_level: int) -> bytes:
 
 
 class TestOptimizePngLossless:
-    """S42: lossless PNG re-optimization that keeps the smaller of the two."""
+    """Lossless PNG re-optimization that keeps the smaller of the two."""
 
     def test_shrinks_an_uncompressed_png(self) -> None:
         from mdd.convert.images import (

@@ -40,7 +40,7 @@ def _make_mock_converter(doc: MagicMock) -> MagicMock:
 
 
 class TestPdfImageExtractionWarning:
-    """#35: failed image extraction must emit a warning, not silently swallow errors."""
+    """Failed image extraction must emit a warning, not silently swallow errors."""
 
     def test_warning_emitted_on_image_failure(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -106,7 +106,7 @@ class TestPdfImageExtractionWarning:
 
 
 class TestPdfPageCountErrorHandling:
-    """#59: page count errors should catch both TypeError and AttributeError."""
+    """Page count errors should catch both TypeError and AttributeError."""
 
     def test_attribute_error_in_len_gives_zero(self, tmp_path: Path) -> None:
         from mdd.convert import pdf as pdf_mod
@@ -144,7 +144,7 @@ class TestPdfPageCountErrorHandling:
 
 
 class TestPdfSourcePathDeterministic:
-    """#65: source_path must be an absolute path, not cwd-relative."""
+    """source_path must be an absolute path, not cwd-relative."""
 
     def test_source_path_is_absolute(self, tmp_path: Path) -> None:
         from mdd.convert import pdf as pdf_mod
@@ -171,7 +171,7 @@ class TestPdfSourcePathDeterministic:
 
 
 class TestPdfConverterSingleton:
-    """#27: _get_converter() must return the same instance across calls."""
+    """_get_converter() must return the same instance across calls."""
 
     def test_singleton_across_calls(self) -> None:
         import docling.document_converter as dc_mod
@@ -195,7 +195,7 @@ class TestPdfConverterSingleton:
             dc_mod.DocumentConverter = original_ctor  # type: ignore[attr-defined]
 
     def test_multiple_convert_pdf_calls_reuse_converter(self, tmp_path: Path) -> None:
-        """#27: multiple convert_pdf() calls must not create multiple converters."""
+        """Multiple convert_pdf() calls must not create multiple converters."""
         from mdd.convert import pdf as pdf_mod
 
         pdf_mod._get_converter.cache_clear()  # pyright: ignore[reportPrivateUsage]
@@ -219,7 +219,7 @@ class TestPdfConverterSingleton:
 
 
 class TestPdfFrontmatterYamlEncoding:
-    """#24: PDF frontmatter must use proper YAML encoding."""
+    """PDF frontmatter must use proper YAML encoding."""
 
     def test_title_with_apostrophe_parses_correctly(self, tmp_path: Path) -> None:
         from mdd.convert import pdf as pdf_mod

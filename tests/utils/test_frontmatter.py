@@ -1,4 +1,4 @@
-"""Tests for the typed frontmatter base layer (spec S40)."""
+"""Tests for the typed frontmatter base layer."""
 
 from __future__ import annotations
 

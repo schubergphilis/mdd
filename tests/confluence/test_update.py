@@ -1,4 +1,4 @@
-"""Tests for mdd.confluence.update (issue #9: empty-body guard)."""
+"""Tests for mdd.confluence.update — the empty-body guard."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def _make_client(remote_body: str = "<p>remote content</p>") -> MagicMock:
 
 
 class TestEmptyBodyGuard:
-    """Issue #9: update --yes with empty body must be refused."""
+    """update --yes with an empty body must be refused."""
 
     def test_empty_body_is_refused(self, tmp_path: Path) -> None:
         md = tmp_path / "page.md"
@@ -129,7 +129,7 @@ class TestRoundTripReattach:
     """update-page must graft identity attrs from the remote storage onto the
     parsed-from-markdown IR — otherwise every round-trip strips ``local-id``,
     ``macro-id``, ``schema-version``, ``ac:breakout-*`` etc. from layout,
-    section, cell, macro, and paragraph nodes. issue #85.
+    section, cell, macro, and paragraph nodes.
     """
 
     def test_unedited_export_is_a_no_op_push(self, tmp_path: Path) -> None:

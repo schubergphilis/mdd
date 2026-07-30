@@ -1,4 +1,4 @@
-"""Tests for ManagedConfig loading and per-user merge (spec S26 + S40)."""
+"""Tests for ManagedConfig loading and per-user merge."""
 
 from __future__ import annotations
 
@@ -72,8 +72,8 @@ class TestParseConfig:
         assert config.managed_subtrees[0].root_page_id == "844137445"
 
     def test_missing_required_name_raises(self) -> None:
-        # Spec S40 §Error handling: config files surface shape errors
-        # outward — the old silent-drop-the-entry behaviour is gone.
+        # Config files surface shape errors outward — the old
+        # silent-drop-the-entry behaviour is gone.
         data: dict[str, Any] = {
             "external_publishers": [{"account_ids": ["bot"]}],  # missing name
         }

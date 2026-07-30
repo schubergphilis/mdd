@@ -1,4 +1,4 @@
-"""Tests for ``mdd.utils.mddignore`` (spec S39)."""
+"""Tests for ``mdd.utils.mddignore``."""
 
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ class TestUnicodePaths:
 
 
 class TestWalkPrunable:
-    """Spec S39 'Opt-in cleanup' helper: enumerate ignored files under dest_root."""
+    """The opt-in cleanup helper: enumerate ignored files under dest_root."""
 
     def test_basic_match_yields_ignored_files(self, tmp_path: Path) -> None:
         _write_ignore(tmp_path / ".mddignore", "*.tmp", "Archive/")
@@ -177,8 +177,8 @@ class TestWalkPrunable:
         assert ".mddignore" not in prunable
 
     def test_root_level_dotfiles_skipped(self, tmp_path: Path) -> None:
-        # ``.git/`` etc. are never owned by the matcher; spec S39 carves
-        # them out explicitly.
+        # ``.git/`` etc. are never owned by the matcher; they are carved
+        # out explicitly.
         _write_ignore(tmp_path / ".mddignore", "*")
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")

@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.judges stale mode and review orchestrator (spec S22)."""
+"""Tests for mdd.ai.judges stale mode and review orchestrator."""
 
 from __future__ import annotations
 
@@ -354,8 +354,8 @@ class TestRunReview:
         p1 = run_review(cfg, self._make_client())
         assert p1 == tmp_path / "report.md"
 
-        # Second run with explicit output_path overwrites — spec says no overwrite for
-        # auto-chosen paths; with explicit path it just uses that path.
+        # Second run with explicit output_path overwrites — auto-chosen paths
+        # are never overwritten; an explicit path just uses that path.
         # Reset output_path to None to test auto-collision:
         cfg2 = ReviewConfig(
             directory=self.FIXTURES,

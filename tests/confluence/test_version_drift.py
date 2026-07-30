@@ -1,4 +1,4 @@
-"""Tests for ``mdd.confluence.version.check_version_drift`` (spec S27)."""
+"""Tests for ``mdd.confluence.version.check_version_drift``."""
 
 from __future__ import annotations
 

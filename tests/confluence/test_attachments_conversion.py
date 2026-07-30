@@ -1,4 +1,4 @@
-"""Tests for spec S16: Confluence attachment conversion.
+"""Tests for Confluence attachment conversion.
 
 Covers:
 - conversion_needed() all branch combinations

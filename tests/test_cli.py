@@ -16,7 +16,7 @@ def _fake_command_module(
     name: str = "frobnicate",
     exit_code: int = 0,
 ) -> ModuleType:
-    """A stand-in for a downstream distribution's command module (spec S44).
+    """A stand-in for a downstream distribution's command module.
 
     Matches the contract the real modules under ``src/mdd/commands/`` follow:
     a module-level ``register(subparsers, parents)`` that adds one subparser,
@@ -111,7 +111,7 @@ class TestCLI:
 
 
 class TestBuildDispatcher:
-    """build_dispatcher(default_backend, extra_commands) — spec S44 / plan P03 MR A5."""
+    """build_dispatcher(default_backend, extra_commands) — the wrapper composition seam."""
 
     def test_core_help_lists_the_provider_neutral_commands(self) -> None:
         from mdd.cli import build_dispatcher
@@ -123,7 +123,7 @@ class TestBuildDispatcher:
             assert cmd in help_text
 
     def test_core_help_excludes_the_site_specific_commands(self) -> None:
-        """`gitlab` / `lucid` are wrapper extras, not core commands (spec S44).
+        """`gitlab` / `lucid` are wrapper extras, not core commands.
 
         Keeping them out of ``_REGISTERED_MODULES`` is what lets the
         open-source cut drop ``mdd/gitlab/`` and ``mdd/lucid/`` without
@@ -163,7 +163,7 @@ class TestBuildDispatcher:
 
 
 class TestExtraCommandsDispatch:
-    """An injected command must be reachable end-to-end through `run()` (spec S44).
+    """An injected command must be reachable end-to-end through `run()`.
 
     Registration alone is not the contract downstream distributions rely on:
     the composed parser has to route ``mdd <extra-command> ...`` to the
@@ -242,7 +242,7 @@ class TestExtraCommandsDispatch:
 
 
 class TestRun:
-    """`run(parser, argv)` — the second half of the wrapper seam (spec S44)."""
+    """`run(parser, argv)` — the second half of the wrapper seam."""
 
     def test_dispatches_to_the_selected_command(self) -> None:
         from mdd.cli import build_dispatcher, run
@@ -268,7 +268,7 @@ class TestRun:
 
 
 class TestVersionOverride:
-    """A wrapper's `--version` must report the wrapper, not the core (S44)."""
+    """A wrapper's `--version` must report the wrapper, not the core."""
 
     def test_defaults_to_the_core_version(self, capsys: pytest.CaptureFixture[str]) -> None:
         import contextlib

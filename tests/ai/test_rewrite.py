@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.rewrite — protected-region pipeline and rewrite logic (spec S21)."""
+"""Tests for mdd.ai.rewrite — protected-region pipeline and rewrite logic."""
 
 from __future__ import annotations
 

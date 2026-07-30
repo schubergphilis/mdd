@@ -1,4 +1,4 @@
-"""CLI tests for ``mdd confluence rename-page`` (spec S27 / P06 Phase 4)."""
+"""CLI tests for ``mdd confluence rename-page``."""
 
 from __future__ import annotations
 

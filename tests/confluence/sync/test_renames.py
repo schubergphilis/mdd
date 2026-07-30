@@ -1,6 +1,6 @@
-"""Single-event entry points to the bulk rename/archive handlers (P06 Phase 2).
+"""Single-event entry points to the bulk rename/archive handlers.
 
-The S27 mutate orchestrators (``mdd.confluence.mutate``) drive the per-page
+The mutate orchestrators (``mdd.confluence.mutate``) drive the per-page
 refresh by calling the existing bulk handlers with a one-element list of
 :class:`SyncEvent`.  These tests pin that contract so a future refactor of
 ``apply_renames_moves`` / ``apply_archive_unarchive`` cannot regress the
@@ -127,7 +127,7 @@ def test_apply_renames_moves_drives_single_event(tmp_path: Path) -> None:
     assert mirror.tracked["12345"].path == new_path
     # The body H1 must reflect the new title — `_extract_title` reads
     # the first ATX H1, so leaving it stale would resurrect the old
-    # title on the next `update-page` (#130).
+    # title on the next `update-page`.
     assert "# New Title\n" in new_path.read_text(encoding="utf-8")
     assert "# Old Title" not in new_path.read_text(encoding="utf-8")
 
@@ -156,7 +156,7 @@ def test_apply_archive_unarchive_drives_single_event(tmp_path: Path) -> None:
     assert isinstance(parsed, dict)
     conf_raw: object = parsed.get("confluence")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     assert isinstance(conf_raw, dict)
-    # #130 F4: status is lowercase end-to-end on disk.
+    # Status is lowercase end-to-end on disk.
     assert conf_raw.get("status") == "archived"  # pyright: ignore[reportUnknownMemberType]
 
 

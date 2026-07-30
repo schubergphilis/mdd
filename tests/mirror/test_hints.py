@@ -1,4 +1,4 @@
-"""Tests for mdd.mirror.hints — CLI hints that come from the backend (spec S44)."""
+"""Tests for mdd.mirror.hints — CLI hints that come from the backend."""
 
 from __future__ import annotations
 

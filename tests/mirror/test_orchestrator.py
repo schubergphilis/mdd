@@ -1,4 +1,4 @@
-"""Tests for mdd.mirror.orchestrator — generic commit-and-push (spec S44)."""
+"""Tests for mdd.mirror.orchestrator — generic commit-and-push."""
 
 from __future__ import annotations
 

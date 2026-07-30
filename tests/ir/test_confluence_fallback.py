@@ -1,7 +1,7 @@
 """Integration test: FallbackEmitted events surface through Document.fallbacks.
 
-Validates spec S29 §"Fallback policy": every unknown element produces a
-``FallbackEmitted`` event with ``kind="block"`` or ``kind="inline"`` and
+Every unknown element must produce a ``FallbackEmitted`` event with
+``kind="block"`` or ``kind="inline"`` and
 ``source_format="confluence-storage"``.
 """
 

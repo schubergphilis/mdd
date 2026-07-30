@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.judges inconsistency mode (spec S22)."""
+"""Tests for mdd.ai.judges inconsistency mode."""
 
 from __future__ import annotations
 

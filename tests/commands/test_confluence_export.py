@@ -134,7 +134,7 @@ class TestExportPage:
         assert "SPACE" in content
         assert "version:" in content
         assert "exported_at:" in content
-        # title and source_format are no longer written to frontmatter (P03 phase 6)
+        # title and source_format are no longer written to frontmatter
         assert "title:" not in content
         assert "source_format:" not in content
 

@@ -3,7 +3,7 @@
 Parametrised over every ``.md`` file in the corpus (fixtures/ and corpus/
 subdirectories).  Markdown-only — no Confluence XHTML involved.
 
-Spec S33 §"R2 — Markdown → IR → Markdown":
+The R2 contract:
   Gate (normalising mode): ``parse_markdown(render_markdown(parse_markdown(md)))
   == parse_markdown(render_markdown(parse_markdown(render_markdown(parse_markdown(md)))))``
   — i.e. the canonical IR form is stable after one parse/render cycle.
@@ -13,7 +13,7 @@ Preserving-mode R2 is skipped in this session: no fixture has
 
 Per-fixture HTML diffs are written to ``build/ir-diffs/<slug>_r2.html`` on failure.
 
-Plan 106 D7 (2026-05-13) stabilised every R2 fixture in the corpus.
+Every R2 fixture in the corpus is stable.
 The blank-line-before-`:::` close fence and the trailing-blank-line
 inside a code block with a `\n` terminator are now emitted by the
 markdown writer, so the parse/render cycle is fixed-point on cycle 1.

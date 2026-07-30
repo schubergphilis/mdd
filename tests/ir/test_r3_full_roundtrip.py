@@ -4,7 +4,7 @@ Parametrised over every snapshot in the corpus via the ``corpus_snapshots``
 session fixture in ``conftest.py``.  If the corpus is absent the module
 skips cleanly.
 
-Spec S33 §"R3 — Storage → IR → Markdown → IR → Storage":
+The R3 pipeline:
 
   storage → parse_confluence_storage → IR_a
           → render_markdown → markdown
@@ -13,19 +13,18 @@ Spec S33 §"R3 — Storage → IR → Markdown → IR → Storage":
           → render_confluence_storage → storage'
 
 - Preserving mode: ``storage' == storage`` byte-for-byte for unmodified content.  Gate.
-- Normalising mode: SequenceMatcher ratio ≥ 0.95 (per-fixture floor, M1 proxy).  Gate.
+- Normalising mode: SequenceMatcher ratio ≥ 0.95 (per-fixture floor).  Gate.
 
 Per-fixture HTML diffs are written to ``build/ir-diffs/<page_id>_r3_*.html`` on failure.
 
-Plan 106 D7/D8 (2026-05-13): the markdown writer emits a blank line
-before `:::` close fences (otherwise the reader absorbs them into the
-preceding paragraph), preserves trailing newlines in code blocks via
-an extra blank line, and the reattach pass restores ConfluenceMacro
-shape (name, params, rich_body, plain_body) lost across the markdown
-leg. The normalising R3 path now also calls `reattach` per spec S33's
-M3 = 1.0 identity-preservation gate (this was missing). Remaining
-xfails are markdown-leg gaps that need structural changes beyond
-plan 106's scope.
+The markdown writer emits a blank line before `:::` close fences
+(otherwise the reader absorbs them into the preceding paragraph),
+preserves trailing newlines in code blocks via an extra blank line, and
+the reattach pass restores ConfluenceMacro shape (name, params,
+rich_body, plain_body) lost across the markdown leg. The normalising R3
+path also calls `reattach`, because identity attributes can only survive
+via the cached IR_a. Remaining xfails are markdown-leg gaps that need
+structural changes.
 """
 
 from __future__ import annotations
@@ -75,9 +74,9 @@ def _r3_preserving(storage: str) -> str:
 def _r3_normalising(storage: str) -> str:
     """Full R3 normalising pipeline.
 
-    Spec S33 §"R3" specifies reattach happens in both preserving and
-    normalising modes (M3 = 1.0 requires identity-attribute survival,
-    which can only come from the cached IR_a).
+    Reattach happens in both preserving and normalising modes:
+    identity attributes must survive, and can only come from the
+    cached IR_a.
     """
     ir_a = parse_confluence_storage(storage, mode="normalising")
     md = render_markdown(ir_a, mode="normalising")

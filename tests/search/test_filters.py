@@ -100,7 +100,7 @@ class TestFilterBlacklisted:
         assert result == [root]
 
     def test_fail_open_on_missing_blacklist_config(self, tmp_path: Path) -> None:
-        """When blacklist config is missing, root is kept (fail-open per spec S07 §6)."""
+        """When blacklist config is missing, root is kept (fail-open)."""
         d = tmp_path / "d"
         d.mkdir()
         root = _make_root(d, source_type="confluence", identifier="SECRET")

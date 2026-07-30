@@ -1,10 +1,9 @@
-"""Pin the S18 diff-table verdict of every fixture pair in the SharePoint corpus.
+"""Pin the diff-table verdict of every fixture pair in the SharePoint corpus.
 
-The corpus under ``tests/corpus/sharepoint/`` ([S38](../../docs/spec/S38-sharepoint-test-corpus.md))
-is vendored data: office binaries plus ``.md`` siblings carrying frozen
+The corpus under ``tests/corpus/sharepoint/`` is vendored data: office
+binaries plus ``.md`` siblings carrying frozen
 ``office_sha256_at_sync`` / ``md_sha256_at_sync`` values. Those frozen hashes
-are what make each pair land on a specific cell of the
-[S18](../../docs/spec/S18-sharepoint-sync.md) reconciliation table.
+are what make each pair land on a specific cell of the reconciliation table.
 
 Refreshing the corpus — re-harvesting from a live site, or re-running the
 maintainers' de-branding pass over it — changes the binaries and therefore

@@ -1,4 +1,4 @@
-"""Tests for mdd.converters.quarto (spec S17)."""
+"""Tests for mdd.converters.quarto."""
 
 from __future__ import annotations
 

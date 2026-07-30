@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.index — INDEX.md generation with per-file summary caching (spec S21)."""
+"""Tests for mdd.ai.index — INDEX.md generation with per-file summary caching."""
 
 from __future__ import annotations
 

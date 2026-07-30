@@ -1,4 +1,4 @@
-"""Tests for the typed SharePoint frontmatter models (spec S40)."""
+"""Tests for the typed SharePoint frontmatter models."""
 
 from __future__ import annotations
 

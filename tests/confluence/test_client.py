@@ -206,8 +206,8 @@ class TestPutPage:
         assert payload["title"] == "My Title"
 
     def test_default_status_is_current_and_no_parent_id(self) -> None:
-        # S27 Phase 1: signature gained ``options=`` but defaults preserve
-        # the original behaviour — no ``parentId`` in the body, status
+        # The signature gained ``options=`` but defaults preserve the
+        # original behaviour — no ``parentId`` in the body, status
         # remains ``"current"``.
         client = _make_client()
         resp = _mock_response(200, {"id": "42"})
@@ -250,7 +250,7 @@ class TestPutPage:
 
 
 class TestArchivePage:
-    """Spec S27: archive_page primitive with v2-first / v1-fallback dispatch."""
+    """archive_page primitive with v2-first / v1-fallback dispatch."""
 
     def test_v2_happy_path(self) -> None:
         client = _make_client()
@@ -336,7 +336,7 @@ class TestArchivePage:
 
 
 class TestUnarchivePage:
-    """Spec S27: unarchive_page primitive (symmetric to archive_page)."""
+    """unarchive_page primitive (symmetric to archive_page)."""
 
     def test_v2_happy_path(self) -> None:
         client = _make_client()
@@ -371,7 +371,7 @@ class TestUnarchivePage:
 
 
 class TestGetPageBodyFormat:
-    """Spec S27: get_page accepts a body_format kwarg for non-storage retrieval."""
+    """get_page accepts a body_format kwarg for non-storage retrieval."""
 
     def test_default_body_format_is_storage(self) -> None:
         client = _make_client()
@@ -425,7 +425,7 @@ class TestContextManager:
 
 class TestDownloadAttachment:
     def test_builds_rest_download_path_from_pageid_and_id(self) -> None:
-        # Issue #76: the legacy /wiki/download/attachments/... endpoint is
+        # The legacy /wiki/download/attachments/... endpoint is
         # OAuth-gated on some tenants. The REST path /wiki/rest/api/content/
         # {page_id}/child/attachment/{att_id}/download accepts Basic auth.
         client = _make_client()
@@ -710,7 +710,7 @@ class TestSSRF:
 
 
 class TestPaginationGuard:
-    """Bounded pagination loops raise instead of looping forever (#79 fallout)."""
+    """Bounded pagination loops raise instead of looping forever."""
 
     def test_list_page_attachments_raises_after_max_iterations(self) -> None:
         client = _make_client()
@@ -729,7 +729,7 @@ class TestPaginationGuard:
             client.list_page_attachments("12345")
 
     def test_list_page_attachments_preserves_next_url_query_string(self) -> None:
-        """Regression: httpx ``params={}`` strips the URL's query string (#79).
+        """Regression: httpx ``params={}`` strips the URL's query string.
 
         The follow-up paginated request must use ``params=None`` so the cursor
         embedded in ``_links.next`` survives.
