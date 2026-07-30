@@ -1,6 +1,6 @@
 """Synthetic URI scheme for ConfluenceLink / ConfluenceImage round-trips.
 
-Spec S30 §"Synthetic URIs for Confluence link family":
+The scheme:
 
     confluence-page:<space>/<title>         page link (space optional)
     confluence-attachment:<filename>         attachment link or image

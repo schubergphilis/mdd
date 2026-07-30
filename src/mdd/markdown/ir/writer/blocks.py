@@ -202,8 +202,8 @@ def _render_raw_block(
     indent: str,
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
-    # If the reader truncated raw_bytes (spec S31 §"Open questions" #1,
-    # ORIGIN_RAW_BYTES_CAP), fall through to the canonical render below.
+    # If the reader truncated raw_bytes (it exceeded ORIGIN_RAW_BYTES_CAP),
+    # fall through to the canonical render below.
     if (
         mode == "preserving"
         and block.origin is not None

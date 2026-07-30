@@ -10,7 +10,7 @@ The full pipeline is exposed as:
 - ``normalise(doc)`` — apply the full pipeline and return the result.
 
 Individual passes can be called in isolation for testing or for composing
-custom sub-pipelines. See spec S31 §"Normalisation passes" for rationale.
+custom sub-pipelines.
 """
 
 from __future__ import annotations

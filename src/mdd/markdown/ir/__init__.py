@@ -1,6 +1,6 @@
 """Markdown ↔ IR converters.
 
-Public surface per spec S30, spec S31:
+Public surface:
 
     parse_markdown(md, *, ctx=None, mode="normalising") -> Document
     render_markdown(doc, *, mode="normalising") -> str

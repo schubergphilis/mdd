@@ -2,7 +2,7 @@
 
 Parses ``:::callout-<kind>`` … ``:::`` blocks (and ``:::confluence-macro``).
 Written in-house (~50 LOC) to avoid an external plugin dep with a different
-fence syntax shape than spec S30 requires.
+fence syntax shape than the mdd markdown flavour uses.
 
 Wire-up: ``md.use(fenced_div_plugin)`` in flavour.py.
 

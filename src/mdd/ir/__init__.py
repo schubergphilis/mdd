@@ -1,9 +1,7 @@
 """Document intermediate representation (IR).
 
-Public API per
-[spec S28](../../../docs/spec/S28-document-ir-foundation.md)
-section "Public API". `parse_*` / `render_*` live in
-`mdd.confluence.ir` and `mdd.markdown.ir` (specs 029 and 030).
+The format-agnostic core. `parse_*` / `render_*` live in
+`mdd.confluence.ir` and `mdd.markdown.ir`.
 """
 
 from __future__ import annotations

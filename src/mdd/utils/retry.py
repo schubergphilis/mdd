@@ -2,8 +2,8 @@
 
 Nothing here is provider-specific: given an :class:`httpx.Response` these
 decide whether a retry is warranted and how long to wait first. The
-Confluence client (spec S09/S16) is the original caller; downstream
-mirrors reuse the same policy so backoff behaviour stays uniform.
+Confluence client is the original caller; downstream mirrors reuse the
+same policy so backoff behaviour stays uniform.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 # Cap honoured Retry-After at 60 s so a server-suggested 10-minute pause does
-# not freeze the caller (spec S16).
+# not freeze the caller.
 _RETRY_AFTER_CAP_SECONDS = 60.0
 
 
@@ -28,7 +28,7 @@ def should_retry(response: httpx.Response) -> bool:
 
 
 def jittered_delay(delay: float) -> float:
-    """Return ``delay`` with up to 10 % positive jitter (spec S09).
+    """Return ``delay`` with up to 10 % positive jitter.
 
     Jitter avoids lockstep retry storms when several processes hit the same
     rate-limit window simultaneously.
@@ -40,7 +40,7 @@ def backoff_for_response(response: httpx.Response, scheduled_delay: float) -> fl
     """Return the sleep duration before retrying *response*.
 
     For a 429 carrying a parseable ``Retry-After`` header, honour the header
-    (capped at 60 s, spec S16). Otherwise use ``scheduled_delay`` with jitter.
+    (capped at 60 s). Otherwise use ``scheduled_delay`` with jitter.
     """
     if response.status_code == 429:
         retry_after = parse_retry_after(response)

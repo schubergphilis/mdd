@@ -1,4 +1,4 @@
-"""Source-side `.mddignore` matcher (spec S39).
+"""Source-side `.mddignore` matcher.
 
 Loads a union of ``.mddignore`` patterns from the destination mirror root
 plus zero-or-more CLI-provided ignore files, and exposes:
@@ -104,8 +104,8 @@ def _yield_if_prunable(
 ) -> Iterator[Path]:
     """Yield *candidate* if it is a regular file matched by *matcher* and inside *dest_root*.
 
-    Refuses to yield paths whose ``resolve()`` escapes *root_resolved* —
-    this is the symlink-escape guard the spec requires.
+    Refuses to yield paths whose ``resolve()`` escapes *root_resolved*, so a
+    symlink cannot make a prune delete files outside the mirror.
     """
     if not candidate.is_file():
         return
@@ -124,7 +124,7 @@ def _yield_if_prunable(
 
 @dataclass(frozen=True)
 class MddIgnore:
-    """Compiled `.mddignore` matcher (spec S39).
+    """Compiled `.mddignore` matcher.
 
     Wraps a ``pathspec.GitIgnoreSpec`` so callers do not need to depend
     on pathspec directly.
@@ -168,8 +168,8 @@ class MddIgnore:
     def walk_prunable(self, dest_root: Path) -> Iterator[Path]:
         """Yield every file under *dest_root* whose relative path is ignored.
 
-        Used by ``--prune-ignored`` (spec S39 "Opt-in cleanup"). The helper
-        only enumerates; deletion is the caller's responsibility.
+        Used by the opt-in ``--prune-ignored`` cleanup. The helper only
+        enumerates; deletion is the caller's responsibility.
 
         Safety domain (enforced here, not the caller):
 

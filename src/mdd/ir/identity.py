@@ -1,6 +1,6 @@
 """Identity and provenance helpers.
 
-Two responsibilities, both spec S28 §"Identity and provenance":
+Two responsibilities:
 
 1. `IdAllocator` / `assign_ids` — hand out monotonic `b00001`
    labels during parse, walking depth-first.
