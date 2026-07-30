@@ -101,6 +101,14 @@ See S14 for the reconciliation algorithm.
 
 When prose requires a bare number (e.g. in a table row), keep the link: `[S07](S07-data-protection.md)`.
 
+A repo that keeps its own specs but cites one of the core's uses the
+absolute GitHub form instead, which `scripts/spec-check.py` validates the
+same way — against `docs/spec/` and a sibling `../mdd/docs/spec/` checkout:
+
+```markdown
+See [data protection](https://github.com/schubergphilis/mdd/blob/main/docs/spec/S07-data-protection.md).
+```
+
 Spec files MUST NOT link to `docs/research/` (RNN) artefacts, and MUST
 NOT depend on one to be understood. Research notes are working /
 process documents; specs are the durable design record. Copy any
