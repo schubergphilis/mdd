@@ -24,7 +24,7 @@ from pathlib import Path
 def next_spec_number() -> str:
     """Return the next free spec number as a zero-padded 2-digit string."""
     result = subprocess.run(
-        [sys.executable, "scripts/new-doc-number.py", "spec"],
+        [sys.executable, str(Path(__file__).parent / "new-doc-number.py"), "spec"],
         check=True,
         capture_output=True,
         text=True,
