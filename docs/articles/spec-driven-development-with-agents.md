@@ -221,4 +221,4 @@ with everything above.
 
 For the conventions themselves, start at
 [the spec index](../spec/000-specs.md). For how the design record relates to
-the rest of this site, see [the design record](../guide/09-design-record.md).
+the rest of this site, see [the design record](../design-record/index.md).

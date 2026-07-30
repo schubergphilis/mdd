@@ -8,6 +8,8 @@ Bidirectional sync between Markdown-in-git and Confluence/SharePoint.
 remote document management systems. Engineers and AI agents can work with
 Markdown while everyone else can continue working with the tools they know.
 
+📖 **Documentation: <https://schubergphilis.github.io/mdd/>**
+
 ## ⚠️ Beta software - use with care
 
 `mdd` is written almost entirely by AI agents under human review. There
@@ -97,13 +99,12 @@ example. Especially handy for deep-linking Confluence and Markdown.
 
 ## Documentation
 
-Design docs live in [docs/spec/](docs/spec/); start from
-[docs/spec/000-specs.md](docs/spec/000-specs.md).
+The documentation site is at <https://schubergphilis.github.io/mdd/>. It has
+the install guide, an offline quickstart, what can destroy data, and the
+bring-your-own-tenant how-tos for Confluence and SharePoint.
 
-The research notes behind those designs — surveys, spikes, and
-measurements — live in [docs/research/](docs/research/); start from
-[docs/research/000-research.md](docs/research/000-research.md). They
-are working documents, not maintained design records.
+All of it is Markdown in this repository, so it reads on GitHub too:
+[docs/README.md](docs/README.md) is the map.
 
 ## Contributing
 
