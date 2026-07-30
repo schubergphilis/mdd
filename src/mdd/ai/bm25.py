@@ -1,4 +1,4 @@
-"""Thin BM25 index wrapper using rank-bm25 (spec S22).
+"""Thin BM25 index wrapper using rank-bm25.
 
 Tokenises on word boundaries, lowercases, strips frontmatter and code blocks.
 Index is built once and held in memory; no disk representation.

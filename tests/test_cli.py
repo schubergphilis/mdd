@@ -64,7 +64,7 @@ class TestCLI:
         assert exc_info.value.code == 0
         out = capsys.readouterr().out
         # Assert the shape, not an exact string: editable/dev installs carry a
-        # `.devN+g…` suffix derived from git (S43 §Risks).
+        # `.devN+g…` suffix derived from git.
         assert out.startswith("mdd ")
         assert out.split()[1][0].isdigit()
 

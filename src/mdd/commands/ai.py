@@ -1,4 +1,4 @@
-"""mdd ai — AI-powered rewrite / index / review commands (specs S21–S22)."""
+"""mdd ai — AI-powered rewrite / index / review commands."""
 
 from __future__ import annotations
 
@@ -195,7 +195,9 @@ def register(
         "ai",
         help="AI-powered rewrite / index / review commands (requires LiteLLM token)",
         description=(
-            "AI-powered helpers driven by LiteLLM. Requires an AI config (see specs S21/S22)."
+            "AI-powered helpers driven by LiteLLM. Requires `ai.api_token` (and "
+            "usually `ai.base_url`) in configs/ai.yaml or ~/.config/mdd/ai.yaml; "
+            "the token may be an `op://` reference resolved via the 1Password CLI."
         ),
     )
     sub = ai.add_subparsers(dest="subcommand", required=True, metavar="<subcommand>")

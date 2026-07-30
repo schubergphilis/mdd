@@ -1,4 +1,4 @@
-"""Per-mode LLM judge prompts and JSON response parsing (spec S22).
+"""Per-mode LLM judge prompts and JSON response parsing.
 
 Each sub-mode has:
   - a *prompt_template* string (loaded from prompts/review-*.md)

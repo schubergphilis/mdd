@@ -1,4 +1,4 @@
-"""AI-powered cross-page review orchestrator (spec S22).
+"""AI-powered cross-page review orchestrator.
 
 Runs one or more sub-modes (duplicates, inconsistencies, stale) over a
 directory of markdown files, producing a structured report.

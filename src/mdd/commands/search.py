@@ -1,4 +1,4 @@
-"""mdd search — ripgrep-backed mirror search command (spec S19).
+"""mdd search — ripgrep-backed mirror search command.
 
 By default search results are streamed: rg emits matches over stdout, the
 streaming formatter writes them straight through to the user's terminal, and
