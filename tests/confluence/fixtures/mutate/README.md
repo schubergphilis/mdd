@@ -1,4 +1,4 @@
-# Mutate-orchestrator test fixtures (spec S27 / P06 Phase 3)
+# Mutate-orchestrator test fixtures
 
 The mutate orchestrator tests build their working trees programmatically in
 ``tmp_path`` (see ``tests/confluence/test_mutate.py``) rather than relying on
