@@ -1,9 +1,10 @@
 """JSON serialization for the IR.
 
-Spec S28 §"JSON serialization" pins four invariants:
+Four invariants hold:
 
-1. `from_json(to_json(d)) == d` for every IR the spec allows.
-2. The top-level dict carries `mdd_ir_version: int` (currently 1);
+1. `from_json(to_json(d)) == d` for every valid IR.
+2. The top-level dict carries `mdd_ir_version: int` (see
+   ``MDD_IR_VERSION`` below);
    loaders refuse unknown major versions with a `ValidationError`.
 3. Stable key order — output keys are sorted so `git diff` on the
    on-disk sidecar is sensible.
@@ -39,9 +40,9 @@ JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "Jso
 def _origin_to_dict(origin: Origin) -> dict[str, JsonValue]:
     """Serialize an ``Origin`` with special handling for ``raw_bytes`` and ``entity_form``.
 
-    Empty fields are omitted entirely (per spec S31 §"Sidecar JSON shape" —
-    `Origin` is omitted when null and individual fields stay terse when
-    empty to keep the sidecar JSON well under the 10× source-markdown gate).
+    Empty fields are omitted entirely: `Origin` is omitted when null and
+    individual fields stay terse when empty, to keep the sidecar JSON well
+    under the 10× source-markdown size gate.
     """
     out: dict[str, JsonValue] = {
         "type": "Origin",
@@ -130,7 +131,7 @@ def _dataclass_to_dict(node: object) -> dict[str, JsonValue]:
 
     The dataclass default is the round-trip contract: `from_dict` restores
     omitted fields from the same defaults, so equality is preserved by
-    construction (spec S31 §"Sidecar JSON shape"). Compaction is what keeps
+    construction. Compaction is what keeps
     the benchmark gate's 10× sidecar-size ratio reachable on real content.
     """
     out: dict[str, JsonValue] = {"type": type(node).__name__}

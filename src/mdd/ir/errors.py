@@ -4,9 +4,7 @@
 `ValidationError` is raised by `serialize.from_json` on malformed
 payloads or unknown schema versions. `FallbackEmitted` is *not* an
 exception — it is a structured event surfaced through `IRContext`
-when a reader had to fall back to `RawBlock` / `RawInline`. See
-[spec S28](../../../docs/spec/S28-document-ir-foundation.md)
-section "Fallback contract".
+when a reader had to fall back to `RawBlock` / `RawInline`.
 """
 
 from __future__ import annotations

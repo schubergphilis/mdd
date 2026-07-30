@@ -89,6 +89,7 @@ def find_blacklist_files(explicit: Path | None) -> list[Path]:
             "No data-protection blacklist found. "
             "Expected a bundled configs/data-protection.yaml in the mdd install, "
             "~/.config/mdd/data-protection.yaml, or a --blacklist override. "
-            "See spec S07."
+            "The file must declare confluence.blacklisted_spaces and "
+            "sharepoint.blacklisted_sites; either may be an empty list."
         )
     return found

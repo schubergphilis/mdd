@@ -1,4 +1,4 @@
-"""Typed models for converter config files (spec S40).
+"""Typed models for converter config files.
 
 This module exposes the user-edited config surface for converter
 modules.  Today only the SVG converter has user-tunable config; the
@@ -15,7 +15,7 @@ The on-disk shape carried by ``configs/mdd.yaml`` and
 i.e. an outer envelope keyed on ``svg``.  :class:`SvgWrapper` models
 that envelope; :class:`SvgConfig` models the inner block.
 
-Strictness posture (spec S40 §Strictness posture):
+Strictness posture:
 
 - :class:`SvgConfig` inherits ``extra="forbid"`` from
   :class:`mdd.utils.frontmatter.FrontmatterModel` so typos in

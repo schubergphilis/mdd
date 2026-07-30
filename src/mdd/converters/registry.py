@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 CONVERTERS: dict[str, Converter] = {}
 
 # Keyed by lowercased target extension, e.g. ".docx".
-# Populated by spec S17 (Quarto reverse converters).
+# Populated by the Quarto renderers in ``quarto.py``.
 REVERSE_CONVERTERS: dict[str, ReverseConverter] = {}
 
 
