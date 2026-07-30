@@ -1,4 +1,4 @@
-# mise: https://mise.en.dev/
+# mise: https://mise.jdx.dev/
 #
 # `mise install` installs everything under [tools]; `mise run <task>`
 # dispatches to `uv`. `pyproject.toml`'s `requires-python` remains

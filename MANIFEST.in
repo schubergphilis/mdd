@@ -8,16 +8,13 @@ prune tests
 prune scripts
 prune configs
 prune .github
-prune .gitlab
 prune .claude
 
 exclude .gitlab-ci.yml
 exclude .mise.toml
 exclude complexipy-snapshot.json
-exclude install.py
 exclude AGENTS.md
 exclude CLAUDE.md
 exclude CONTRIBUTING.md
 exclude CODE_OF_CONDUCT.md
-exclude Dockerfile.ci-runner
 exclude .gitignore
