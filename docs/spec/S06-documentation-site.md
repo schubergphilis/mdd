@@ -90,6 +90,7 @@ mdd/
 ├── docs/                     checked-in Markdown, no build artefacts
 │   ├── guide/                operator documentation (new)
 │   ├── articles/             promoted synthesised articles (new)
+│   ├── design-record/        introduction to the spec/research section (new)
 │   ├── reference/            generated, committed (Phase 3+)
 │   ├── research/
 │   └── spec/
@@ -210,6 +211,31 @@ Tabs, Steps, Cards and CardGrid are MDX-only and are not available in `.md`.
 Guide pages do without them. One hand-authored `index.mdx` lives in `site/`
 for the landing page, since a hero and card grid are presentation rather than
 documentation.
+
+### Sections that are not the guide
+
+Two sidebar groups hold prose that is neither operator documentation nor a
+synthesised article.
+
+**Design record** opens with `docs/design-record/index.md`, a short
+introduction sitting above the collapsed Specs and Research subgroups. It
+belongs there rather than in the guide: it describes the corpus a reader is
+about to enter, and an operator following the guide has no reason to read it.
+An `index.md` in any section publishes at the section root, so the page is
+served at `/mdd/design-record/`.
+
+**Get involved** is last, and holds the project's governance and legal
+documents — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and
+`LICENSE`. These are the only published pages whose source lives outside
+`docs/`, because they are also the only ones a tool other than this site reads
+from a fixed location: GitHub renders `CONTRIBUTING.md` in its pull-request
+flow and surfaces `SECURITY.md` in its advisory UI, both by path. Moving them
+would break that, so `sync-docs.py` names them explicitly and reads them from
+the root at build time.
+
+`LICENSE` is not Markdown. It is published with an explicit title and its text
+in a fenced block, so the Apache-2.0 text renders verbatim rather than being
+reflowed by Markdown's paragraph handling.
 
 ### Demoting the design record
 
@@ -598,5 +624,11 @@ No open questions remain.
   sync in both directions, is a product capability of its own and would need
   its own research note and spec.
 - Migrating `README.md`, `CONTRIBUTING.md` or `AGENTS.md` into the site. They
-  stay at the repository root; the site may restate their content but does not
-  replace them.
+  stay at the repository root. `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  `SECURITY.md` and `LICENSE` are *published* from there under a **Get
+  involved** group at the bottom of the sidebar — synced by the same script as
+  everything else, read from the root file at build time so they cannot drift.
+  That is republishing, not migrating: the root remains the only copy, and
+  `README.md` and `AGENTS.md` are not published at all, since the site's
+  landing page and the guide already cover the first and no human reads the
+  second.

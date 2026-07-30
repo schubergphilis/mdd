@@ -5,11 +5,20 @@ files the site does not publish).
 
 Source -> destination mapping:
 
-    docs/guide/NN-slug.md      -> site/src/content/docs/guide/slug.md
-    docs/articles/*.md         -> site/src/content/docs/articles/*.md
-    docs/reference/**/*.md     -> site/src/content/docs/reference/**/*.md
-    docs/spec/*.md              -> site/src/content/docs/spec/*.md
-    docs/research/*.md          -> site/src/content/docs/research/*.md
+    docs/guide/NN-slug.md        -> site/src/content/docs/guide/slug.md
+    docs/articles/*.md           -> site/src/content/docs/articles/*.md
+    docs/reference/**/*.md       -> site/src/content/docs/reference/**/*.md
+    docs/spec/*.md                -> site/src/content/docs/spec/*.md
+    docs/research/*.md            -> site/src/content/docs/research/*.md
+    docs/design-record/*.md       -> site/src/content/docs/design-record/*.md
+    <repo-root governance file>  -> site/src/content/docs/get-involved/<name>.md
+
+A source file named `index.md` publishes at its section's own root slug
+(`docs/design-record/index.md` -> `/mdd/design-record/`) instead of a
+`.../index/` segment. The get-involved section is not a directory glob: its
+sources are the fixed list in `GET_INVOLVED_FILES`, read from the repository
+root and left there — synced, not moved. `LICENSE` in that list is plain
+text, not Markdown; it is wrapped in a fenced block rather than parsed.
 
 Each destination directory is deleted before it is repopulated, so a file
 removed from `docs/` does not linger in the synced output. `docs/reference/`
@@ -23,7 +32,11 @@ files) or the first paragraph of body text (everything else). Guide pages
 get a `sidebar.order` from their filename's numeric prefix. Spec and
 research pages are demoted: `pagefind: false`, a `sidebar.label` that is
 just the document's id (`S06`, `R14`, `000`), and a `banner` marking them as
-a design record rather than user documentation.
+a design record rather than user documentation. Every page also gets an
+`editUrl` pointing at its real source file — the synced path Starlight sees
+is not that file (a numeric prefix is stripped, or the file lives at the
+repository root rather than under `docs/`), so only this script can supply
+a working "edit this page" link.
 
 Every relative link is resolved against the linking file's directory. A
 link to a file this script publishes becomes a site-absolute URL; a link to
@@ -52,11 +65,26 @@ from pathlib import Path
 import yaml
 
 GITHUB_BLOB_BASE = "https://github.com/schubergphilis/mdd/blob/main"
+# Deliberately a separate constant from GITHUB_BLOB_BASE, not derived from
+# it: "blob" (used for links out to non-published files) and "edit" (used
+# for each page's own editUrl) are different GitHub paths, and conflating
+# them would be a subtle bug the next person to touch this would not expect.
+GITHUB_EDIT_BASE = "https://github.com/schubergphilis/mdd/edit/main"
 SITE_BASE = "/mdd"
 
 DEMOTED_KINDS = {"spec", "research"}
-NUMBERED_KINDS = {"guide"}
+# Pages that carry a `sidebar.order`. Guide pages derive it from a filename
+# prefix; get-involved pages get it from their fixed position in
+# GET_INVOLVED_FILES. Either way, `build_sidebar` just reads `page.order`.
+NUMBERED_KINDS = {"guide", "get-involved"}
 ID_LABEL_KINDS = {"spec", "research"}
+
+GET_INVOLVED_FILES: tuple[tuple[str, str, int], ...] = (
+    ("CONTRIBUTING.md", "contributing", 1),
+    ("CODE_OF_CONDUCT.md", "code-of-conduct", 2),
+    ("SECURITY.md", "security", 3),
+    ("LICENSE", "license", 4),
+)
 
 # The new-spec scaffold, not a spec itself. Its `[NNN-<dep>](<dep>.md)` line
 # is a placeholder for a future author to fill in, not a real link, so it is
@@ -125,17 +153,57 @@ def build_sections(docs_dir: Path, content_dir: Path) -> tuple[Section, ...]:
         Section("reference", docs_dir / "reference", content_dir / "reference", recursive=True),
         Section("spec", docs_dir / "spec", content_dir / "spec", recursive=False),
         Section("research", docs_dir / "research", content_dir / "research", recursive=False),
+        Section(
+            "design-record",
+            docs_dir / "design-record",
+            content_dir / "design-record",
+            recursive=False,
+        ),
     )
 
 
-def clean_destinations(sections: tuple[Section, ...], public_dir: Path) -> None:
+@dataclass(frozen=True)
+class NamedFileSection:
+    """A section whose sources are an explicit, ordered list of files at
+    fixed repository paths, rather than a directory glob — governance
+    documents that live at the repository root and stay there.
+    """
+
+    kind: str
+    dest: Path
+    files: tuple[tuple[Path, str, int], ...]  # (source, slug name, sidebar order)
+
+
+def build_named_file_sections(repo_root: Path, content_dir: Path) -> tuple[NamedFileSection, ...]:
+    return (
+        NamedFileSection(
+            "get-involved",
+            content_dir / "get-involved",
+            tuple(
+                (repo_root / filename, name, order) for filename, name, order in GET_INVOLVED_FILES
+            ),
+        ),
+    )
+
+
+def _clean_destination(kind: str, dest: Path, public_dir: Path) -> None:
+    if dest.exists():
+        shutil.rmtree(dest)
+    if kind not in DEMOTED_KINDS:
+        twin_dir = public_dir / kind
+        if twin_dir.exists():
+            shutil.rmtree(twin_dir)
+
+
+def clean_destinations(
+    sections: tuple[Section, ...],
+    named_sections: tuple[NamedFileSection, ...],
+    public_dir: Path,
+) -> None:
     for section in sections:
-        if section.dest.exists():
-            shutil.rmtree(section.dest)
-        if section.kind not in DEMOTED_KINDS:
-            twin_dir = public_dir / section.kind
-            if twin_dir.exists():
-                shutil.rmtree(twin_dir)
+        _clean_destination(section.kind, section.dest, public_dir)
+    for named_section in named_sections:
+        _clean_destination(named_section.kind, named_section.dest, public_dir)
 
 
 def strip_numeric_prefix(name: str) -> tuple[str, int | None]:
@@ -157,18 +225,46 @@ def build_page(section: Section, path: Path, public_dir: Path) -> Page:
     if section.kind in NUMBERED_KINDS:
         parts[-1], order = strip_numeric_prefix(parts[-1])
     rel_stem = Path(*parts)
+    dest = section.dest / rel_stem.with_suffix(".md")
+
+    # `index.md` is the section's own root page, not a page named "index"
+    # nested under it, so the emitted URL drops the filename rather than
+    # adding a literal `.../index/` segment. This applies at any depth (a
+    # future `docs/reference/cli/index.md` gets the same treatment), and the
+    # destination filename above is untouched — Starlight derives a root
+    # page from a file named `index.md`, so only the URL we emit needs this.
+    is_index = parts[-1].lower() == "index"
+    slug_parts = parts[:-1] if is_index else parts
     # Starlight lowercases the slug it derives from a filename, so a page
     # written as `S07-data-protection.md` is served at `.../s07-data-protection/`.
     # URLs built here must match, or every link to a spec or research note is a
     # 404. The destination filename keeps its original case.
-    url_stem = rel_stem.as_posix().lower()
-    slug = f"{section.kind}/{url_stem}"
-    dest = section.dest / rel_stem.with_suffix(".md")
+    url_stem = "/".join(part.lower() for part in slug_parts)
+    slug = f"{section.kind}/{url_stem}" if url_stem else section.kind
+
     twin = None
     if section.kind not in DEMOTED_KINDS:
-        twin = public_dir / section.kind / f"{url_stem}.md"
+        if is_index:
+            twin_rel = f"{url_stem}/index.md" if url_stem else "index.md"
+        else:
+            twin_rel = f"{url_stem}.md"
+        twin = public_dir / section.kind / twin_rel
     doc_id = derive_doc_id(path.stem) if section.kind in ID_LABEL_KINDS else None
     return Page(section.kind, path, slug, dest, twin, order, doc_id)
+
+
+def discover_named_file_section(section: NamedFileSection, public_dir: Path) -> list[Page]:
+    pages: list[Page] = []
+    for source, name, order in section.files:
+        if not source.is_file():
+            continue
+        slug = f"{section.kind}/{name}"
+        dest = section.dest / f"{name}.md"
+        twin = None
+        if section.kind not in DEMOTED_KINDS:
+            twin = public_dir / section.kind / f"{name}.md"
+        pages.append(Page(section.kind, source, slug, dest, twin, order, None))
+    return pages
 
 
 def discover_section(section: Section, public_dir: Path) -> list[Page]:
@@ -182,10 +278,16 @@ def discover_section(section: Section, public_dir: Path) -> list[Page]:
     ]
 
 
-def discover_pages(sections: tuple[Section, ...], public_dir: Path) -> list[Page]:
+def discover_pages(
+    sections: tuple[Section, ...],
+    named_sections: tuple[NamedFileSection, ...],
+    public_dir: Path,
+) -> list[Page]:
     pages: list[Page] = []
     for section in sections:
         pages.extend(discover_section(section, public_dir))
+    for named_section in named_sections:
+        pages.extend(discover_named_file_section(named_section, public_dir))
     return pages
 
 
@@ -278,8 +380,23 @@ def build_sidebar(page: Page) -> dict[str, object] | None:
     return None
 
 
+def build_edit_url(source: Path, repo_root: Path) -> str:
+    """The GitHub "edit this page" URL for a page's real source file.
+
+    Starlight's own `editLink.baseUrl` appends the page's path *within the
+    content collection* (e.g. `guide/install.md`), not its real source (e.g.
+    `docs/guide/01-install.md`) — the two differ by a numeric prefix for
+    guide pages, and are unrelated paths entirely for get-involved pages,
+    which live at the repository root. Only this script knows the mapping,
+    so it emits a per-page `editUrl` override rather than leaving Starlight
+    to guess from the synced path.
+    """
+    rel = source.relative_to(repo_root)
+    return f"{GITHUB_EDIT_BASE}/{rel.as_posix()}"
+
+
 def build_frontmatter(
-    page: Page, title: str, body: str, existing: dict[str, object]
+    page: Page, title: str, body: str, existing: dict[str, object], edit_url: str
 ) -> dict[str, object]:
     derived: dict[str, object] = {"title": title}
     description = derive_description(page.kind, body)
@@ -291,6 +408,7 @@ def build_frontmatter(
     if page.kind in DEMOTED_KINDS:
         derived["pagefind"] = False
         derived["banner"] = {"content": DEMOTION_BANNER}
+    derived["editUrl"] = edit_url
     return {**existing, **derived}
 
 
@@ -489,7 +607,38 @@ def rewrite_links_in_body(
     return "".join(out_parts), violations
 
 
+def render_license_page(page: Page, repo_root: Path) -> RenderResult:
+    """`LICENSE` is the verbatim Apache-2.0 text, not Markdown: it has no
+    heading, and letting it flow through paragraph/list handling would
+    mangle its formatting. It is read here at sync time, rather than copied
+    into `docs/`, so the published copy cannot drift from the file it
+    mirrors. Wrapping it in a fenced block keeps it byte-for-byte; the title
+    is given explicitly since there is no heading to derive one from.
+
+    It gets a real `editUrl`, the same as every other page, rather than
+    `editUrl: false`: it points at an actual file, and "edit" landing on the
+    Apache text is harmless and honest.
+    """
+    title = "License"
+    license_text = page.source.read_text(encoding="utf-8")
+    body = (
+        "`mdd` is licensed under the Apache License 2.0. This page mirrors the "
+        f"[`LICENSE`]({GITHUB_BLOB_BASE}/LICENSE) file at the repository root.\n\n"
+        f"```text\n{license_text}```\n"
+    )
+    edit_url = build_edit_url(page.source, repo_root)
+    frontmatter = build_frontmatter(page, title, body, {}, edit_url)
+    dumped = yaml.safe_dump(
+        frontmatter, sort_keys=False, allow_unicode=True, default_flow_style=False
+    )
+    content = f"---\n{dumped}---\n\n{body}"
+    twin = f"# {title}\n\n{body}" if page.twin is not None else None
+    return RenderResult(content, twin, [])
+
+
 def render_page(page: Page, site_paths: dict[Path, str], repo_root: Path) -> RenderResult:
+    if page.kind == "get-involved" and page.source.name == "LICENSE":
+        return render_license_page(page, repo_root)
     raw = page.source.read_text(encoding="utf-8")
     existing_fm, stripped, fm_lines = split_frontmatter(raw)
     title, body, title_lines = extract_title(stripped)
@@ -499,7 +648,8 @@ def render_page(page: Page, site_paths: dict[Path, str], repo_root: Path) -> Ren
         )
     start_line = fm_lines + title_lines + 1
     body, violations = rewrite_links_in_body(body, page.source, site_paths, repo_root, start_line)
-    frontmatter = build_frontmatter(page, title, body, existing_fm)
+    edit_url = build_edit_url(page.source, repo_root)
+    frontmatter = build_frontmatter(page, title, body, existing_fm, edit_url)
     dumped = yaml.safe_dump(
         frontmatter, sort_keys=False, allow_unicode=True, default_flow_style=False
     )
@@ -521,8 +671,9 @@ def run(repo_root: Path) -> int:
     content_dir = repo_root / "site" / "src" / "content" / "docs"
     public_dir = repo_root / "site" / "public"
     sections = build_sections(docs_dir, content_dir)
-    clean_destinations(sections, public_dir)
-    pages = discover_pages(sections, public_dir)
+    named_sections = build_named_file_sections(repo_root, content_dir)
+    clean_destinations(sections, named_sections, public_dir)
+    pages = discover_pages(sections, named_sections, public_dir)
     site_paths = {page.source: page.slug for page in pages}
     violations: list[str] = []
     for page in pages:

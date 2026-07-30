@@ -456,6 +456,88 @@ def test_no_twin_for_spec_or_research(tmp_path: Path) -> None:
     assert not (tmp_path / "site" / "public" / "spec").exists()
 
 
+# --- index.md publishes at the section root ---------------------------------
+
+
+def test_index_md_publishes_at_section_root(tmp_path: Path) -> None:
+    write_file(
+        tmp_path / "docs" / "design-record" / "index.md",
+        "# The design record\n\nWhy specs and research notes are published.\n",
+    )
+
+    assert sync_docs.run(tmp_path) == 0
+    dest = dest_path(tmp_path, "design-record", "index.md")
+    assert dest.is_file()
+    frontmatter = read_frontmatter(dest)
+    assert frontmatter["title"] == "The design record"
+    assert "sidebar" not in frontmatter
+    assert "pagefind" not in frontmatter
+    assert (tmp_path / "site" / "public" / "design-record" / "index.md").is_file()
+
+
+# --- a section sourced from named repository-root files ---------------------
+
+
+def test_root_file_section_page_gets_slug_and_order(tmp_path: Path) -> None:
+    write_file(tmp_path / "CONTRIBUTING.md", "# Contributing\n\nThanks for looking at mdd!\n")
+    write_file(
+        tmp_path / "CODE_OF_CONDUCT.md", "# Code of Conduct\n\nBe excellent to each other.\n"
+    )
+    write_file(tmp_path / "SECURITY.md", "# Security Policy\n\nReport privately.\n")
+    write_file(tmp_path / "LICENSE", "                Apache License\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    dest = dest_path(tmp_path, "get-involved", "contributing.md")
+    assert dest.is_file()
+    frontmatter = read_frontmatter(dest)
+    assert frontmatter["title"] == "Contributing"
+    assert frontmatter["sidebar"] == {"order": 1}
+    assert read_frontmatter(dest_path(tmp_path, "get-involved", "code-of-conduct.md"))[
+        "sidebar"
+    ] == {"order": 2}
+
+
+def test_root_file_section_tolerates_a_missing_file(tmp_path: Path) -> None:
+    write_file(tmp_path / "CONTRIBUTING.md", "# Contributing\n\nThanks!\n")
+    # CODE_OF_CONDUCT.md, SECURITY.md and LICENSE are deliberately absent.
+
+    assert sync_docs.run(tmp_path) == 0
+    assert dest_path(tmp_path, "get-involved", "contributing.md").is_file()
+    assert not dest_path(tmp_path, "get-involved", "code-of-conduct.md").exists()
+
+
+def test_license_page_renders_verbatim_text_in_a_fenced_block(tmp_path: Path) -> None:
+    license_text = "                Apache License\n           Version 2.0, January 2004\n"
+    write_file(tmp_path / "LICENSE", license_text)
+
+    assert sync_docs.run(tmp_path) == 0
+    dest = dest_path(tmp_path, "get-involved", "license.md")
+    frontmatter = read_frontmatter(dest)
+    body = dest.read_text(encoding="utf-8")
+    assert frontmatter["title"] == "License"
+    assert frontmatter["sidebar"] == {"order": 4}
+    assert "```text" in body
+    assert license_text in body
+
+
+def test_root_file_link_resolves_from_the_repository_root(tmp_path: Path) -> None:
+    write_file(
+        tmp_path / "CONTRIBUTING.md",
+        "# Contributing\n\nSee [the spec](docs/spec/S07-data-protection.md) and "
+        "[the agent notes](AGENTS.md).\n",
+    )
+    write_file(
+        tmp_path / "docs" / "spec" / "S07-data-protection.md",
+        "# S07: Data protection\n\n**Purpose:** Protect data.\n",
+    )
+    write_file(tmp_path / "AGENTS.md", "# Agents\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "get-involved", "contributing.md").read_text(encoding="utf-8")
+    assert "[the spec](/mdd/spec/s07-data-protection/)" in body
+    assert f"[the agent notes]({sync_docs.GITHUB_BLOB_BASE}/AGENTS.md)" in body
+
+
 # --- destination cleanup ----------------------------------------------------
 
 
@@ -472,6 +554,33 @@ def test_stale_destination_files_are_removed(tmp_path: Path) -> None:
     assert not stale.exists()
     assert not dest_path(tmp_path, "guide", "install.md").exists()
     assert dest_path(tmp_path, "guide", "quickstart.md").exists()
+
+
+# --- per-page editUrl --------------------------------------------------------
+
+
+def test_guide_edit_url_points_at_the_real_numeric_prefixed_source(tmp_path: Path) -> None:
+    write_file(tmp_path / "docs" / "guide" / "02-quickstart.md", "# Quickstart\n\nBody text.\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    frontmatter = read_frontmatter(dest_path(tmp_path, "guide", "quickstart.md"))
+    assert frontmatter["editUrl"] == f"{sync_docs.GITHUB_EDIT_BASE}/docs/guide/02-quickstart.md"
+
+
+def test_get_involved_edit_url_points_at_the_repository_root(tmp_path: Path) -> None:
+    write_file(tmp_path / "CONTRIBUTING.md", "# Contributing\n\nThanks!\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    frontmatter = read_frontmatter(dest_path(tmp_path, "get-involved", "contributing.md"))
+    assert frontmatter["editUrl"] == f"{sync_docs.GITHUB_EDIT_BASE}/CONTRIBUTING.md"
+
+
+def test_license_page_also_gets_an_edit_url(tmp_path: Path) -> None:
+    write_file(tmp_path / "LICENSE", "Apache License\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    frontmatter = read_frontmatter(dest_path(tmp_path, "get-involved", "license.md"))
+    assert frontmatter["editUrl"] == f"{sync_docs.GITHUB_EDIT_BASE}/LICENSE"
 
 
 # --- pure helper functions ---------------------------------------------

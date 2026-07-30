@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-PROSE_FILES = ("README.md", "CONTRIBUTING.md", "AGENTS.md", "SECURITY.md")
+PROSE_FILES = ("README.md", "docs/README.md", "CONTRIBUTING.md", "AGENTS.md", "SECURITY.md")
 PROSE_DIRS = ("docs/guide", "docs/articles", "docs/reference")
 ADVISORY_DIRS = ("docs/spec", "docs/research")
 
