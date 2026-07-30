@@ -1,4 +1,4 @@
-"""Confidentiality blacklist enforcement for mdd (spec S07)."""
+"""Confidentiality blacklist enforcement for mdd."""
 
 import re
 import subprocess
@@ -128,7 +128,8 @@ def check_confluence(space_key: str, *, blacklist_file: Path | None = None) -> N
     if matched is not None:
         raise BlacklistError(
             f"Confluence space '{space_key}' matches blacklist pattern '{matched}'. "
-            "Push refused. See spec S07."
+            "Push refused; to publish this space, remove the pattern from the "
+            "data-protection config that declares it."
         )
 
 
@@ -145,7 +146,8 @@ def check_sharepoint(folder_name: str, *, blacklist_file: Path | None = None) ->
     if matched is not None:
         raise BlacklistError(
             f"SharePoint site '{folder_name}' matches blacklist pattern '{matched}'. "
-            "Push refused. See spec S07."
+            "Push refused; to publish this site, remove the pattern from the "
+            "data-protection config that declares it."
         )
 
 
@@ -192,7 +194,7 @@ def _url_path_segments(url: str) -> list[str]:
 
 
 def _detect_from_segments(segments: list[str]) -> tuple[SourceSystem, str | None] | None:
-    """Match the ``mdd/<system>/<id>`` pattern from spec S07.
+    """Match the ``mdd/<system>/<id>`` mirror-path pattern.
 
     A bare ``/confluence/<x>`` in an unrelated namespace must not be
     treated as an mdd mirror — the ``mdd`` prefix is required.
@@ -271,7 +273,7 @@ def _resolve_via_md_frontmatter(path: Path) -> tuple[SourceSystem, str | None] |
     return None
 
 
-# First-match-wins resolver chain (spec S07). Resolvers are tried in order and
+# First-match-wins resolver chain. Resolvers are tried in order and
 # may raise ``BlacklistConfigError`` for infrastructure failures (missing git,
 # timeouts); a return of None means "this strategy didn't apply, try the next."
 # To add a strategy: write a ``Resolver`` and append it here.
@@ -329,7 +331,7 @@ def gate_push(path: Path, *, blacklist_file: Path | None = None) -> None:
             "Push refused to avoid leaking unclassified content. "
             "If this repo is not a Confluence or SharePoint mirror, add "
             "'mdd-source: none' to the YAML frontmatter of any top-level .md file "
-            "(e.g. README.md). See spec S07."
+            "(e.g. README.md)."
         )
 
     if system == SourceSystem.CONFLUENCE:
@@ -338,8 +340,7 @@ def gate_push(path: Path, *, blacklist_file: Path | None = None) -> None:
                 f"Detected Confluence mirror at '{path}' but could not extract the "
                 "space key from the remote URL. "
                 "Push refused until the space key can be verified against the blacklist. "
-                "Check that the remote URL follows the pattern mdd/confluence/<SPACE_KEY>. "
-                "See spec S07."
+                "Check that the remote URL follows the pattern mdd/confluence/<SPACE_KEY>."
             )
         check_confluence(identifier, blacklist_file=blacklist_file)
         return
@@ -350,7 +351,6 @@ def gate_push(path: Path, *, blacklist_file: Path | None = None) -> None:
                 f"Detected SharePoint mirror at '{path}' but could not extract the "
                 "site name from the remote URL. "
                 "Push refused until the site name can be verified against the blacklist. "
-                "Check that the remote URL follows the pattern mdd/sharepoint/<SITE_NAME>. "
-                "See spec S07."
+                "Check that the remote URL follows the pattern mdd/sharepoint/<SITE_NAME>."
             )
         check_sharepoint(identifier, blacklist_file=blacklist_file)

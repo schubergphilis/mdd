@@ -45,11 +45,7 @@ class Converter(Protocol):
 
 
 class ReverseConverter(Protocol):
-    """Protocol for reverse converters (Markdown → target format).
-
-    Populated by spec S17 (Quarto-based .md → .docx/.pptx).
-    No implementations exist in this spec.
-    """
+    """Protocol for reverse converters (Markdown → target format)."""
 
     target_extension: str
     """Target file extension, e.g. '.docx'."""

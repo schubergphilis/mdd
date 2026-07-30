@@ -4,9 +4,6 @@ Two-tier shape: `Block` nodes form the document tree; `Inline`
 tokens are the leaves inside every text-bearing block. All nodes
 are frozen dataclasses so that `from_json(to_json(ir)) == ir` is a
 real invariant.
-
-See [spec S28](../../../docs/spec/S28-document-ir-foundation.md)
-section "Node model" for the canonical list and rationale.
 """
 
 from __future__ import annotations
@@ -15,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 # ---------------------------------------------------------------------------
-# Origin metadata (spec S31 §"Whitespace preservation model")
+# Origin metadata
 # ---------------------------------------------------------------------------
 
 #: Maximum ``Origin.raw_bytes`` payload retained per node, in bytes.
@@ -23,8 +20,7 @@ from typing import Literal
 #: Above this threshold the reader drops ``raw_bytes`` and sets
 #: ``raw_bytes_truncated = True``; writers then fall back to canonical
 #: rendering for that node instead of trying to splat the truncated bytes
-#: back. Spec [S31](../../../docs/spec/S31-ir-normalization-and-whitespace.md)
-#: §"Open questions" #1 (decided 2026-05-13: 256 KiB).
+#: back.
 ORIGIN_RAW_BYTES_CAP: int = 256 * 1024
 
 

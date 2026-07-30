@@ -1,4 +1,4 @@
-"""quarto.py — ReverseConverter implementations using the Quarto CLI (spec S17).
+"""quarto.py — ReverseConverter implementations using the Quarto CLI.
 
 QuartoDocxRenderer and QuartoPptxRenderer shell out to ``quarto render`` to
 produce .docx and .pptx from a Markdown source.  Both are registered in
