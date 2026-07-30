@@ -1,4 +1,4 @@
-"""mdd confluence — Confluence Cloud integration (spec S09/014)."""
+"""mdd confluence — Confluence Cloud integration."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _load_config_or_exit(config_path: Path | None) -> ConfluenceConfig | int:
 
 
 # ---------------------------------------------------------------------------
-# Namespace subclasses (S35 §"Typed Namespace adapter")
+# Namespace subclasses
 # ---------------------------------------------------------------------------
 
 
@@ -302,9 +302,9 @@ def _print_sync_summary(summary: SyncSummary) -> None:
     parts: list[str] = [
         f"{n} {label}" for attr, label in _SYNC_SUMMARY_FIELDS if (n := getattr(summary, attr))
     ]
-    # Spec S39: ``--prune-ignored`` adds a separate ``N pruned (ignored)``
-    # entry — or ``N pruned (ignored, dry-run)`` under ``--dry-run`` — so
-    # the user can tell local cleanup from source-side filtering.
+    # ``--prune-ignored`` adds a separate ``N pruned (ignored)`` entry — or
+    # ``N pruned (ignored, dry-run)`` under ``--dry-run`` — so the user can
+    # tell local cleanup from source-side filtering.
     if summary.pruned_ignored:
         pruned_label = (
             "pruned (ignored, dry-run)" if summary.pruned_ignored_dry_run else "pruned (ignored)"
@@ -324,7 +324,7 @@ def _print_sync_summary(summary: SyncSummary) -> None:
 
 
 def _load_mddignore(dest_root: Path, ignore_paths: list[Path] | None) -> MddIgnore:
-    """Build the S39 matcher from *dest_root*/.mddignore plus CLI ``--ignore`` paths."""
+    """Build the ignore matcher from *dest_root*/.mddignore plus CLI ``--ignore`` paths."""
     cli_tuple: tuple[Path, ...] = tuple(ignore_paths) if ignore_paths else ()
     return MddIgnore.load(dest_root, cli_tuple)
 
@@ -375,7 +375,7 @@ _PRUNE_READONLY_CONFLICT = "--read-only and --prune-ignored are mutually exclusi
 
 
 def _check_prune_readonly(ns: argparse.Namespace, args: _SyncSpaceArgs) -> None:
-    """Reject ``--read-only`` + ``--prune-ignored`` at parse time (spec S39).
+    """Reject ``--read-only`` + ``--prune-ignored`` at parse time.
 
     Uses the subparser stashed on the namespace via ``set_defaults`` so the
     error path goes through ``argparse``'s standard formatter (exit code 2,
@@ -412,7 +412,7 @@ def _run_sync_space(ns: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
-# rename-page / move-page / archive-page / unarchive-page (spec S27)
+# rename-page / move-page / archive-page / unarchive-page
 # ---------------------------------------------------------------------------
 
 
@@ -511,7 +511,7 @@ def register(
 ) -> None:
     cf = subparsers.add_parser(
         "confluence",
-        help="Confluence Cloud integration (specs S09/S14)",
+        help="Confluence Cloud integration",
         description="Bidirectional sync, export, create, and update for Confluence Cloud.",
     )
     sub = cf.add_subparsers(dest="subcommand", required=True, metavar="<subcommand>")
@@ -571,9 +571,8 @@ def register(
         metavar="FILE",
         help=(
             "Path to an additional `.mddignore`-style file whose patterns are "
-            "unioned with `<output>/.mddignore` (spec S39). May be supplied "
-            "multiple times; with no flag and no dest-root file, sync "
-            "behaviour is identical to the pre-S39 default (no filtering). "
+            "unioned with `<output>/.mddignore`. May be supplied multiple "
+            "times; with no flag and no dest-root file, nothing is filtered. "
             "Patterns match the page-title chain that produces the on-disk "
             "markdown filename — e.g. `Archive/` skips every page whose "
             "title chain begins with `Archive`."
@@ -584,8 +583,8 @@ def register(
         action="store_true",
         help=(
             "Before syncing, delete every file under <output> whose path "
-            "matches the loaded `.mddignore` matcher (spec S39 opt-in "
-            "cleanup). One INFO log line per deletion. Combine with "
+            "matches the loaded `.mddignore` matcher. "
+            "One INFO log line per deletion. Combine with "
             "--dry-run to preview without deleting. Mutually exclusive "
             "with --read-only."
         ),
@@ -675,7 +674,7 @@ def register(
 
 def _add_mutate_flags(parser: argparse.ArgumentParser, default_message: str) -> None:
     """Add the ``--message`` / ``--yes`` / ``--no-commit`` flags shared by the
-    four S27 mutate subcommands."""
+    four mutate subcommands."""
     _ = parser.add_argument(
         "--message", default=default_message, metavar="MSG", help="Version comment"
     )
@@ -691,7 +690,7 @@ def _register_mutate_subparsers(
     sub: SubParsers,
     parents: CommonParents,
 ) -> None:
-    """Register the four S27 mutate subcommands under ``mdd confluence``."""
+    """Register the four mutate subcommands under ``mdd confluence``."""
     p_rn = sub.add_parser(
         "rename-page",
         parents=[parents.config_required, parents.dry_run],

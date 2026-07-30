@@ -1,4 +1,4 @@
-"""mdd skills — install / list / uninstall bundled Claude Code skills (spec S23)."""
+"""mdd skills — install / list / uninstall bundled Claude Code skills."""
 
 from __future__ import annotations
 
@@ -27,10 +27,10 @@ def _bundle_root() -> Path:
     return Path(str(ref))
 
 
-# Skill roots in registration order. The core bundle is pre-registered as
-# the first entry; a distribution that composes the CLI (spec S44) appends
-# its own root from its entry point, and later entries win on a name
-# collision so a wrapper can deliberately override a core skill.
+# Skill roots in registration order. This bundle is pre-registered as the
+# first entry; a distribution that composes the CLI appends its own root from
+# its entry point, and later entries win on a name collision so a wrapper can
+# deliberately override a bundled skill.
 _SKILL_ROOTS: list[Path] = [_bundle_root()]
 
 # Lazily-built ``{skill name: owning root}`` map. ``None`` means "not
@@ -72,8 +72,8 @@ def _discover_bundled_skills() -> dict[str, Path]:
     moment the bundle changes — and it does change: the set of roots is a
     registration seam (:func:`register_skill_root`), so a wrapper
     distribution ships skills of its own on top of the core's, and may
-    override a core skill by reusing its name (spec S23). A directory
-    counts as a skill when it contains ``SKILL.md``.
+    override a core skill by reusing its name. A directory counts as a
+    skill when it contains ``SKILL.md``.
 
     Roots are walked in registration order and later roots overwrite
     earlier ones, implementing the last-registered-wins rule.
@@ -295,7 +295,10 @@ def register(
     skills = subparsers.add_parser(
         "skills",
         help="Install / list / uninstall bundled Claude Code skills",
-        description="Manage the Claude Code skills bundled with mdd (spec S23).",
+        description=(
+            "Manage the Claude Code skills bundled with mdd by symlinking them "
+            "into your skills directory (default: ~/.claude/skills/)."
+        ),
     )
     sub = skills.add_subparsers(dest="subcommand", required=True, metavar="<subcommand>")
 

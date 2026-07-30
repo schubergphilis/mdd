@@ -47,11 +47,10 @@ class CommonParents:
 type SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]  # pyright: ignore[reportPrivateUsage]
 
 
-# Modules that expose register(subparsers, parents). These are the
-# provider-neutral commands the open-source core ships (spec S44); the
-# site-specific ones (`gitlab`, `lucid`) are injected by the wrapper's
-# entry point through ``extra_commands`` rather than listed here, so the
-# OSS cut needs no edit to this module.
+# Modules that expose register(subparsers, parents). Only provider-neutral
+# commands belong here. Site-specific ones live in separate distributions that
+# wrap this CLI and inject their modules through ``build_dispatcher``'s
+# ``extra_commands``, so adding one never edits this list.
 _REGISTERED_MODULES = (
     echo,
     help_cmd,
@@ -86,11 +85,10 @@ def build_dispatcher(
 ) -> argparse.ArgumentParser:
     """Build the top-level argparse tree for the mdd CLI.
 
-    This is the seam a private wrapper composes against (spec S44 / plan
-    P03 MR A5): the open-source core defaults to the generic ``git``
-    backend and the built-in command set, while a wrapper picks its own
-    default backend and appends its own subcommands without editing the
-    core.
+    This is the seam a wrapping distribution composes against: this package
+    defaults to the generic ``git`` backend and the built-in command set,
+    while a wrapper picks its own default backend and appends its own
+    subcommands without editing anything here.
 
     Args:
         default_backend: name of the registered
@@ -99,8 +97,8 @@ def build_dispatcher(
             :func:`mdd.mirror.registry.set_default_backend`.
         extra_commands: additional command modules exposing
             ``register(subparsers, parents)``, appended after the
-            built-ins (S44 Open Question 2: a module list, matching the
-            existing ``register(subparsers, parents)`` convention).
+            built-ins. A module list rather than a callback registry, so a
+            wrapper's commands look exactly like the built-in ones.
         version: what ``--version`` prints. Defaults to this package's
             version; a wrapper passes its own, since the version a user
             cares about is the one for the distribution they installed,
@@ -166,10 +164,9 @@ def _apply_logging(ns: argparse.Namespace) -> None:
 def run(parser: argparse.ArgumentParser, argv: list[str] | None = None) -> int:
     """Parse *argv* with *parser*, apply the logging flags, and dispatch.
 
-    The second half of the wrapper seam (spec S44). ``build_dispatcher``
-    composes the parser; this runs it. A wrapper needs both, and without
-    this it would have to reimplement the logging wiring or reach for a
-    private helper.
+    The second half of the wrapper seam. ``build_dispatcher`` composes the
+    parser; this runs it. A wrapper needs both, and without this it would
+    have to reimplement the logging wiring or reach for a private helper.
     """
     ns = parser.parse_args(argv if argv is not None else sys.argv[1:])
     _apply_logging(ns)
@@ -182,10 +179,9 @@ def run(parser: argparse.ArgumentParser, argv: list[str] | None = None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """Main entry point for mdd CLI."""
-    # The open-source core defaults to the generic `git` backend and the
-    # built-in command set. A wrapper composes on top by calling
+    # Deliberately no arguments: a wrapper composes on top by calling
     # `build_dispatcher` itself with its own default_backend and
-    # extra_commands (spec S44) rather than by editing this function.
+    # extra_commands rather than by editing this function.
     return run(build_dispatcher(), argv)
 
 
