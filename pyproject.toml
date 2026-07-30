@@ -119,7 +119,6 @@ max-returns = 6
 ]
 "scripts/**" = ["T201"]      # developer-tooling scripts: print() is the interface
 "install.py" = ["T201"]      # installer CLI: print() is the interface
-"docs/logo/*.py" = ["T201"]  # one-off image-processing scripts
 
 [tool.complexipy]
 paths = ["src/mdd"]
@@ -146,12 +145,8 @@ dev = [
     "lxml-stubs>=0.5.1",
     "complexipy>=6.2.0",
     "reportlab>=5.0.0",
-    "vulture>=2.16",
-    "radon>=6.0.1",
-    "refurb>=2.3.1",
     "setuptools-scm>=10.2.1",
     "pip-audit>=2.10.1",
-    "cyclonedx-bom>=7.3.0",
 ]
 
 [tool.pytest.ini_options]
