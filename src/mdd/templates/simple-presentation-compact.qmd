@@ -1,0 +1,50 @@
+---
+title: "{{TITLE}}"
+subtitle: "Your subtitle here"
+author: "Your Name"
+format:
+  pptx:
+    reference-doc: simple-presentation-compact.pptx
+---
+
+
+# Introduction
+
+
+## Your First Slide
+
+:::: {.columns}
+::: {.column}
+* **First point:**
+  * Detail about first point
+* **Second point:**
+  * Detail about second point
+:::
+
+::: {.column}
+* **Third point:**
+  * Detail about third point
+* **Fourth point:**
+  * Detail about fourth point
+:::
+::::
+
+::: {.notes}
+Speaker notes go here. These will not appear on the slide but are visible in presenter view.
+:::
+
+
+## Next Steps
+
+* Edit this file to create your presentation
+* Add more slides by creating new `##` sections
+* Use `::::` and `:::` for columns layout
+* Add speaker notes with `::: {.notes}` blocks
+* Run `./render.sh` to generate your PowerPoint
+
+::: {.notes}
+This deck uses the compact reference template: body text runs 18 / 16 / 14 / 12 pt
+instead of the default 28 / 24 / 20 / 18 pt, so dense slides (a table plus a few
+bullets) fit without overflowing. Point `reference-doc` at
+`simple-presentation.pptx` instead to go back to the roomier default.
+:::

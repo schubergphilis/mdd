@@ -94,6 +94,10 @@ run = "python3 scripts/new-spec.py \"$@\""
 description = "List specs with their status"
 run = "python3 scripts/spec-list.py \"$@\""
 
+[tasks.derive-compact-pptx]
+description = "Regenerate src/mdd/templates/simple-presentation-compact.pptx from the default template"
+run = "python3 scripts/derive-compact-pptx.py \"$@\""
+
 [tasks.spec-check]
 description = "Validate docs/spec/*.md hygiene"
 run = "python3 scripts/spec-check.py"
