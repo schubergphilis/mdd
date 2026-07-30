@@ -1,8 +1,45 @@
 """Tests for the mdd.cli argparse dispatcher."""
 
+import argparse
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import cast
+
 import pytest
 
-from mdd.cli import main
+from mdd.cli import CommonParents, SubParsers, build_dispatcher, main, run
+
+
+def _fake_command_module(
+    calls: list[argparse.Namespace],
+    *,
+    name: str = "frobnicate",
+    exit_code: int = 0,
+) -> ModuleType:
+    """A stand-in for a downstream distribution's command module (spec S44).
+
+    Matches the contract the real modules under ``src/mdd/commands/`` follow:
+    a module-level ``register(subparsers, parents)`` that adds one subparser,
+    opts into the shared parent parsers, and wires its handler through
+    ``set_defaults(func=...)``. Self-contained on purpose — the seam must be
+    testable without any wrapper distribution being installed.
+    """
+
+    def _run_fake(ns: argparse.Namespace) -> int:
+        calls.append(ns)
+        return exit_code
+
+    def register(subparsers: SubParsers, parents: CommonParents) -> None:
+        p = subparsers.add_parser(
+            name,
+            parents=[parents.config_required, parents.dry_run],
+            help="a wrapper-only command",
+        )
+        _ = p.add_argument("target")
+        _ = p.add_argument("--times", type=int, default=1)
+        p.set_defaults(func=_run_fake)
+
+    return cast("ModuleType", SimpleNamespace(register=register))
 
 
 class TestCLI:
@@ -104,26 +141,6 @@ class TestBuildDispatcher:
         assert "gitlab" not in help_text
         assert "lucid" not in help_text
 
-    def test_main_registers_the_site_specific_commands(self) -> None:
-        """This distribution's entry point injects them via ``extra_commands``."""
-        import contextlib
-        import importlib.util
-        import io
-
-        import pytest
-
-        from mdd.cli import main
-
-        if importlib.util.find_spec("mdd.commands.gitlab") is None:
-            pytest.skip("distribution ships no site-specific commands")
-
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf), contextlib.suppress(SystemExit):
-            _ = main(["--help"])
-        help_text = buf.getvalue()
-        assert "gitlab" in help_text
-        assert "lucid" in help_text
-
     def test_default_backend_selects_registered_backend(self) -> None:
         from mdd.cli import build_dispatcher
         from mdd.mirror.git import GenericGitBackend
@@ -133,12 +150,6 @@ class TestBuildDispatcher:
         assert isinstance(default_backend(), GenericGitBackend)
 
     def test_extra_commands_are_registered(self) -> None:
-        import argparse
-        from types import ModuleType, SimpleNamespace
-        from typing import cast
-
-        from mdd.cli import CommonParents, SubParsers, build_dispatcher
-
         registered: list[str] = []
 
         def _run(_ns: argparse.Namespace) -> int:
@@ -155,6 +166,85 @@ class TestBuildDispatcher:
         assert registered == ["frobnicate"]
         assert "frobnicate" in parser.format_help()
         assert isinstance(parser, argparse.ArgumentParser)
+
+
+class TestExtraCommandsDispatch:
+    """An injected command must be reachable end-to-end through `run()` (spec S44).
+
+    Registration alone is not the contract downstream distributions rely on:
+    the composed parser has to route ``mdd <extra-command> ...`` to the
+    module's own handler, with the shared parent flags parsed in and the
+    handler's return value becoming the process exit status.
+    """
+
+    def test_run_reaches_the_injected_handler_with_the_parsed_namespace(self) -> None:
+        calls: list[argparse.Namespace] = []
+        parser = build_dispatcher(extra_commands=(_fake_command_module(calls),))
+
+        exit_code = run(
+            parser, ["frobnicate", "--config", "site.toml", "--dry-run", "widget", "--times", "3"]
+        )
+
+        assert exit_code == 0
+        assert len(calls) == 1, "the injected command's func was not invoked exactly once"
+        ns = calls[0]
+        # Assert the command-relevant slice of the namespace, not the whole object:
+        # the root parser also stashes logging flags and `_root_parser` on it.
+        interesting = {"command", "target", "times", "config", "dry_run"}
+        assert {k: v for k, v in vars(ns).items() if k in interesting} == {
+            "command": "frobnicate",
+            "target": "widget",
+            "times": 3,
+            # `--config` comes from the `config_required` common parent, so
+            # inherited parents reach an injected command's namespace too —
+            # including the parent's `type=Path` coercion.
+            "config": Path("site.toml"),
+            # `--dry-run` comes from the `dry_run` common parent.
+            "dry_run": True,
+        }
+
+    def test_common_parent_defaults_apply_when_the_flags_are_omitted(self) -> None:
+        calls: list[argparse.Namespace] = []
+        parser = build_dispatcher(extra_commands=(_fake_command_module(calls),))
+
+        assert run(parser, ["frobnicate", "widget"]) == 0
+        ns = calls[0]
+        assert ns.config is None
+        assert ns.dry_run is False
+        assert ns.times == 1
+
+    def test_handler_return_value_becomes_the_exit_status(self) -> None:
+        calls: list[argparse.Namespace] = []
+        parser = build_dispatcher(extra_commands=(_fake_command_module(calls, exit_code=3),))
+
+        assert run(parser, ["frobnicate", "widget"]) == 3
+        assert len(calls) == 1
+
+    def test_every_injected_module_is_dispatchable(self) -> None:
+        """``extra_commands`` is a sequence; each entry gets its own route."""
+        first_calls: list[argparse.Namespace] = []
+        second_calls: list[argparse.Namespace] = []
+        parser = build_dispatcher(
+            extra_commands=(
+                _fake_command_module(first_calls, name="frobnicate"),
+                _fake_command_module(second_calls, name="quux", exit_code=4),
+            )
+        )
+
+        assert run(parser, ["quux", "widget"]) == 4
+        assert first_calls == []
+        assert len(second_calls) == 1
+        assert second_calls[0].command == "quux"
+
+    def test_core_commands_still_dispatch_alongside_the_extras(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        calls: list[argparse.Namespace] = []
+        parser = build_dispatcher(extra_commands=(_fake_command_module(calls),))
+
+        assert run(parser, ["echo", "hello"]) == 0
+        assert "hello" in capsys.readouterr().out
+        assert calls == []
 
 
 class TestRun:
