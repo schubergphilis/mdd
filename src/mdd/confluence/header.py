@@ -1,7 +1,7 @@
-"""Strip export header and insert MDD footer in Confluence round-trip (spec S09 + 017).
+"""Strip export header and insert MDD footer in Confluence round-trip.
 
-Spec S17 adds a body callout that links the published office attachment.
-The callout uses the same strip-then-insert pattern as the MDD footer.
+Also handles the body callout that links the published office attachment,
+which uses the same strip-then-insert pattern as the MDD footer.
 """
 
 from __future__ import annotations
@@ -152,7 +152,7 @@ def get_mirror_url(md_path: Path) -> str | None:
 
     Which host is "ours" and what a browse URL looks like there is deployment
     knowledge, so this asks the registered default
-    :class:`~mdd.mirror.protocol.MirrorBackend` (spec S44) rather than holding
+    :class:`~mdd.mirror.protocol.MirrorBackend` rather than holding
     a host of its own. ``None`` — no backend wired (library use), the backend
     has no browse convention, or the file is not in a mirror it recognises —
     means the footer is left out.
@@ -166,10 +166,10 @@ def get_mirror_url(md_path: Path) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Office-attachment callout (spec S17)
+# Office-attachment callout
 # ---------------------------------------------------------------------------
 
-# Matches the callout paragraph inserted by spec S17, plus an optional following newline.
+# Matches the callout paragraph we insert, plus an optional following newline.
 # The sentinel string "(this attachment is generated from the markdown source)"
 # is how we identify our own callout vs any user-written paragraph.
 _OFFICE_CALLOUT_PATTERN = re.compile(

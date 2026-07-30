@@ -1,4 +1,4 @@
-"""Typed models for Confluence frontmatter and v2 API responses (spec S40).
+"""Typed models for Confluence frontmatter and v2 API responses.
 
 This module exposes two families of models:
 
@@ -9,8 +9,7 @@ This module exposes two families of models:
 - **Confluence v2 API responses** (``ConfluenceV2PageMinimal`` and
   its sub-models).  Overrides to ``extra="ignore"`` because the v2
   page surface is large and evolves; we only model the fields the
-  migrated read paths actually consume.  See spec S40 §Risks /
-  watch-outs for the rationale.
+  migrated read paths actually consume.
 """
 
 from __future__ import annotations
@@ -29,8 +28,8 @@ class ConfluenceAttachment(FrontmatterModel):
 
     Unlike the rest of the user-edited frontmatter, attachment entries
     are *machine-written* manifest data that ``confluence/export.py``
-    regenerates on every sync, and the field set grows over time (spec
-    S16 added the ``converted_*`` trio).  So this model overrides to
+    regenerates on every sync, and the field set grows over time (the
+    ``converted_*`` trio was a later addition).  So this model overrides to
     ``extra="ignore"``: an older mdd reading a newer file (or vice
     versa) tolerates unmodelled keys instead of raising mid-sync.  Typo
     detection still applies to the hand-edited keys on
@@ -45,7 +44,7 @@ class ConfluenceAttachment(FrontmatterModel):
     sha256: str = ""
     version: int = 0
 
-    # Converter cache (spec S16) — written by export.py when an
+    # Converter cache — written by export.py when an
     # attachment is converted to markdown (e.g. SVG → PNG, docx → md).
     converted_to: str | None = None
     converter: str | None = None
@@ -92,12 +91,12 @@ class ConfluenceBlock(FrontmatterModel):
     version_message: str | None = None
     source_format: str = ""
 
-    # Managed-elsewhere stamping (spec S26).
+    # Managed-elsewhere stamping.
     managed_by: str = ""
     managed_source_url: str = ""
     managed_reason: str = ""
 
-    # publish-office state (spec S17).  Free-form until S17 migrates.
+    # publish-office state.  Free-form until it gets typed models of its own.
     publish_office: object = None
     publish_office_state: object = None
 

@@ -1,4 +1,4 @@
-"""Confluence configuration loader (spec S09)."""
+"""Confluence configuration loader."""
 
 from __future__ import annotations
 
@@ -36,8 +36,8 @@ def _find_config_file(explicit: Path | None) -> Path:
 
     raise ConfigError(
         "No Confluence config found. "
-        "Expected ./configs/confluence.yaml or ~/.config/mdd/confluence.yaml. "
-        "See spec S09."
+        "Create ./configs/confluence.yaml or ~/.config/mdd/confluence.yaml, "
+        "or pass an explicit path."
     )
 
 

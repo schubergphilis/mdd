@@ -1,4 +1,4 @@
-"""whoami — print current Confluence user and compare against external publishers (spec S26)."""
+"""whoami — print current Confluence user and compare against external publishers."""
 
 from __future__ import annotations
 

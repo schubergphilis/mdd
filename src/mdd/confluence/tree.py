@@ -1,6 +1,6 @@
-"""Page tree builder for Confluence space export (spec 009b).
+"""Page tree builder for Confluence space export.
 
-Also hosts the ancestor-walk used by S27's :mod:`mdd.confluence.mutate`
+Also hosts the ancestor-walk used by :mod:`mdd.confluence.mutate`'s
 ``move-page`` implementation: :func:`ancestor_chain_for_move` returns
 the chain of ancestors from the space root down to (and including) the
 new parent, annotated with the local mirror's current representation
@@ -34,7 +34,7 @@ AncestorState = Literal["absent", "flat", "dir"]
 
 @dataclass(frozen=True)
 class AncestorStep:
-    """One link in the new parent's ancestor chain (spec S27).
+    """One link in the new parent's ancestor chain.
 
     Walking the chain top-to-bottom (space-root → ... → new parent),
     each step describes the mirror's current state for that ancestor:
@@ -340,7 +340,7 @@ def build_tree(
 
 
 # ---------------------------------------------------------------------------
-# Ancestor walk for ``move-page`` materialisation (spec S27)
+# Ancestor walk for ``move-page`` materialisation
 # ---------------------------------------------------------------------------
 
 
@@ -360,7 +360,7 @@ def _classify_local_state(
     """Decide whether an ancestor's mirror presence is ``dir``, ``flat`` or ``absent``.
 
     The decision is purely filesystem-based and intentionally does not
-    re-parse frontmatter: the spec S27 walk only needs to know whether
+    re-parse frontmatter: the walk only needs to know whether
     the *directory* exists (so a child can be placed inside) and, if not,
     whether a flat ``Title.md`` is available to promote.
     """
@@ -409,7 +409,7 @@ def ancestor_chain_for_move(
 
     Raises :class:`ConfluenceError` when any ancestor reports a
     ``spaceId`` that differs from ``space_id`` — that is a cross-space
-    chain and S27 refuses it.  Also raises when the parent page payload
+    chain, which is refused.  Also raises when the parent page payload
     cannot be fetched.
     """
     ancestors = client.get_page_ancestors(parent_id)

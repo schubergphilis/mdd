@@ -1,4 +1,4 @@
-"""Walk the mirror tree and build the current-state map (spec S14)."""
+"""Walk the mirror tree and build the current-state map."""
 
 from __future__ import annotations
 
