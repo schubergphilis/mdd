@@ -84,7 +84,7 @@ class TestListWriter:
         assert "<li>a</li>" in out
 
     def test_ordered_list_always_emits_start(self) -> None:
-        # Spike fix 2: start="1" must always be emitted.
+        # start="1" must always be emitted.
         items = [ListItem(children=[Paragraph(inlines=[Text("x")])])]
         doc = Document(children=[OrderedList(items=items, start=1)])
         out = render_confluence_storage(doc)
@@ -173,7 +173,7 @@ class TestConfluenceMacroWriter:
         assert "content" in out
 
     def test_macro_without_rich_body_no_empty_body_tag(self) -> None:
-        # Spike fix 3: no <ac:rich-text-body> emitted when rich_body=False.
+        # No <ac:rich-text-body> emitted when rich_body=False.
         m = ConfluenceMacro(name="status", params={"title": "On track"}, rich_body=False)
         out = render_confluence_storage(Document(children=[m]))
         assert "<ac:rich-text-body>" not in out
@@ -344,7 +344,7 @@ class TestRoundTrip:
         assert _roundtrip(storage) == storage
 
     def test_ordered_list_start_always_emitted(self) -> None:
-        # Spike fix 2: ol with start="1" must survive round-trip.
+        # An ol with start="1" must survive the round-trip.
         storage = '<ol start="1"><li>item</li>\n</ol>'
         out = _roundtrip(storage)
         assert 'start="1"' in out

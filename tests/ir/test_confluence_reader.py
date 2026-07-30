@@ -53,7 +53,7 @@ class TestParagraph:
         assert any(isinstance(t, Text) and "Hello world" in t.content for t in p.inlines)
 
     def test_empty_paragraph_preserved_in_preserving_mode(self) -> None:
-        # Spike fix 1: empty <p> must not be dropped in preserving mode.
+        # An empty <p> must not be dropped in preserving mode.
         # In normalising mode, drop_empty_paragraphs removes them (intended behaviour).
         doc = parse_confluence_storage("<p>text</p><p />", mode="preserving")
         assert len(doc.children) == 2
@@ -348,7 +348,7 @@ class TestConfluenceMacro:
         assert m.name == "expand"
 
     def test_macro_attrs_captured(self) -> None:
-        # Spike fix 3: data-layout and other passthrough attrs captured.
+        # data-layout and other passthrough attrs are captured.
         storage = _storage("164089")
         doc = parse_confluence_storage(storage)
         macros = [b for b in doc.children if isinstance(b, ConfluenceMacro)]
