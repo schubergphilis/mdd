@@ -344,7 +344,7 @@ def _pass_through_or_resize(
     lossy). PNGs under the cap are losslessly re-optimized (keep-smaller,
     see :func:`_optimize_png_lossless`); the result is deterministic, so
     dedup still holds at a smaller byte baseline. Oversize sources of any
-    format are resized + re-encoded (S42).
+    format are resized + re-encoded.
     """
     ext = _pass_through_ext(fmt)
     size = _probe_size(blob)
