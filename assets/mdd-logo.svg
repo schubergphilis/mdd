@@ -1,22 +1,66 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752.09 225.7" width="752.09" height="225.7">
-  <title>mdd</title>
-  <g transform="translate(58,20) scale(0.93)">
-    <rect x="0" y="14" width="132" height="178" rx="20" fill="none" stroke="#333A40" stroke-width="20"/>
-    <g stroke="#C17A23" stroke-width="18" stroke-linecap="round">
-      <line x1="34" y1="66" x2="98" y2="66"/>
-      <line x1="34" y1="103" x2="98" y2="103"/>
-      <line x1="34" y1="140" x2="76" y2="140"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 702 219" width="702" height="219">
+  <title>MDD</title>
+  <defs>
+    <!-- "MDD" set in Merriweather Sans Bold (wght 700), converted to outlines so the mark
+         renders identically without the font installed. Font upem 2000, cap height 1486. -->
+    <path id="mdd-M" d="M90.0 0.0 253.8 1486.0H681.7L897.0 692.1L968.9 357.0L1029.4 692.1L1227.7 1486.0H1640.5L1821.9 0.0H1517.3L1444.1 833.3L1419.5 1253.5L1323.2 826.4L1083.1 -10.6H834.6L578.9 826.4L476.6 1253.5L449.3 833.3L382.7 0.0Z"/>
+    <path id="mdd-D" d="M166.9 0.0V1486.0Q188.6 1486.0 210.1 1486.0Q231.6 1486.0 252.9 1486.0Q274.1 1486.0 295.4 1486.0Q336.7 1486.0 400.8 1490.0Q465.0 1494.0 538.1 1498.0Q611.3 1502.0 679.0 1502.0Q1050.1 1502.0 1225.3 1313.2Q1400.4 1124.4 1400.4 782.6Q1400.4 529.2 1311.2 349.6Q1222.0 170.0 1055.3 75.9Q888.6 -18.3 656.2 -16.0Q560.1 -14.0 462.8 -7.0Q365.5 0.0 283.4 0.0Q264.0 0.0 244.6 0.0Q225.1 0.0 205.7 0.0Q186.3 0.0 166.9 0.0ZM481.4 232.6Q518.6 223.2 573.9 219.3Q629.2 215.4 683.3 215.8Q799.8 217.2 888.1 273.1Q976.4 329.0 1025.5 446.4Q1074.7 563.9 1074.7 749.7Q1074.7 944.2 1028.0 1059.3Q981.2 1174.5 887.1 1224.9Q792.9 1275.4 651.2 1275.4Q605.2 1275.4 557.9 1271.1Q510.6 1266.8 481.4 1261.4Z"/>
+
+    <!-- Knockouts keep the line art legible where the stacks overlap, without needing a fill. -->
+    <mask id="cut-a-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="53" y="35" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="cut-b-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="111" y="111" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="cut-b-stack" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <g fill="#000" stroke="#000" stroke-width="24">
+        <rect x="111" y="111" width="76" height="94" rx="14"/>
+        <rect x="128" y="128" width="76" height="94" rx="14"/>
+      </g>
+    </mask>
+  </defs>
+
+  <g transform="translate(-17.6,-1.04) scale(0.92)">
+    <!-- sync arrows: a clockwise loop around the two stacks, each turning a rounded 90 degrees -->
+    <g stroke="#C17A23" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M152,36 H170 A16,16 0 0 1 186,52 V72" fill="none"/>
+      <path d="M186,88 L172,70 L200,70 Z" fill="#C17A23" stroke-width="8"/>
+      <path d="M88,204 H70 A16,16 0 0 1 54,188 V168" fill="none"/>
+      <path d="M54,152 L68,170 L40,170 Z" fill="#C17A23" stroke-width="8"/>
     </g>
-    <g fill="none" stroke="#333A40" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"
-       transform="translate(200,0)">
-      <path d="M13,192 V102"/>
-      <path d="M13,116 C13,90 33,78 55,78 C77,78 91,94 91,118 V192"/>
-      <path d="M91,116 C91,90 111,78 133,78 C155,78 169,94 169,118 V192"/>
-      <circle cx="256" cy="135" r="57"/>
-      <path d="M313,22 V192"/>
-      <circle cx="424" cy="135" r="57"/>
-      <path d="M481,22 V192"/>
+
+    <!-- upper-left stack -->
+    <g mask="url(#cut-b-stack)">
+      <path d="M112,35 V32 Q112,18 98,18 H50 Q36,18 36,32 V98 Q36,112 50,112 H53"
+            fill="none" stroke="#333A40" stroke-width="12" stroke-linecap="round" mask="url(#cut-a-front)"/>
+      <rect x="53" y="35" width="76" height="94" rx="14" fill="none" stroke="#333A40" stroke-width="12"/>
+      <g stroke="#C17A23" stroke-width="10" stroke-linecap="round">
+        <line x1="68" y1="59" x2="114" y2="59"/>
+        <line x1="68" y1="80" x2="114" y2="80"/>
+        <line x1="68" y1="101" x2="92" y2="101"/>
+      </g>
     </g>
+
+    <!-- lower-right stack -->
+    <path d="M128,205 V208 Q128,222 142,222 H190 Q204,222 204,208 V142 Q204,128 190,128 H187"
+          fill="none" stroke="#333A40" stroke-width="12" stroke-linecap="round" mask="url(#cut-b-front)"/>
+    <rect x="111" y="111" width="76" height="94" rx="14" fill="none" stroke="#333A40" stroke-width="12"/>
+    <g stroke="#C17A23" stroke-width="10" stroke-linecap="round">
+      <line x1="126" y1="135" x2="172" y2="135"/>
+      <line x1="126" y1="156" x2="172" y2="156"/>
+      <line x1="126" y1="177" x2="150" y2="177"/>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <g fill="#333A40" transform="translate(212.6,183.66) scale(0.1,-0.1)">
+    <use href="#mdd-M"/>
+    <use href="#mdd-D" x="1912"/>
+    <use href="#mdd-D" x="3395"/>
   </g>
 </svg>
