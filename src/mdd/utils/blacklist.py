@@ -128,8 +128,8 @@ def check_confluence(space_key: str, *, blacklist_file: Path | None = None) -> N
     if matched is not None:
         raise BlacklistError(
             f"Confluence space '{space_key}' matches blacklist pattern '{matched}'. "
-            "Push refused; --force does not override the blacklist. To publish this "
-            "space, remove the pattern from the data-protection config that declares it."
+            "Push refused; to publish this space, remove the pattern from the "
+            "data-protection config that declares it."
         )
 
 
@@ -146,8 +146,8 @@ def check_sharepoint(folder_name: str, *, blacklist_file: Path | None = None) ->
     if matched is not None:
         raise BlacklistError(
             f"SharePoint site '{folder_name}' matches blacklist pattern '{matched}'. "
-            "Push refused; --force does not override the blacklist. To publish this "
-            "site, remove the pattern from the data-protection config that declares it."
+            "Push refused; to publish this site, remove the pattern from the "
+            "data-protection config that declares it."
         )
 
 
