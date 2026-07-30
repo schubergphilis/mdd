@@ -12,8 +12,8 @@ converter-registry pattern (a ``Protocol`` + a module-level ``dict`` +
 an explicit ``register`` that raises on duplicates + a lookup helper).
 The generic commit-and-push orchestration lives in
 :mod:`mdd.mirror.orchestrator`; concrete backends live in
-:mod:`mdd.mirror.local`, :mod:`mdd.mirror.git`, and provider packages
-(e.g. :mod:`mdd.gitlab.backend`).
+:mod:`mdd.mirror.local` and :mod:`mdd.mirror.git`; a distribution that
+wraps this one adds its own forge-specific backend.
 """
 
 from mdd.mirror.git import GenericGitBackend
@@ -33,8 +33,8 @@ from mdd.mirror.registry import (
     set_default_backend,
 )
 
-# Built-in provider-agnostic backends. Provider packages register their
-# own (e.g. mdd.gitlab.backend registers "gitlab" on import).
+# Built-in provider-agnostic backends. A wrapper distribution registers
+# its own forge-specific backend from its CLI entry point.
 register_backend("git", GenericGitBackend())
 register_backend("local", LocalOnlyBackend())
 

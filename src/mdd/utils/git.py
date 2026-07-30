@@ -1,16 +1,14 @@
-"""Shared git subprocess helpers (issue #123).
+"""Shared git subprocess helpers.
 
-This module hoists the ``_git`` / ``is_dirty`` / ``is_git_repo`` helpers
-that previously lived in three near-identical copies under
-``mdd.gitlab.push``, ``mdd.confluence.apply``, ``mdd.lucid.apply`` and
-``mdd.sharepoint.apply.git``. Each consuming module keeps its own
-boundary exception (``PushError``, ``ApplyError``) and wraps
-:class:`GitError` at the call site.
+This module holds the one copy of the ``run_git`` / ``is_dirty`` /
+``is_git_repo`` helpers that the sync engines and the mirror backends
+share. Each consuming module keeps its own boundary exception
+(``ApplyError``, ``MirrorPushError``) and wraps :class:`GitError` at the
+call site.
 
-Wave-2 issue #132 will start consolidating the inline ``subprocess.run``
-calls that don't fit the ``run_git`` shape (e.g. ``rev-parse
---is-inside-work-tree`` with custom error semantics in
-``mdd.gitlab.push``). Keep this module's public surface stable.
+Inline ``subprocess.run`` calls that don't fit the ``run_git`` shape
+still exist in a few callers; this module's public surface is meant to
+stay stable so they can move over.
 """
 
 from __future__ import annotations
@@ -96,12 +94,10 @@ def run_git_lenient(
 def is_dirty(path: Path) -> bool:
     """Return True if the git working tree at *path* has uncommitted changes.
 
-    Tolerates a missing ``git`` binary (returns ``False``) — mirrors the
-    "more robust" behaviour from :mod:`mdd.lucid.apply` flagged in
-    issue #123. Returns ``False`` for any non-zero git exit (e.g. not a
-    work-tree) on the principle that ``is_dirty`` callers want a
-    yes/no answer; the explicit "is this a repo?" question belongs to
-    :func:`is_git_repo`.
+    Tolerates a missing ``git`` binary (returns ``False``). Returns
+    ``False`` for any non-zero git exit (e.g. not a work-tree) on the
+    principle that ``is_dirty`` callers want a yes/no answer; the
+    explicit "is this a repo?" question belongs to :func:`is_git_repo`.
     """
     try:
         result = subprocess.run(
@@ -119,9 +115,7 @@ def is_dirty(path: Path) -> bool:
 def is_git_repo(path: Path) -> bool:
     """Return True if *path* is inside a git working tree.
 
-    Uses ``git rev-parse --is-inside-work-tree``. Mirrors the
-    implementation in :mod:`mdd.lucid.apply` — wave-2 issue #132
-    references this exact shape.
+    Uses ``git rev-parse --is-inside-work-tree``.
     """
     if not path.exists():
         return False

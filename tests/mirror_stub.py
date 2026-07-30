@@ -1,10 +1,10 @@
 """A stub :class:`~mdd.mirror.protocol.MirrorBackend` for tests.
 
 Tests that exercise the push path need *a* backend, but not a particular
-one — and hard-coding the GitLab backend's URLs makes those tests fail in
-any distribution that does not ship `mdd.gitlab` (spec S44). Registering a
-stub with a known remote keeps the assertions about the sync engine rather
-than about which forge happens to be wired.
+one — and hard-coding a forge-specific backend's URLs makes those tests
+fail in any distribution that ships a different one (spec S44).
+Registering a stub with a known remote keeps the assertions about the
+sync engine rather than about which forge happens to be wired.
 """
 
 from __future__ import annotations
