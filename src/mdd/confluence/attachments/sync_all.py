@@ -1,4 +1,4 @@
-"""Full-page attachment sync with converter cache (spec S16)."""
+"""Full-page attachment sync with converter cache."""
 
 from __future__ import annotations
 
@@ -228,8 +228,8 @@ def sync_all_attachments(
 ) -> tuple[list[AttachmentManifestEntry], AttachmentSyncSummary]:
     """Download ALL attachments for a page and run conversion on supported types.
 
-    This is the spec S16 extension point called from export_page after the page
-    body is fetched. Unlike download_for_page (which only downloads body-referenced
+    This is the extension point called from export_page after the page body is
+    fetched. Unlike download_for_page (which only downloads body-referenced
     images), this function:
     - Enumerates every attachment on the page via the Confluence API.
     - Downloads each (streaming, to avoid full-body buffering) unless:
