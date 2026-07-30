@@ -14,6 +14,16 @@ Never run `op read`, `op item get`, `op signin` or any other 1Password CLI comma
 
 The installed `mdd` may be a wrapped or aliased command, so instead use `uv run mdd`.
 
+## Skills
+
+`.claude/skills/` holds repeatable workflows for the tooling this repo
+already ships. Invoke one with a `/` prefix when the task matches:
+
+* `/complexipy-refactor` — refactor a function off the `complexipy-snapshot.json` watermark, with the score as a check rather than a target
+* `/refactor-module` — scoped single-module pass: run the gates over one path, judge which findings are worth acting on, apply one transformation at a time
+* `/spec-extension` — draft or extend a `docs/spec/SNN-*.md`
+* `/spec-hygiene-check` — drive `mise run spec-check` and interpret its output
+
 ## Code quality
 
 Code must have full type annotations and be `ruff`-formated.
