@@ -1,4 +1,4 @@
-"""export.py — SharePoint site/folder walker and per-file rule dispatcher (spec S10)."""
+"""export.py — SharePoint site/folder walker and per-file rule dispatcher."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ class _ExportContext:
     """Invariant per-run inputs for the file-walk loop.
 
     Bundles the site/output identity so the per-file helpers stay under the
-    S34 six-argument ceiling without juggling positional args.
+    six-argument ceiling without juggling positional args.
     """
 
     site_root: Path
@@ -112,8 +112,8 @@ def default_output_for_site(site_name: str, mapping: dict[str, MappingEntry]) ->
 
     Uses ``git remote get-url origin`` to detect the repo and compares it
     against the URL the active :class:`~mdd.mirror.protocol.MirrorBackend`
-    resolves for the site, so any deployment detects its own clone
-    (spec S44) instead of being silently rejected.
+    resolves for the site, so any deployment detects its own clone instead
+    of being silently rejected.
 
     Returns ``None`` if detection fails or the URL does not match. Matching
     is done on host + path segments to prevent lookalike-domain attacks
@@ -433,7 +433,7 @@ def export_site(
 
     Steps:
       1. Resolve the sync root and find the matching :class:`SiteEntry`.
-      2. Run the spec-007 blacklist gate on the derived site name.
+      2. Run the blacklist gate on the derived site name.
       3. Walk the site directory; apply per-file rules.
       4. If *push*: invoke ``push_worktree(output_dir)``.
 
@@ -497,8 +497,8 @@ def export_folder(
 
     The site name is inferred from the leaf folder name (stripping ` - Documents`
     if present, mirroring :func:`~mdd.sharepoint.sync.list_sites` logic).
-    The spec-007 blacklist gate fires on the derived site name before any file
-    is written to *output_dir*.
+    The blacklist gate fires on the derived site name before any file is
+    written to *output_dir*.
 
     Args:
         local_path: Path to the folder to export.

@@ -1,6 +1,6 @@
-"""dispatch.py — per-action dispatchers for the bidirectional sync loop (spec S18).
+"""dispatch.py — per-action dispatchers for the bidirectional sync loop.
 
-Split out of :mod:`mdd.sharepoint.sync` to keep that module under the S36
+Split out of :mod:`mdd.sharepoint.sync` to keep that module under the
 500-line watermark. The public entry points (``sync_folder`` / ``sync_site``)
 remain in ``sync.py``; this module hosts the ``_apply_*`` helpers that route a
 single ``(office, md)`` pair's :class:`~mdd.sharepoint.diff.PairAction` to the

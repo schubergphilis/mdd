@@ -1,4 +1,4 @@
-"""mapping.py — site-name to repo-name mapping for SharePoint mirrors (spec S10)."""
+"""mapping.py — site-name to repo-name mapping for SharePoint mirrors."""
 
 import re
 from dataclasses import dataclass, field
@@ -70,7 +70,7 @@ def _load_yaml_doc(mapping_path: Path) -> dict[str, Any]:
 
 
 def _parse_dict_entry(site_name: str, entry_raw: Any) -> MappingEntry | None:
-    """Validate one entry of the spec-010 dict-keyed format.
+    """Validate one entry of the dict-keyed format.
 
     Returns ``None`` when the entry is malformed (not a dict, missing ``repo``,
     or ``repo`` is not a string) so the caller can skip it.
@@ -87,7 +87,7 @@ def _parse_dict_entry(site_name: str, entry_raw: Any) -> MappingEntry | None:
 
 
 def _parse_dict_sites(sites: dict[str, Any]) -> dict[str, MappingEntry]:
-    """Parse the spec-010 dict-keyed ``sites:`` block; skip malformed entries."""
+    """Parse the dict-keyed ``sites:`` block; skip malformed entries."""
     result: dict[str, MappingEntry] = {}
     for site_name, entry_raw in sites.items():
         entry = _parse_dict_entry(site_name, entry_raw)

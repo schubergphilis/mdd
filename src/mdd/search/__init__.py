@@ -1,1 +1,1 @@
-"""mdd search — ripgrep-backed mirror search (spec S19)."""
+"""mdd search — ripgrep-backed mirror search."""

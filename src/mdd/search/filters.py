@@ -1,7 +1,7 @@
-"""Path/type filters and blacklist gating for mdd search (spec S19).
+"""Path/type filters and blacklist gating for mdd search.
 
 Provides:
-- ``filter_blacklisted`` — drop MirrorRoot entries that are on spec S07's blacklist.
+- ``filter_blacklisted`` — drop MirrorRoot entries that are on the blacklist.
 - ``frontmatter_line_range`` — detect the YAML frontmatter block in a file so
   matches inside it can be excluded.
 """
@@ -38,8 +38,8 @@ def filter_blacklisted(
     the blacklist only governs Confluence spaces and SharePoint sites.
 
     If the blacklist config file is missing or malformed a warning is printed
-    to stderr and the root is *kept* (fail-open for local read operations, per
-    spec S07 §6: "local-only export is unrestricted").
+    to stderr and the root is *kept* — fail-open, because local-only reads are
+    unrestricted.
     """
     filtered: list[MirrorRoot] = []
     for root in roots:

@@ -1,4 +1,4 @@
-"""Mirror-backend seam for the sync engines (spec S44).
+"""Mirror-backend seam for the sync engines.
 
 `mdd`'s Confluence / SharePoint / Lucid sync engines all end a run the
 same way: commit the mirror work-tree and (optionally) push it to a
@@ -7,7 +7,7 @@ remote, auto-creating the remote project on cold-start. The *where* and
 guard, and a reachability probe — is the only provider-specific part.
 
 This package extracts that provider-specific part behind a
-:class:`~mdd.mirror.protocol.MirrorBackend` seam, mirroring the S15
+:class:`~mdd.mirror.protocol.MirrorBackend` seam, mirroring the
 converter-registry pattern (a ``Protocol`` + a module-level ``dict`` +
 an explicit ``register`` that raises on duplicates + a lookup helper).
 The generic commit-and-push orchestration lives in

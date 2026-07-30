@@ -1,4 +1,4 @@
-"""diff.py — pure pair classification for SharePoint bidirectional sync (spec S18).
+"""diff.py — pure pair classification for SharePoint bidirectional sync.
 
 ``classify_pair`` computes the :class:`PairAction` for a single
 ``(Foo.docx, Foo.docx.md)`` pair given the current filesystem state and the
@@ -71,9 +71,8 @@ class SyncState:
     """The ``sharepoint.sync`` block extracted from ``.md`` frontmatter.
 
     All string fields may be ``None`` if the block is absent (first sync).
-    ``update_office`` defaults to ``False`` (the conservative default — see
-    spec S18): md→office rendering only happens when the user explicitly
-    opts in.
+    ``update_office`` defaults to ``False`` (the conservative default):
+    md→office rendering only happens when the user explicitly opts in.
     """
 
     office_sha256_at_sync: str | None
@@ -238,7 +237,7 @@ def classify_pair(
     Returns:
         The :class:`PairAction` describing what the apply layer should do.
 
-    The diff table (from spec S18):
+    The diff table:
 
     +---------------------+-------------------+----------------+----------------------+
     | office_now == sync  | md_now == sync    | update_office  | Verdict              |
@@ -282,7 +281,7 @@ def classify_pair(
     assert md_path is not None  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction
 
     if sync_state.office_sha256_at_sync is None:
-        # Both present but no prior sync record → docx wins (spec S18 rule)
+        # Both present but no prior sync record → docx wins
         return PairAction.FIRST_SYNC_BOTH_DOCX_WINS
 
     return _classify_with_sync_block(docx_path, md_path, sync_state)

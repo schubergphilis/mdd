@@ -1,4 +1,4 @@
-"""Generic git mirror backend (spec S44).
+"""Generic git mirror backend.
 
 A provider-agnostic backend for a work-tree that already has an
 ``origin`` remote (a plain ``git clone``). It assumes the remote exists,

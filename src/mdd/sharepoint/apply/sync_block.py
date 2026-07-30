@@ -37,7 +37,7 @@ def update_sync_block_in_md(
     ``update_office`` controls whether subsequent md edits are rendered back
     to the office file. Set to ``True`` for md-authoritative pairs (rendered
     via Quarto), ``False`` for office-authoritative pairs (the conservative
-    default — see spec S18).
+    default).
     """
     text = md_path.read_text(encoding="utf-8", errors="replace")
     new_sync: dict[str, Any] = {

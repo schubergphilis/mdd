@@ -1,4 +1,4 @@
-"""Backend registry for the mirror seam (spec S44).
+"""Backend registry for the mirror seam.
 
 Mirrors :mod:`mdd.converters.registry`: a module-level ``dict`` keyed by
 a normalized name, an explicit :func:`register_backend` that raises on a
@@ -18,7 +18,7 @@ BACKENDS: dict[str, MirrorBackend] = {}
 # The backend name the CLI entry point (build_dispatcher) wired as the
 # default. None until set, so a stray resolution before wiring is a loud
 # error rather than a silent wrong-backend. Kept out of source as a fixed
-# literal so the OSS core has no built-in house default (spec S44).
+# literal so the OSS core has no built-in house default.
 _default_name: str | None = None
 
 

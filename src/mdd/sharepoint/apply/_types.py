@@ -61,10 +61,10 @@ class SyncRunSummary:
     """Pairs where a mirror→SharePoint write was suppressed by ``--read-only``."""
 
     skipped_ignored: int = 0
-    """Pairs (or pruned descendants) skipped because of ``.mddignore`` (spec S39)."""
+    """Pairs (or pruned descendants) skipped because of ``.mddignore``."""
 
     pruned_ignored: int = 0
-    """Already-synced files deleted by the ``--prune-ignored`` flag (spec S39).
+    """Already-synced files deleted by the ``--prune-ignored`` flag.
 
     ``skipped`` is source-side filtering; ``pruned`` is local cleanup of
     already-synced content. The two never overlap — under ``--dry-run``
@@ -95,10 +95,10 @@ class SyncRunSummary:
     """Relative paths of pairs where a write was suppressed by ``--read-only``."""
 
     skipped_ignored_paths: list[str] = field(default_factory=list)
-    """Source-relative paths skipped by ``.mddignore`` (spec S39, sampled for log/debug)."""
+    """Source-relative paths skipped by ``.mddignore`` (sampled for log/debug)."""
 
     pruned_ignored_paths: list[str] = field(default_factory=list)
-    """Dest-relative paths pruned by ``--prune-ignored`` (spec S39)."""
+    """Dest-relative paths pruned by ``--prune-ignored``."""
 
     skipped_corrupt_paths: list[str] = field(default_factory=list)
     """Source-relative paths skipped because the office package is empty or corrupt."""

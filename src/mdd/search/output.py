@@ -1,4 +1,4 @@
-"""Human-readable and JSON output formatters for mdd search (spec S19).
+"""Human-readable and JSON output formatters for mdd search.
 
 Ripgrep is invoked with ``--json``; the raw JSON lines are parsed here into
 ``RgMatch`` objects that are then formatted for display.

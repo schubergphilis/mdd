@@ -1,4 +1,4 @@
-"""ANSI color helpers for ``mdd search`` (spec S19).
+"""ANSI color helpers for ``mdd search``.
 
 Mirrors ripgrep's default palette so muscle memory carries over:
 
