@@ -1,4 +1,4 @@
-"""Apply the spec S39 ``.mddignore`` matcher to a Confluence sync (issue #118).
+"""Apply the ``.mddignore`` matcher to a Confluence sync (issue #118).
 
 Confluence "directories" are not filesystem paths — they are page-title
 hierarchies. For each page in the desired-state map we therefore build a
@@ -14,8 +14,8 @@ Two filter passes:
    is dropped from desired in one shot. This is the bulk-saving: an
    ``Archive/`` subtree never hits the per-page check.
 2. ``is_ignored`` — every surviving page is checked individually. Pages
-   already tracked locally are skipped to honour the S39 contract
-   ("ignore only blocks new pulls, never deletes already-synced files").
+   already tracked locally are skipped: ignore only blocks new pulls, it
+   never deletes already-synced files.
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def filter_desired(
     """Drop pages from *desired* that the matcher would ignore.
 
     Already-tracked pages (``page_id in tracked_ids``) are never dropped,
-    matching git's "ignore-on-pull only, never delete" contract (spec S39).
+    matching git's "ignore-on-pull only, never delete" contract.
 
     Returns a ``(filtered_desired, skipped_paths)`` pair. ``skipped_paths``
     is a list of POSIX rel-path strings — pruned directories carry a

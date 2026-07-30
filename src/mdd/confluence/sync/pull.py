@@ -55,7 +55,7 @@ def create_local_pages(
 
 @dataclass
 class PullCtx:
-    """Cross-cutting state for content-pull/export helpers (S34 PLR0913)."""
+    """Cross-cutting state for content-pull/export helpers (keeps PLR0913 happy)."""
 
     client: ConfluenceClient
     page_to_outdir: dict[str, Path]

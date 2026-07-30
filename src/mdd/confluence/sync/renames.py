@@ -2,11 +2,10 @@
 
 The bulk handlers in this module — :func:`apply_renames_moves` and
 :func:`apply_archive_unarchive` — are exposed as the single per-page entry
-points used by the S27 mutate orchestrators
-(:mod:`mdd.confluence.mutate`).  Per Phase 2 of P06 we picked Option A
-(call the bulk form with a one-element ``[event]`` list) over the
-alternative of extracting per-event helpers, on the grounds that fewer
-touched signatures means fewer ways to regress sync.
+points used by the mutate orchestrators (:mod:`mdd.confluence.mutate`).
+Single-event callers pass a one-element ``[event]`` list rather than
+calling extracted per-event helpers, on the grounds that fewer touched
+signatures means fewer ways to regress sync.
 
 Callers that need to drive a single ``SyncEvent`` (rename, move,
 archive, or unarchive) should simply build the event in the desired
@@ -52,7 +51,7 @@ def _rewrite_first_h1(md_path: Path, new_title: str) -> None:
     """Rewrite the first ATX H1 (``# ...``) in *md_path*'s body to *new_title*.
 
     No-op when the body has no leading H1. The title-on-disk convention
-    since P03 phase 6 is "first body H1 wins" (see
+    is "first body H1 wins" (see
     :func:`mdd.confluence.update._extract_title`), so a rename that does
     not also rewrite the H1 would leave the old title in place — and the
     next ``mdd confluence update-page`` would push the old title back to
@@ -109,7 +108,7 @@ def _apply_one_rename_move(
             move_attachments_alongside(current_path, new_path, output_dir)
             log.info("%s: %s -> %s", kind_label, current_path.name, new_path.name)
         if event.kind in (EventKind.RENAME, EventKind.RENAME_MOVE):
-            # Title-on-disk is body H1 per the P03 phase 6 convention;
+            # Title-on-disk is the body H1;
             # rewriting it here keeps update-page from resurrecting the
             # old title via _extract_title (#130).
             _rewrite_first_h1(new_path, desired_page.title)

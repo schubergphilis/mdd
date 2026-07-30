@@ -1,10 +1,10 @@
 """Conflict recording, metadata refresh, commit, push, mirror state build.
 
-Commit + push orchestration delegates to :mod:`mdd.mirror.orchestrator`
-driven by the registry's default :class:`~mdd.mirror.protocol.MirrorBackend`
-(spec S44). The Confluence-specific bits (conflict recording, frontmatter
-metadata refresh, mirror-state build, structured ``SyncSummary`` commit
-message) stay here.
+Commit + push is generic across mirror sources, so it delegates to
+:mod:`mdd.mirror.orchestrator` driven by the registry's default
+:class:`~mdd.mirror.protocol.MirrorBackend`. The Confluence-specific bits
+(conflict recording, frontmatter metadata refresh, mirror-state build,
+structured ``SyncSummary`` commit message) stay here.
 """
 
 from __future__ import annotations
@@ -87,8 +87,8 @@ def finalize_commit_and_push(
 ) -> None:
     """Commit any pending changes and optionally push to the mirror remote.
 
-    Routes through the :class:`~mdd.mirror.protocol.MirrorBackend` seam
-    (spec S44): builds the Confluence-specific commit message from
+    Routes through the :class:`~mdd.mirror.protocol.MirrorBackend` seam:
+    builds the Confluence-specific commit message from
     *summary*, hands a ``MirrorTarget("confluence", space_key)`` to the
     generic orchestrator and the registry's default backend (which
     derives the remote path), and threads results back onto *summary*
@@ -142,7 +142,7 @@ def push_to_gitlab(output_dir: Path, summary: SyncSummary, *, space_key: str | N
     Pre-#132 callers commit first, then call this. To preserve the same
     visible behaviour without re-committing, this ensures the remote
     project and pushes via the :class:`~mdd.mirror.protocol.MirrorBackend`
-    seam (spec S44), skipping the commit step.
+    seam, skipping the commit step.
     """
     backend = default_backend()
     if space_key is not None:
