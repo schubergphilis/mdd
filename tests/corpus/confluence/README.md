@@ -32,7 +32,8 @@ scripts/                  — refresh-corpus helper, validators
 identity. When `mdd confluence ...` is invoked from inside this
 directory, mdd loads `./configs/confluence.yaml` **before**
 `~/.config/mdd/confluence.yaml`, so commands never accidentally hit
-a production instance. See spec [S07] for the credentials model.
+a production instance. See
+[S07](../../../docs/spec/S07-data-protection.md) for the credentials model.
 
 ## Common tasks
 

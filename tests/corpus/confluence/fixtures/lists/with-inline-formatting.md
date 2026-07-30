@@ -32,5 +32,5 @@ Bullet list where each item exercises a different inline span:
 - Item with ***combined strong-emphasis*** spanning multiple words
 
 The trailing-text-after-inline case in item four is structurally
-similar to the bug fixed in mdd issue #71. This fixture catches
+similar to an earlier trailing-prose bug. This fixture catches
 regressions in that area for non-`ac:link` inline elements.

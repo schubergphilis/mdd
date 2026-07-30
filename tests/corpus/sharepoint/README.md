@@ -42,7 +42,7 @@ MDD - Documents/                    — site root (matches the OneDrive naming c
     Example-Templated-PowerPoint.pptx.md
     Example-Templated-Word.docx
     Example-Templated-Word.docx.md
-  diff-table/                       — fixture pairs for [S18] cells the real site does not naturally cover
+  diff-table/                       — fixture pairs for sync diff-table cells the real site does not naturally cover
     README.md
     docx-only-no-md/                — first-sync: docx, no md sibling
     md-only-no-docx/                — first-sync: md, no docx sibling

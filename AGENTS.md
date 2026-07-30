@@ -35,10 +35,10 @@ See `docs/spec/S34-code-quality-gates.md` for details.
 
 ### No cross-references from code
 
-Do not cite spec, plan, or issue numbers anywhere in `src/` or `tests/` — not
-in comments, docstrings, log messages, `argparse` help, or error text. That
-includes `(spec S27)`, `S31 §"Open questions"`, `spec-009`, `plan P03 phase 2`,
-`issue #118` and `Spike fix 2`.
+Do not cite spec, plan, or issue numbers in Python code under `src/` or
+`tests/` — not in comments, docstrings, log messages, `argparse` help, or error
+text. That includes `(spec S27)`, `S31 §"Open questions"`, `spec-009`,
+`plan P03 phase 2`, `issue #118` and `Spike fix 2`.
 
 The reference is one-directional: specs point at code, code does not point back.
 A reader of the code may not have the spec — `S44` lives in a separate private
@@ -49,8 +49,14 @@ unrelated GitHub issue that happens to share the number.
 If a citation is the only place a rule is written down, state the rule in one
 short sentence instead. If the code already says it, delete the comment. Links
 to public external standards (`CommonMark §4.7`) are fine — a reader can look
-those up. Prose in `docs/`, and relative links between specs, are unaffected:
-that is where cross-referencing belongs.
+those up.
+
+`README.md` and fixture markdown under `tests/` are documentation, so the docs
+convention applies there instead: a **relative link** to a spec
+(`[S18](../../../docs/spec/S18-sharepoint-sync.md)`) is fine, but a bare number
+or an undefined link reference (`[S07]`, which renders as literal text) is not.
+Prose in `docs/`, and relative links between specs, are unaffected: that is
+where cross-referencing belongs.
 
 ## Git and GitHub usage
 

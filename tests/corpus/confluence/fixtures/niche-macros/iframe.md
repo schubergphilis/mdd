@@ -37,6 +37,6 @@ serialises.
 
 Trailing prose confirms the macro stands inline in storage with
 no body content. The iframe-shaped fixture is part of the
-spec-032 niche-macro breadth set even though Confluence Cloud
+niche-macro breadth set even though Confluence Cloud
 itself rejects the legacy `iframe` macro name at storage
 ingestion — see commit message for details.
