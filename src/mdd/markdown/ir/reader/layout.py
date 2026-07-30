@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from mdd.ir.nodes import Block, Layout, LayoutCell, LayoutSection
 
-from ._patterns import ATTR_RE
+from .._patterns import ATTR_RE
 
 if TYPE_CHECKING:
     from markdown_it.token import Token

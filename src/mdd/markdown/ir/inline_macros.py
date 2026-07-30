@@ -11,19 +11,21 @@ Two rules:
    can distinguish them from ordinary code fences.
 
 Both are wired into the parser in ``flavour.py``.
+
+The marker regexes are shared with the reader — see
+:mod:`mdd.markdown.ir._patterns`. Tokenising and parsing must agree on the
+exact grammar, so there is one definition, not one per module.
 """
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
+
+from ._patterns import INLINE_MACRO_RE, INLINE_RAW_RE
 
 if TYPE_CHECKING:
     from markdown_it import MarkdownIt
     from markdown_it.rules_inline import StateInline
-
-_MACRO_RE = re.compile(r"\{\{confluence:([A-Za-z0-9_-]+)((?:\s+[^=}]+=\"[^\"]*\")*)\s*\}\}")
-_RAW_RE = re.compile(r"\{\{confluence-raw:([A-Za-z0-9+/=]+)\}\}")
 
 
 def confluence_inline_macro_plugin(md: MarkdownIt) -> None:
@@ -41,7 +43,7 @@ def _confluence_inline_rule(state: StateInline, silent: bool) -> bool:
         return False
 
     # Try macro first, then raw fallback.
-    for pattern in (_MACRO_RE, _RAW_RE):
+    for pattern in (INLINE_MACRO_RE, INLINE_RAW_RE):
         m = pattern.match(src, pos)
         if m:
             if not silent:
