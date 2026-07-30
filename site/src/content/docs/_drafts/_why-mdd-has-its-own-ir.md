@@ -1,200 +1,206 @@
 # Why mdd has its own document IR
 
-`mdd` converts documents between Confluence storage XHTML and Markdown through
-its own intermediate representation: a tree of typed Python `dataclass`
-nodes, defined in `src/mdd/ir/`
-([S28](../spec/S28-document-ir-foundation.md)). Building a document model from
-scratch is the kind of decision that usually deserves suspicion — mature
-converters exist, and Pandoc alone has handled this problem space for two
-decades. This article explains why `mdd` built one anyway. The short version:
-the decision was made by measurement, four candidate pipelines were implemented
-and scored against the same corpus of real Confluence pages, and the winner was
-not on the original shortlist.
+Take one page from `mdd`'s test corpus. In the Confluence editor it reads "The
+current status is On track. A problematic status would be Blocked" — 80
+characters of visible text, each status drawn as a small colored lozenge. In
+storage format, each lozenge is a macro. This is the first one, copied from
+the committed snapshot
+`tests/corpus/confluence/_snapshots/164105/storage.xhtml`:
 
-## The problem: sync needs untouched content to survive
+```xml
+<ac:structured-macro ac:name="status" ac:schema-version="1" ac:macro-id="3fe67e21-3b3d-4d7e-a364-77d2e531f479"><ac:parameter ac:name="title">On track</ac:parameter><ac:parameter ac:name="colour">Green</ac:parameter></ac:structured-macro>
+```
+
+Before `mdd` had a document IR, exporting this page produced the Markdown
+below — committed in
+`tests/corpus/confluence/fixtures/niche-macros/status.md`, exported on
+2026-05-11 by the converter `mdd` shipped at the time:
+
+```markdown
+The current status is `<ac:structured-macro xmlns:ac="http://atlassian.com/content" xmlns:ri="http://atlassian.com/repository/confluence/1.0" ac:name="status" ac:schema-version="1" ac:macro-id="3fe67e21-3b3d-4d7e-a364-77d2e531f479"><ac:parameter ac:name="title">On track</ac:parameter><ac:parameter ac:name="colour">Green</ac:parameter></ac:structured-macro>`{=confluence} .
+```
+
+The 237-character macro became a 350-character inline code span of raw XML,
+`xmlns` declarations included — semantically intact, but a blob no person
+would want to edit. Round-tripping back to storage made it worse: the page's
+80 characters of visible text came back as 750, and a sibling fixture holding
+two same-space page links grew from 146 characters to 666
+([R09](../research/R09-confluence-ir-spike-status-quo.md)).
+
+Numbers like these are why `mdd` now converts between Confluence storage XHTML
+and Markdown through its own intermediate representation: a tree of typed
+Python `dataclass` nodes in `src/mdd/ir/`
+([S28](../spec/S28-document-ir-foundation.md)). Building a document model from
+scratch deserves suspicion — Pandoc alone has handled this problem space for
+two decades. So the decision was made by
+measurement: four candidate pipelines, scored against the same corpus of real
+Confluence pages, and a winner that was not on the original shortlist.
+
+## Sync needs untouched content to survive
 
 The first version of Confluence sync punted on merge: when both Confluence and
-the local Markdown changed between sync points, it emitted a `CONFLICT` event
-and skipped the page
-([R06](../research/R06-confluence-bidirectional-sync-ir.md)). Fixing that
-requires real bidirectional merge, and merge has a hard prerequisite: every
-storage element the user did *not* touch must round-trip unchanged — macro IDs
-intact, attribute order preserved, whitespace the way Confluence emitted it.
-Otherwise every push silently rewrites half the page
+the local Markdown changed between sync points, it reported a conflict and
+skipped the page ([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+Fixing that requires real bidirectional merge, and merge has a hard
+prerequisite: every storage element the user did *not* touch must round-trip
+unchanged — macro IDs intact, attribute order preserved, whitespace the way
+Confluence emitted it. Otherwise every push silently rewrites half the page.
+
+The status-macro example shows why the old code could not deliver that. The
+two converters, one per direction, shared no vocabulary: every Confluence
+shape was encoded twice, with raw-XML spans like the one above as the only
+escape hatch, and there was nothing either converter could attach identity or
+provenance *to* ([S28](../spec/S28-document-ir-foundation.md)). The natural
+fix is an intermediate representation with identity per node, so that merge
+becomes a tree diff and untouched nodes re-render to their original bytes.
+
+That much was agreed early. Which IR to use was not, and the project settled
+it empirically: a corpus of real Confluence pages, a harness that scores any
+candidate pipeline the same way, and one spike per candidate. The design had
+already corrected itself once before the spikes started.
+An early draft spoke of "byte-for-byte" preservation, which the note itself
+calls wrong: diff and merge belong at the level of the parsed tree, not at
+byte offsets, where the first non-ASCII character breaks the arithmetic
 ([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
 
-The converters `mdd` had at the time could not provide this. The two direction
-walkers, `storage_to_md.py` and `md_to_storage.py`, shared no vocabulary:
-every Confluence shape was encoded twice, once per direction, with fenced raw
-blocks as the only escape hatch, and there was no representation either
-converter could attach identity or provenance *to*
-([S28](../spec/S28-document-ir-foundation.md)). The natural fix is an
-intermediate representation with identity per node, so that merge becomes a
-tree diff and untouched nodes re-render to their original bytes
-([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+## Numbers, not vibes
 
-That much was agreed early. Which IR to use was not — and the project decided
-to settle it empirically rather than by argument: build a corpus of real
-Confluence pages, build a harness that scores any candidate pipeline on the
-same metrics, and implement each candidate as a spike
-([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+The harness ran every candidate against 35 snapshot pages from a live
+Confluence instance, scoring each round trip on six measurements: how much
+visible text survives, whether the block structure survives, whether macro IDs
+survive, whether each Markdown block can be traced back to a storage element,
+whitespace drift, and code size
+([R08](../research/R08-confluence-ir-experiment-harness.md)). Its stated job
+was to keep the comparison "grounded in numbers, not vibes". Each fixture
+carried shape tags — callout, page link, status macro — so failures pointed
+at specific Confluence constructs rather than disappearing into an average.
 
-An early draft of the design also had to correct itself before the spikes
-started: it spoke of "byte-for-byte" preservation, which the note itself calls
-wrong — diff and merge belong at the AST level, not at byte offsets, because
-character-offset diffing breaks on the first non-ASCII code point and encodes
-no semantics ([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+Three candidates were shortlisted. All three lost.
 
-## The harness: numbers, not vibes
+## The baseline: correct on prose, broken where it matters
 
-The experiment harness
-([R08](../research/R08-confluence-ir-experiment-harness.md)) ran every
-candidate against 35 snapshot pages from a live Confluence instance, scoring
-each round-trip (storage → Markdown → storage) on six metrics: text fidelity,
-structural fidelity, identity preservation, provenance coverage, whitespace
-drift, and code surface. Its stated job was to make the comparison "grounded
-in numbers, not vibes"
-([R08](../research/R08-confluence-ir-experiment-harness.md)). Each fixture
-carried shape tags (`callout-tip`, `link-ri-page-same-space`, …) so failures
-could be traced to specific Confluence constructs rather than aggregate
-averages.
-
-Three candidates were shortlisted
-([R06](../research/R06-confluence-bidirectional-sync-ir.md)). All three lost.
-
-## Loser one: the status quo, kept as a baseline
-
-The first spike wrapped the existing converter pair unchanged
+The first spike wrapped the existing converter pair unchanged, to give the
+others a baseline to beat
 ([R09](../research/R09-confluence-ir-spike-status-quo.md)). On plain prose it
-was fine: eleven fixtures scored perfect on both fidelity metrics. What killed
-it was measured on the Confluence-namespaced shapes: a same-space page link
-scored 0.22 on text fidelity, an attachment link 0.13, a status macro 0.11 —
-because the Markdown-to-storage path did not recognize the inline shapes the
-storage-to-Markdown path emitted, and fell back to verbose raw-XML blocks. A
-146-character original became 666 characters; an 80-character status macro
-became 750 ([R09](../research/R09-confluence-ir-spike-status-quo.md)). The
-comparison note's verdict: correct on most shapes, brittle on exactly the
-ones merge cares about, with no identity and no provenance
+was fine: eleven of the 35 fixtures came through perfect on both fidelity
+scores. It collapsed on the Confluence-namespaced shapes, exactly as the
+example above shows — the status-macro page scored 0.11 on text fidelity, an
+attachment link 0.13, a same-space page link 0.22, each ballooning into raw
+XML because the Markdown-to-storage direction did not recognize the spans the
+other direction emitted. The comparison's verdict: correct on most shapes,
+brittle on exactly the ones merge cares about, no identity, no provenance
 ([R12](../research/R12-confluence-ir-comparison.md)).
 
-## Loser two: Docling, good at the wrong layer
+## Docling: good text, wrong structure
 
 Docling was attractive on paper: Python-native, in-process, already a
-transitive dependency of `mdd`, MIT-licensed, and with identity and provenance
-slots (`self_ref`, `prov`) built into its document model
+transitive dependency of `mdd`, MIT-licensed, with identity and provenance
+slots built into its document model
 ([R06](../research/R06-confluence-bidirectional-sync-ir.md)). The research
-notes flagged its meaningful gap before the spike ran: no `RawBlock`
-equivalent, no idiom for "carry these bytes through verbatim, I don't know
-what they mean" ([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+flagged its gap before the spike ran: no equivalent of a raw block, no idiom
+for "carry these bytes through verbatim, I don't know what they mean."
 
-The measurement confirmed and sharpened this. Docling scored well on text
-fidelity (0.94, where the status quo scored 0.86) but collapsed on structural
-fidelity: 0.41, the worst of any candidate
-([R11](../research/R11-confluence-ir-spike-docling.md)). Two causes: its
-Markdown export hard-wraps prose, and the re-parse then treats each wrapped
-line as its own paragraph — a four-paragraph fixture came back as twelve — and
-Confluence-namespaced elements it does not recognize are silently dropped at
-the wrapper level ([R11](../research/R11-confluence-ir-spike-docling.md)).
-The comparison ruled it out because the fixes were "upstream-shaped, not in
-our control" ([R12](../research/R12-confluence-ir-comparison.md)).
+The measurement sharpened that gap into a rejection. Docling scored well on
+text fidelity — 0.94, where the baseline scored 0.86 — but worst of any
+candidate on structure, at 0.41
+([R11](../research/R11-confluence-ir-spike-docling.md)). Its Markdown export
+hard-wraps prose and its re-parse treats each wrapped line as a new paragraph,
+so a four-paragraph fixture came back as twelve; Confluence-namespaced
+elements it does not recognize are silently dropped. The comparison ruled it
+out because the fixes were "upstream-shaped, not in our control"
+([R12](../research/R12-confluence-ir-comparison.md)).
 
-An earlier, grander framing of the Docling option also got walked back in
-writing: the claim that adopting Docling would unify the IR across `mdd`'s
-PDF, DOCX, PPTX, and Confluence paths is recorded as "an overreach" — there is
-no `DoclingDocument` → DOCX/PPTX writer, and the question was only ever about
-storage XHTML ↔ Markdown
-([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
+One Docling claim had been withdrawn even earlier: that adopting it would
+unify the document model across `mdd`'s PDF, DOCX, PPTX, and Confluence paths.
+The note records that as "an overreach" — no writer exists from Docling's
+model back to DOCX or PPTX, and the question was only ever about storage XHTML
+and Markdown ([R06](../research/R06-confluence-bidirectional-sync-ir.md)).
 
-## Loser three: Pandoc with a Lua writer — the recommendation that got reversed
+## Pandoc: the recommendation that lasted a day
 
-Pandoc was the reasonable bet. Its IR is twenty years old and versioned,
-carrying unknown bytes through verbatim is a first-class concept (`RawBlock`),
-and the exact architecture — Pandoc AST plus a custom Lua writer emitting
-Confluence storage format — ships in production inside Quarto's Confluence
-publisher, which the research notes studied line by line
+Pandoc was the reasonable bet. Its document model is twenty years old,
+carrying unknown bytes through verbatim is a first-class concept there, and
+the exact architecture — Pandoc plus a custom Lua writer emitting Confluence
+storage — ships in production inside Quarto's Confluence publisher, which the
+research studied line by line
 ([R06](../research/R06-confluence-bidirectional-sync-ir.md)). The spike
-delivered: Pandoc won all three measurable fidelity metrics against the other
-two candidates (text 0.97, structural 0.77, whitespace 0.75), in about 200
-lines of adaptor and Lua
+delivered: Pandoc won every fidelity score then measurable — 0.97 on text,
+0.77 on structure, 0.75 on whitespace — in about 200 lines of adaptor and Lua
 ([R10](../research/R10-confluence-ir-spike-pandoc-lua.md)).
 
-On that evidence, the comparison note recommended it. The original
-recommendation in [R12](../research/R12-confluence-ir-comparison.md) reads:
-adopt Pandoc + Lua, with two follow-ups before production — wire identity and
-provenance through the writer, and close the code-block and merged-cell gaps.
+On that evidence the comparison note recommended it, with two follow-ups
+before production: wire identity and provenance through the writer, and close
+known gaps around code blocks and merged table cells
+([R12](../research/R12-confluence-ir-comparison.md)).
 
-That recommendation lasted less than a day. Its own text records the tension
-that undid it: the fidelity margin over the status quo was real but modest
-(0.08–0.14 aggregate), while the costs were concrete — roughly 125× the
-per-fixture latency (process startup, mitigable but real), a 7 MB GPL
-binary, Lua as a second implementation language, and, most tellingly, the
-identity and provenance channels that motivated the whole exercise still
-not wired up, deferred to follow-up work
+The recommendation lasted less than a day, and its own text records the
+tension that undid it. The fidelity margin over the baseline was real but
+modest, while the costs were concrete: roughly 125 times the per-page latency,
+a 7 MB GPL-licensed binary, Lua as a second implementation language — and,
+most telling, the identity and provenance channels that motivated the whole
+exercise still not wired up, deferred to follow-up work
 ([R13](../research/R13-confluence-ir-spike-pure-python.md)).
 
 ## The late entrant that won
 
-[R06](../research/R06-confluence-bidirectional-sync-ir.md) had named the
-design principle — an IR with identity per node, diffed at the AST level — but
-every shortlisted candidate delegated the IR to a third party. A fourth spike,
-run after the recommendation was already written, implemented the principle
-directly: a pure-Python typed IR, with identity and provenance carried on the
-nodes themselves rather than bolted on afterward
+The design principle had been on paper from the start — an IR with identity on
+every node, diffed as a tree — yet every shortlisted candidate delegated the
+IR to a third party. A fourth spike, run after the recommendation was written,
+implemented the principle directly: a pure-Python typed IR, with identity and
+provenance carried on the nodes themselves rather than bolted on afterward
 ([R13](../research/R13-confluence-ir-spike-pure-python.md)).
 
-It swept the board. Text fidelity 0.9988, structural 0.9838, whitespace
-0.9830; identity preservation and provenance coverage both 1.0 — the only
-candidate to wire identity at all; 27 of the 35 fixtures perfect on every
-metric simultaneously; total corpus round-trip in 31 ms against Pandoc's
-2895 ms ([R13](../research/R13-confluence-ir-spike-pure-python.md)). The
-comparison note was revised in place, preserving the Pandoc analysis
-under an explicit "original recommendation" heading so the trade-off
-reasoning stays on the record
-([R12](../research/R12-confluence-ir-comparison.md)).
+It swept the board. Text fidelity 0.9988, structure 0.9838, whitespace 0.9830,
+and identity preservation and provenance coverage both complete — it was the
+only candidate that wired identity at all. Twenty-seven of the 35 fixtures
+came through perfect on every measurement simultaneously, and the whole corpus
+round-tripped in 31 ms against Pandoc's 2895 ms
+([R13](../research/R13-confluence-ir-spike-pure-python.md)). The comparison
+note was revised in place, keeping the Pandoc analysis under an explicit
+"original recommendation" heading so the trade-off reasoning stays on the
+record ([R12](../research/R12-confluence-ir-comparison.md)).
 
-The one metric the pure-Python IR lost was code surface: 2249 lines, against
+## What it cost
+
+The one measurement the pure-Python IR lost was code size: 2249 lines, against
 78 for the Docling adaptor and 202 for Pandoc
-([R12](../research/R12-confluence-ir-comparison.md)). The comparison's
-reading of that number is the crux of the build-versus-adopt call: the 78-line
-Docling adaptor sits on top of a large pre-1.0 library, the 202-line Pandoc
-adaptor on a GPL binary plus a Lua writer with no upstream — while the 2249
-lines are the only option whose entire surface lives in the repository, with
-no library to track, version, or migrate
-([R12](../research/R12-confluence-ir-comparison.md)). `mdd` did not build an
-IR because building is fun; it bought identity, provenance, and fidelity
-whose remaining gaps were a bounded five-fix list of about 50 lines
-([R13](../research/R13-confluence-ir-spike-pure-python.md)), at the price of
-owning the code.
+([R12](../research/R12-confluence-ir-comparison.md)). Reading that number is
+the crux of the build-versus-adopt call. The 78-line Docling adaptor sits on
+top of a large pre-1.0 library; the 202 Pandoc lines sit on a GPL binary plus
+a Lua writer with no upstream; the 2249 lines are the only option whose entire
+surface lives in this repository, with no library to track, version, or
+migrate. `mdd` did not build an IR because building is fun. It bought
+identity, provenance, and fidelity whose remaining gaps were a bounded list of
+five fixes, about 50 lines in total, at the price of owning the code
+([R13](../research/R13-confluence-ir-spike-pure-python.md)).
 
-## What the spike became — and what got reversed after
+## What shipped, and what got reversed after
 
 The spike was promoted into the production tree as three specs: the IR types
 and identity contract ([S28](../spec/S28-document-ir-foundation.md)), the
 Confluence storage converters
 ([S29](../spec/S29-confluence-ir-conversion.md)), and the Markdown converters
-([S30](../spec/S30-markdown-ir-conversion.md)). The five fidelity fixes from
-the spike are all recorded as shipped in
-[S29](../spec/S29-confluence-ir-conversion.md), and the old converter pair was
-deleted once the IR converters took over, rather than kept indefinitely as
-wrappers ([S29](../spec/S29-confluence-ir-conversion.md)).
+([S30](../spec/S30-markdown-ir-conversion.md)). The five fixes are recorded
+there as shipped, and the old converter pair was deleted once the IR
+converters took over, rather than kept indefinitely as wrappers
+([S29](../spec/S29-confluence-ir-conversion.md)).
 
-Even after promotion, one piece of the winning plan was reversed. The spike
-and the comparison both sketched an on-disk sidecar —
-`<page>.confluence.json` next to each Markdown file — as the production home
-for cached identity ([R12](../research/R12-confluence-ir-comparison.md)).
-That design was retired: production metadata lives in the Markdown file's
-YAML frontmatter, and the cached-IR lookup happens in-process from the
-remote-storage parse, so no sidecar file is written during normal runs
+Even the winning plan lost a piece after promotion. The spike and the
+comparison both sketched an on-disk sidecar — a `<page>.confluence.json` next
+to each Markdown file — as the production home for cached identity
+([R12](../research/R12-confluence-ir-comparison.md)). That design was retired:
+page metadata lives in the Markdown file's YAML frontmatter, the cached-IR
+lookup happens in-process from the remote-storage parse, and no sidecar file
+is written during normal runs
 ([S31](../spec/S31-ir-normalization-and-whitespace.md)).
 
-What the IR guarantees today — which shapes round-trip byte-perfect, and
-where the documented trade-offs sit — is a story of its own, covered in
+What the IR guarantees today — which shapes round-trip byte-perfect, and where
+the documented trade-offs sit — is a story of its own, covered in
 [what near-lossless means](near-lossless.md).
 
-The methodological point stands apart from the outcome. Any of the four
-candidates could have been argued for persuasively in prose; the corpus and
-harness made the argument unnecessary. A written recommendation was overturned
-within a day of being made, at the cost of one more spike, because the
-measurement battery made a late entrant directly comparable to three
-incumbents ([R12](../research/R12-confluence-ir-comparison.md)). That is the
-cheapest a reversal ever gets.
+The method outlasts the outcome. Any of the four candidates could have been
+argued for persuasively in prose; the corpus and harness made the argument
+unnecessary. A written recommendation was overturned within a day, at the cost
+of one more spike, because the harness made a late entrant directly comparable
+to three incumbents ([R12](../research/R12-confluence-ir-comparison.md)). That
+is the cheapest a reversal ever gets.
