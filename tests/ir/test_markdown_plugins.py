@@ -5,6 +5,8 @@ Covers parse + render-and-reparse for each plugin's syntax.
 
 from __future__ import annotations
 
+import time
+
 from mdd.ir.document import Document
 from mdd.ir.nodes import (
     Callout,
@@ -15,7 +17,9 @@ from mdd.ir.nodes import (
     Text,
 )
 from mdd.markdown.ir import parse_markdown, render_markdown
+from mdd.markdown.ir._patterns import ATTR_RE, INLINE_MACRO_RE
 from mdd.markdown.ir.flavour import build_md
+from mdd.markdown.ir.reader import macros as reader_macros
 
 # ---------------------------------------------------------------------------
 # Fenced div plugin (callouts.py)
@@ -196,6 +200,75 @@ class TestConfluenceInlineMacroPlugin:
         assert isinstance(p, Paragraph)
         macros = [t for t in p.inlines if isinstance(t, InlineMacro)]
         assert len(macros) == 2
+
+
+# ---------------------------------------------------------------------------
+# Inline macro marker regex (_patterns.py) — ReDoS regression
+# ---------------------------------------------------------------------------
+
+
+class TestInlineMacroPatternRedos:
+    """Pins the fix for CodeQL ``py/redos`` alerts 2 and 3.
+
+    ``INLINE_MACRO_RE``'s attribute-key class used to be ``[^=}]+``, which
+    matches whitespace and therefore overlaps the ``\\s+`` separator in front
+    of it. For a non-matching input there were exponentially many ways to
+    split each whitespace run between ``\\s+`` and the key, so backtracking
+    blew up: ``{{confluence:-`` followed by N repetitions of ``  <=""`` took
+    time exponential in N.
+    """
+
+    def test_pathological_input_fails_fast(self) -> None:
+        evil = "{{confluence:-" + '  <=""' * 40
+        start = time.perf_counter()
+        assert INLINE_MACRO_RE.match(evil) is None
+        elapsed = time.perf_counter() - start
+        # The fixed pattern rejects this in microseconds. The bound is loose
+        # on purpose (a loaded CI box must not flake); the pre-fix pattern
+        # needed longer than the age of the universe at N=40.
+        assert elapsed < 1.0, f"regex took {elapsed:.3f}s — exponential backtracking is back"
+
+    def test_pathological_input_fails_fast_via_parser(self) -> None:
+        """Same input through the full parse path, not just the bare regex."""
+        evil = "{{confluence:-" + '  <=""' * 40
+        start = time.perf_counter()
+        doc = parse_markdown(evil)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 5.0, f"parse took {elapsed:.3f}s — exponential backtracking is back"
+        p = doc.children[0]
+        assert isinstance(p, Paragraph)
+        assert not [t for t in p.inlines if isinstance(t, InlineMacro)]
+
+    def test_multiple_attributes_still_match(self) -> None:
+        m = INLINE_MACRO_RE.match('{{confluence:status colour="Blue" title="Pass phrase"}}')
+        assert m is not None
+        assert m.group(1) == "status"
+        params = {m2.group(1): m2.group(2) for m2 in ATTR_RE.finditer(m.group(2))}
+        assert params == {"colour": "Blue", "title": "Pass phrase"}
+
+    def test_no_attributes_still_match(self) -> None:
+        m = INLINE_MACRO_RE.match("{{confluence:toc}}")
+        assert m is not None
+        assert m.group(1) == "toc"
+        assert m.group(2) == ""
+
+    def test_hyphenated_key_and_trailing_space_still_match(self) -> None:
+        m = INLINE_MACRO_RE.match('{{confluence:mention account-id="557058:738d-4176" }}')
+        assert m is not None
+        params = {m2.group(1): m2.group(2) for m2 in ATTR_RE.finditer(m.group(2))}
+        assert params == {"account-id": "557058:738d-4176"}
+
+    def test_key_class_matches_the_attribute_parser(self) -> None:
+        """A key the recogniser accepts must be one ``ATTR_RE`` can extract."""
+        m = INLINE_MACRO_RE.match('{{confluence:x a.b="v"}}')
+        assert m is None  # dotted key is not a key ATTR_RE can parse — reject outright
+
+    def test_tokeniser_and_reader_share_one_pattern(self) -> None:
+        """One definition, so a fix here cannot regress in only one module."""
+        from mdd.markdown.ir import inline_macros
+
+        assert inline_macros.INLINE_MACRO_RE is INLINE_MACRO_RE
+        assert reader_macros.INLINE_MACRO_RE is INLINE_MACRO_RE
 
 
 # ---------------------------------------------------------------------------

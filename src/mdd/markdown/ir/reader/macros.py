@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from mdd.ir.fallback import emit_inline_fallback
 from mdd.ir.nodes import Inline, InlineMacro, Text
 
-from ._patterns import ATTR_RE, INLINE_MACRO_RE, INLINE_RAW_RE
+from .._patterns import ATTR_RE, INLINE_MACRO_RE, INLINE_RAW_RE
 
 if TYPE_CHECKING:
     import re

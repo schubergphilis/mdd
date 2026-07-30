@@ -20,8 +20,9 @@ Fallback policy (spec S30 §"Fallback policy"):
   confluence-xml  → ``RawBlock(format="confluence-storage")``
   unknown fences  → ``CodeBlock(language=<info>)``
 
-Topic-grouped sub-modules: ``_patterns``, ``macros``, ``inlines``,
-``listing``, ``table``, ``layout``, ``blocks``.
+Topic-grouped sub-modules: ``macros``, ``inlines``, ``listing``,
+``table``, ``layout``, ``blocks``. The marker regexes live one level up
+in :mod:`mdd.markdown.ir._patterns`, shared with the markdown-it rule.
 """
 
 from __future__ import annotations
