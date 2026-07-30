@@ -30,6 +30,7 @@ as "note 007" in prose; `R07` and `007` are the same note.
 | R11 | [IR spike: docling pipeline](R11-confluence-ir-spike-docling.md) | Measurements for a `DoclingDocument`-based in-process pipeline. |
 | R12 | [IR foundation comparison and recommendation](R12-confluence-ir-comparison.md) | Cross-pipeline comparison across all spikes, and the recommendation that became [S28](../spec/S28-document-ir-foundation.md). |
 | R13 | [IR spike: pure-Python pipeline](R13-confluence-ir-spike-pure-python.md) | Measurements for a first-party typed IR with no external converter — the option the recommendation ultimately landed on. |
+| R14 | [Documentation strategy and a docs site for mdd](R14-documentation-strategy-and-site.md) | Audience framing (Diátaxis plus an operator/integrator/contributor/agent split), a generated-vs-executed-vs-checked-vs-prose freshness model, and a July 2026 tooling survey: Starlight vs the Material for MkDocs/Zensical transition, publishing `docs/` into the site, CLI reference from `mdd help --json`, griffe for a curated extension API, import-linter for architecture contracts, Sybil for executable examples, llms.txt, and Vale. |
 
 ## Provenance
 
