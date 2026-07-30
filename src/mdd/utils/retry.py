@@ -1,4 +1,10 @@
-"""Retry-decision helpers for the Confluence client."""
+"""Retry-decision helpers shared by the httpx-based REST clients.
+
+Nothing here is provider-specific: given an :class:`httpx.Response` these
+decide whether a retry is warranted and how long to wait first. The
+Confluence client (spec S09/S16) is the original caller; downstream
+mirrors reuse the same policy so backoff behaviour stays uniform.
+"""
 
 from __future__ import annotations
 
