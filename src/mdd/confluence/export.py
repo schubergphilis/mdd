@@ -86,7 +86,7 @@ def _print_attachment_summary(summary: AttachmentSyncSummary) -> None:
     """Emit the per-page attachment summary line.
 
     Suppressed when nothing was synced — the all-zero line is pure noise
-    on attachment-free pages (issue #89).
+    on attachment-free pages.
     """
     if summary.synced <= 0:
         return
@@ -104,7 +104,7 @@ def _stamp_attachments_skipped(conf_fm: dict[str, Any], *, skip_attachments: boo
     """Set ``attachments_skipped: true`` on *conf_fm* when this export skipped attachments.
 
     No-op otherwise — the absence of the key on a normal re-export naturally
-    clears the marker (issue #86).
+    clears the marker.
     """
     if skip_attachments:
         conf_fm["attachments_skipped"] = True
@@ -332,7 +332,7 @@ def _build_confluence_frontmatter(
         conf_fm["labels"] = meta.labels
     if attachments_list:
         conf_fm["attachments"] = attachments_list
-    # Issue #86: persist the "skipped under --no-attachments" marker so a
+    # Persist the "skipped under --no-attachments" marker so a
     # subsequent sync without that flag can back-fill attachments.  Cleared
     # naturally on the next full export (key simply isn't written).
     _stamp_attachments_skipped(conf_fm, skip_attachments=ctx.skip_attachments)

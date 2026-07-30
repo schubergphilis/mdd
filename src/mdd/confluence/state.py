@@ -22,7 +22,7 @@ _H1_RE = re.compile(r"^#\s+(.+)", re.MULTILINE)
 # Converter-output suffixes written under ``*-attachments/`` by the attachment
 # sync pipeline (see ``confluence/attachments/sync_all.py``). Files with these
 # composite extensions are mdd-managed conversion artefacts, not user-authored
-# manual files (issue #87).
+# manual files.
 _ATTACHMENT_CONVERTER_SUFFIXES: tuple[str, ...] = (".pdf.md", ".pptx.md", ".docx.md")
 
 
@@ -56,7 +56,7 @@ class LocalPage:
     space_id: str
     attachments_manifest: list[dict[str, Any]] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)
-    # Issue #86: set to True when the page was exported with --no-attachments
+    # Set to True when the page was exported with --no-attachments
     # so a subsequent sync without that flag can back-fill the attachments.
     attachments_skipped: bool = False
 
@@ -72,7 +72,7 @@ class MirrorState:
     # files that are manually managed (no valid frontmatter or page_id, non-publishable)
     manual: list[Path] = field(default_factory=list)
     # converter outputs under ``*-attachments/`` (e.g. ``Foo-attachments/bar.pdf.md``)
-    # — mdd-managed conversion artefacts that should not be flagged as drift (issue #87)
+    # — mdd-managed conversion artefacts that should not be flagged as drift
     attachment_derived: list[Path] = field(default_factory=list)
 
 
@@ -213,7 +213,7 @@ def build_mirror_state(output_dir: Path) -> MirrorState:
 
 
 def _split_attachment_derived(state: MirrorState) -> None:
-    """Move converter outputs out of ``manual`` into ``attachment_derived`` (#87).
+    """Move converter outputs out of ``manual`` into ``attachment_derived``.
 
     Run after the main walk so it stays a single linear pass that does not add
     cognitive complexity to ``build_mirror_state`` itself.

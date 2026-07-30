@@ -77,7 +77,7 @@ class SyncRunSummary:
     skipped_corrupt: int = 0
     """Pairs skipped because the office source is empty or not a valid Office package.
 
-    Issue #129: empty 0-byte files or files whose ZIP container cannot be opened
+    Empty 0-byte files or files whose ZIP container cannot be opened
     by python-docx / python-pptx are recorded here rather than in ``errors`` so a
     handful of known-bad source files do not drown out genuine conversion errors.
     """

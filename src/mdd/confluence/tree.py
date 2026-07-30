@@ -130,7 +130,7 @@ def list_pages(client: ConfluenceClient, space_id: str) -> list[dict[str, Any]]:
     """
     results: list[dict[str, Any]] = []
     # Confluence v2 query params are kebab-case: ``space-id``, not ``spaceId``
-    # (issue #79).  See _list_pages_for_sync for the full rationale.
+    # See _list_pages_for_sync for the full rationale.
     params: dict[str, str | int] | None = {
         "space-id": space_id,
         "body-format": "storage",

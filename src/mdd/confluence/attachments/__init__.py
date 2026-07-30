@@ -6,7 +6,7 @@ Public surface (re-exported from topic-grouped sub-modules):
 - :class:`AttachmentManifestEntry`, :class:`AttachmentSyncSummary` — manifest dataclasses.
 - :func:`conversion_needed`, :func:`download_for_page`, :func:`sync_all_attachments`,
   :func:`sync_attachments_for_update` — public entry points.
-- :func:`rasterize_and_upload_svg_images` — SVG→PNG rasterization on publish (issue #143).
+- :func:`rasterize_and_upload_svg_images` — SVG→PNG rasterization on publish.
 
 Topic-grouped sub-modules: ``_types``, ``download``, ``sync_all``, ``scan``, ``update``,
 ``svg_publish``.

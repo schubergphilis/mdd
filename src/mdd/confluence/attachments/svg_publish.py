@@ -1,4 +1,4 @@
-"""Rasterize SVGs referenced as markdown images to PNG before publish (issue #143).
+"""Rasterize SVGs referenced as markdown images to PNG before publish.
 
 Confluence Cloud does not render SVG attachments inline (XSS hardening — it
 shows a download link instead), so an SVG referenced as a markdown *image*

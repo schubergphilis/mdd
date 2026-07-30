@@ -39,7 +39,7 @@ from .finalize import (
 )
 from .finalize import (
     # Re-exported for tests that ``patch("mdd.confluence.sync.push_to_gitlab", ...)``
-    # against the old symbol-table seam (pre issue #132).
+    # against the old symbol-table seam.
     push_to_gitlab as push_to_gitlab,
 )
 from .mddignore import filter_desired
@@ -101,7 +101,7 @@ def _apply_mddignore(
     client: ConfluenceClient,
     summary: SyncSummary,
 ) -> dict[str, DesiredPage]:
-    """Apply the ``.mddignore`` matcher to *desired* (issue #118).
+    """Apply the ``.mddignore`` matcher to *desired*.
 
     Drops new pages the matcher would ignore so they never become NEW
     events. Already-tracked pages are preserved — newly-added patterns

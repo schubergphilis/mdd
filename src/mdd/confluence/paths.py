@@ -18,7 +18,7 @@ _MULTI_DASH = re.compile(r"-{2,}")
 # Unicode category "Zs" (Separator, space): U+0020 plus its look-alikes —
 # NBSP, en/em spaces, ideographic space, etc. Confluence titles copy-pasted
 # from some sources use U+00A0 NO-BREAK SPACE between words instead of a
-# plain space (issue #140); folding the whole category to a single ASCII
+# plain space; folding the whole category to a single ASCII
 # space keeps the sanitized filename — and thus every path derived from it,
 # including the synthetic path the `.mddignore` matcher builds — stable
 # regardless of which space variant the source title used.
@@ -30,7 +30,7 @@ def sanitize(title: str) -> str:
 
     Rules:
     - Normalize to NFC and fold runs of Unicode space-separator characters
-      (category Zs — NBSP and friends) to a single ASCII space (issue #140)
+      (category Zs — NBSP and friends) to a single ASCII space
     - Replace <>:"/\\|?*\\n\\t\\r with -
     - Strip leading/trailing whitespace and dots
     - Collapse runs of - to a single -

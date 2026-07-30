@@ -20,7 +20,7 @@ def print_dry_run_plan(
 
     Program output for piping — intentionally uses ``print`` so it goes to
     stdout. ``# noqa: T201`` will be required here once the orchestrator
-    enables ``T201`` in :file:`pyproject.toml` (issue #122).
+    enables ``T201`` in :file:`pyproject.toml`.
     """
     print("[dry-run] Sync plan:")  # noqa: T201
     for docx_path, md_path in pairs:

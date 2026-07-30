@@ -10,7 +10,7 @@ from mdd.mirror.errors import MirrorError
 from mdd.mirror.orchestrator import git_commit as _mirror_git_commit
 
 # ``is_dirty`` is re-exported from :mod:`mdd.utils.git` so existing
-# ``from mdd.confluence.apply import is_dirty`` continues to work (issue #123).
+# ``from mdd.confluence.apply import is_dirty`` continues to work.
 from mdd.utils.git import (
     GitError,
     run_git,

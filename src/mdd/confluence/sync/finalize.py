@@ -38,7 +38,7 @@ def is_git_repo(output_dir: Path) -> bool:
     """Return True if *output_dir* is a git working tree.
 
     Thin re-export of :func:`mdd.utils.git.is_git_repo`, kept because
-    callers and test mocks import it from this module (issue #132).
+    callers and test mocks import it from this module.
     """
     return _is_git_repo(output_dir)
 
@@ -122,9 +122,9 @@ def initialize_repo(output_dir: Path, space_key: str, summary: SyncSummary) -> b
     """Deprecated: the bootstrap step lives inside :func:`finalize_commit_and_push`.
 
     Retained as a thin no-op + always-True return so any external mocks
-    that patch this name during testing keep working. Issue #132 folded
-    the ``git init`` + ``remote add origin`` step into the workdir
-    orchestrator's cold-start path.
+    that patch this name during testing keep working. The ``git init`` +
+    ``remote add origin`` step now happens in the workdir orchestrator's
+    cold-start path.
     """
     return True
 
@@ -132,14 +132,14 @@ def initialize_repo(output_dir: Path, space_key: str, summary: SyncSummary) -> b
 def commit_changes(
     output_dir: Path, summary: SyncSummary, space_key: str, message: str | None
 ) -> None:
-    """Backwards-compatible wrapper for the pre-issue-#132 entry point."""
+    """Backwards-compatible wrapper for the old commit-only entry point."""
     finalize_commit_and_push(output_dir, summary, space_key, message, push=False)
 
 
 def push_to_gitlab(output_dir: Path, summary: SyncSummary, *, space_key: str | None = None) -> None:
-    """Backwards-compatible wrapper for the pre-issue-#132 entry point.
+    """Backwards-compatible wrapper for the old push-only entry point.
 
-    Pre-#132 callers commit first, then call this. To preserve the same
+    Such callers commit first, then call this. To preserve the same
     visible behaviour without re-committing, this ensures the remote
     project and pushes via the :class:`~mdd.mirror.protocol.MirrorBackend`
     seam, skipping the commit step.

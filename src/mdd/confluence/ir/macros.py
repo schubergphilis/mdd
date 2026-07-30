@@ -92,9 +92,8 @@ def read_macro_bodies(
     body_trailing_ws)``.
 
     ``has_rich_body`` is ``True`` only when an ``<ac:rich-text-body>``
-    element is actually present — spike fix 3 requires this distinction so
-    the writer does not emit an empty ``<ac:rich-text-body>`` when there is
-    none.
+    element is actually present. The writer needs that distinction so it
+    does not emit an empty ``<ac:rich-text-body>`` when there is none.
 
     ``body_leading_ws`` / ``body_trailing_ws`` capture the whitespace
     immediately inside the opening and closing ``<ac:rich-text-body>``

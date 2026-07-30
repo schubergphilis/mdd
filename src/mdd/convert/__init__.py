@@ -3,7 +3,7 @@
 Exposes :class:`CorruptSourceError` as a converter-boundary signal for
 source files that cannot be parsed at all (empty or non-Office-ZIP).
 Callers in the SharePoint sync dispatch layer catch this and record a
-soft skip instead of a hard error (issue #129).
+soft skip instead of a hard error.
 """
 
 from __future__ import annotations

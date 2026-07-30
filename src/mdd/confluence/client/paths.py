@@ -25,8 +25,8 @@ def rest_attachment_download_path(attachment: dict[str, Any]) -> str:
 
     This endpoint accepts Basic auth + API token even on tenants where
     Atlassian has gated the legacy ``/wiki/download/attachments/...`` path
-    to OAuth-only (issue #76; see also Atlassian's 19-Nov-2025 changelog
-    removing several ``/download/attachments/`` internal API paths).  It
+    to OAuth-only (see Atlassian's 19-Nov-2025 changelog removing several
+    ``/download/attachments/`` internal API paths).  It
     302-redirects to a CDN URL carrying a short-lived signed JWT, which
     httpx follows transparently when ``follow_redirects=True``.
 

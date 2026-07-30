@@ -298,7 +298,7 @@ def _process_file(file_path: Path, ctx: _ExportContext, summary: ExportSummary) 
             _run_convert(action, file_path, dst, rel, ctx)
             summary.converted += 1
     except CorruptSourceError:
-        # Issue #129: empty or non-Office-ZIP source — soft skip instead
+        # Empty or non-Office-ZIP source — soft skip instead
         # of a hard error so the run summary stays meaningful.
         log.info("skipping %s: corrupt or empty source", file_path)
         summary.skipped += 1
