@@ -111,7 +111,7 @@ description = "Run the corpus-snapshot smoke test"
 run = "uv run python -m pytest tests/confluence/test_corpus_smoke.py -v"
 
 [tasks.ir-roundtrip]
-description = "R1/R2/R3 IR round-trip suites (spec S33)."
+description = "R1/R2/R3 IR round-trip suites (storage, markdown, full)."
 run = "uv run python -m pytest tests/ir/test_r1_storage_roundtrip.py tests/ir/test_r2_markdown_roundtrip.py tests/ir/test_r3_full_roundtrip.py --no-cov -q"
 
 [tasks.ir-roundtrip-quick]
@@ -123,5 +123,5 @@ description = "Benchmark gates for the IR round-trip (R3 timing)."
 run = "uv run python -m pytest tests/ir/test_benchmarks.py --no-cov -v"
 
 [tasks.ir-coverage]
-description = "Corpus coverage matrix gate (spec S32). Writes build/ir-coverage.json."
+description = "Corpus coverage matrix gate. Writes build/ir-coverage.json."
 run = "uv run python -m pytest tests/ir/test_corpus_coverage.py --no-cov -q"

@@ -57,7 +57,7 @@ uv run complexipy --ignore-complexity --plain $MODULE 2>&1 | sort -k3 -rn | head
 grep -rnE '# (pyright|noqa|type): ignore' $MODULE | wc -l
 grep -rnE '# (pyright|noqa|type): ignore' $MODULE | head -30
 
-# 6. Module size — large files are split candidates (see S36)
+# 6. Module size — large files are split candidates
 if [ -d "$MODULE" ]; then
   find "$MODULE" -name '*.py' -exec wc -l {} + | sort -rn | head -10
 else
@@ -158,7 +158,7 @@ The considered-but-not-proposed list is the most valuable part of the report. It
 ## Hard guardrails
 
 - **Never** run against `src/` or the whole repo. One module at a time.
-- **Never** introduce new tooling as part of this skill. Use only what's installed via `pyproject.toml` (`ruff`, `basedpyright`, `complexipy`). If a tool would meaningfully change the output and you want it, propose adding it as a separate change first — and read S34 on why this project keeps one static-analysis surface.
+- **Never** introduce new tooling as part of this skill. Use only what's installed via `pyproject.toml` (`ruff`, `basedpyright`, `complexipy`). If a tool would meaningfully change the output and you want it, propose adding it as a separate change first — and read [the code-quality gates spec](../../../docs/spec/S34-code-quality-gates.md) on why this project keeps one static-analysis surface.
 - **Never** add a `# pyright: ignore` or `# noqa` to make a refactor pass. If the suppression count grows during this skill, the refactor was wrong.
 - **Never** regenerate `complexipy-snapshot.json`. The watermark mutates automatically on a successful `mise run complexipy`.
 - **Never** combine multiple approved items into one edit pass.
