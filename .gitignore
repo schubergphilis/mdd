@@ -104,6 +104,8 @@ site/.astro/
 # Synced from docs/ by scripts/sync-docs.py — build input, not source.
 site/src/content/docs/guide/
 site/src/content/docs/articles/
+site/src/content/docs/design-record/
+site/src/content/docs/get-involved/
 site/src/content/docs/reference/
 site/src/content/docs/spec/
 site/src/content/docs/research/
@@ -113,3 +115,5 @@ site/src/content/docs/research/
 site/public/guide/
 site/public/articles/
 site/public/reference/
+site/public/design-record/
+site/public/get-involved/
