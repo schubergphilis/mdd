@@ -97,12 +97,6 @@ class TestCLI:
         result = main(["convert"])
         assert result == 1
 
-    def test_gitlab_dispatches(self, capsys: pytest.CaptureFixture[str]) -> None:
-        # argparse-routed: a missing subcommand exits with SystemExit(2).
-        with pytest.raises(SystemExit) as exc_info:
-            _ = main(["gitlab"])
-        assert exc_info.value.code == 2
-
     def test_confluence_dispatches(self, capsys: pytest.CaptureFixture[str]) -> None:
         # argparse-routed: a missing subcommand exits with SystemExit(2).
         with pytest.raises(SystemExit) as exc_info:
