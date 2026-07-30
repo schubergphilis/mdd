@@ -1,4 +1,4 @@
-"""Markdown report renderer for mdd ai review findings (spec S22).
+"""Markdown report renderer for mdd ai review findings.
 
 Usage::
 
