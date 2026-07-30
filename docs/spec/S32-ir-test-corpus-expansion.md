@@ -58,7 +58,7 @@ test_corpus:
 
 ## Implementation Notes
 
-- The same `mise run refresh-corpus` task established in note 008
+- The same `mise run refresh-corpus` task established in research note R08
   captures the new pages into `MDD/_snapshots/<page_id>/`. The
   expansion is one commit per category:
   1. Markdown fixtures (CommonMark + GFM + extensions).
