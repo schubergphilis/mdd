@@ -17,6 +17,8 @@ match the org site at
 <https://github.com/schubergphilis/schubergphilis.github.io>,
 deployed from `main` on every merge, publishing hand-written user
 documentation alongside the existing specs and research notes.
+(The theme half of that brief was later dropped on licensing
+grounds — see the superseded note under "Site generator".)
 
 This note frames the audiences, proposes a way to decide what to
 generate versus what to write, surveys the tooling against external
@@ -153,21 +155,32 @@ cost is honest and unchanged: a `package.json`, `bun`, and a Node
 build step in a pure-Python repo, which raises the bar for outside
 contributors who want to preview a docs change.
 
-That cost is already paid at the org level — the org site is
-Starlight with a `bun`-based mise task set — and matching its theme
-is a hard requirement here. Decision stands; the Node dependency is
-the price.
+That cost is already paid elsewhere — both candidate reference sites
+are Starlight with a `bun`-based mise task set. Decision stands; the
+Node dependency is the price.
 
-Concretely, port from
-[`schubergphilis.github.io`](https://github.com/schubergphilis/schubergphilis.github.io):
-`src/styles/custom.css` (the SBP Blue token ramps, the blue header
-block, Poppins), the favicon/`head` block, the mise task names
-(`docs-install`, `docs-dev`, `docs-build`, `docs-check`), and
-`deploy.yml` with its pinned action SHAs and `concurrency: pages`.
-Two deltas: set `base: '/mdd/'`, and turn `pagefind` and `pagination`
-back on — the org site disables both because it is a single splash
-page. The `h1#_top` hiding rule in `custom.css` is also
-splash-page-specific and must not be carried over.
+**Superseded: which theme.** This note originally called for matching
+the organisation site,
+[`schubergphilis.github.io`](https://github.com/schubergphilis/schubergphilis.github.io)
+— its SBP Blue token ramps, blue header block and Poppins. That was
+dropped before [S06](../spec/S06-documentation-site.md) was written.
+`mdd` is Apache-2.0 and the corporate brand is not; a fork cannot
+redistribute it. The theme is instead **LSD Warm**, whose palette
+lives in `colors/lsd-colors.json` in
+[`lsimons/lsimons-dotfiles`](https://github.com/lsimons/lsimons-dotfiles)
+under Apache-2.0, with Merriweather and Merriweather Sans under the
+SIL OFL. A working Starlight mapping of that palette already exists in
+[`lsimons/lsimons.github.io`](https://github.com/lsimons/lsimons.github.io).
+S06 carries the token table.
+
+What survives from the original port list regardless of theme: the
+mise task names (`docs-install`, `docs-dev`, `docs-build`,
+`docs-check`), and `deploy.yml` with its pinned action SHAs and
+`concurrency: pages`. Two deltas from either reference site: set
+`base: '/mdd/'`, and turn `pagefind` and `pagination` back on — both
+are single splash pages and disable them. Their splash-specific CSS
+(the `h1#_top` hiding rule and the collapsed first `.content-panel`)
+must not be carried over.
 
 ## Getting `docs/` into the site
 
@@ -593,8 +606,13 @@ and a bespoke llms.txt generator.
   specified.
 - [`docs/spec/S36-module-structure.md`](../spec/S36-module-structure.md)
   — the layering that import-linter contracts would encode.
-- `schubergphilis/schubergphilis.github.io` — the theme, mise tasks
-  and `deploy.yml` being ported.
+- `lsimons/lsimons-dotfiles` — `colors/lsd-colors.json`, the
+  Apache-2.0 source of the LSD Warm palette.
+- `lsimons/lsimons.github.io` — an existing Starlight mapping of that
+  palette, plus the mise task set and `deploy.yml` shape.
+- `schubergphilis/schubergphilis.github.io` — the originally proposed
+  theme, dropped on licensing grounds; still the reference for
+  `deploy.yml`'s pinned action SHAs.
 
 ## Open questions
 
