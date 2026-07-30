@@ -32,6 +32,25 @@ Code should have high test coverage (gate is 70%, but aim 90%+ for new code).
 
 See `docs/spec/S34-code-quality-gates.md` for details.
 
+### No cross-references from code
+
+Do not cite spec, plan, or issue numbers anywhere in `src/` or `tests/` — not
+in comments, docstrings, log messages, `argparse` help, or error text. That
+includes `(spec S27)`, `S31 §"Open questions"`, `spec-009`, `plan P03 phase 2`,
+`issue #118` and `Spike fix 2`.
+
+The reference is one-directional: specs point at code, code does not point back.
+A reader of the code may not have the spec — `S44` lives in a separate private
+distribution and never resolves here at all — and the `issue #NN` numbers
+predate the open-source cut, so they resolve to nothing, or worse, to an
+unrelated GitHub issue that happens to share the number.
+
+If a citation is the only place a rule is written down, state the rule in one
+short sentence instead. If the code already says it, delete the comment. Links
+to public external standards (`CommonMark §4.7`) are fine — a reader can look
+those up. Prose in `docs/`, and relative links between specs, are unaffected:
+that is where cross-referencing belongs.
+
 ## Git and GitHub usage
 
 Follow [Conventional Commits](https://conventionalcommits.org/):
