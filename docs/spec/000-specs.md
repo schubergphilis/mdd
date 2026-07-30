@@ -15,6 +15,7 @@ Run `uv run python scripts/spec-list.py` to recreate this overview:
 | S03 | [convert command](S03-convert-command.md) | `mdd convert` recursively converts `.docx` files to Markdown (`.docx.md`) using Docling for body content and python-docx for metadata extraction. | Implemented (2026-05-07) |
 | S04 | [new / new-pptx / new-docx commands](S04-new-command.md) | Scaffold new Quarto projects from bundled templates. | Implemented (2026-05-07) |
 | S05 | [pdf / pdf-pptx / pdf-docx commands](S05-pdf-export.md) | Export Office files to PDF via AppleScript (macOS only). | Implemented (2026-05-07) |
+| S06 | [Documentation Site](S06-documentation-site.md) | Publish a Starlight documentation site at <https://schubergphilis.github.io/mdd/> on every merge to `main`, built from checked-in Markdown under `docs/`, whose primary content is operator documentation and whose secondary content is the existing spec and research corpus, demoted. | Draft |
 | S07 | [data protection](S07-data-protection.md) | Two cross-cutting rules that protect the organisation's data and credentials for every command. | Implemented (2026-05-19) |
 | S09 | [confluence command](S09-confluence-command.md) | `mdd confluence` adds Confluence Cloud integration for exporting, creating, and updating pages. | Implemented (2026-05-08) |
 | S10 | [sharepoint command](S10-sharepoint-command.md) | `mdd sharepoint` mirrors SharePoint sites to Markdown by reading locally synced files (via OneDrive), without ever calling the SharePoint API. | Implemented (2026-05-08) |
