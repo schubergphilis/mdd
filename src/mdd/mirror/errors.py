@@ -1,4 +1,4 @@
-"""Exceptions for the mirror seam (spec S44)."""
+"""Exceptions for the mirror seam."""
 
 from __future__ import annotations
 

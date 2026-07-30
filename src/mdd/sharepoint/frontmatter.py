@@ -1,6 +1,6 @@
-"""frontmatter.py — SharePoint-specific frontmatter writer (spec S10, extended by 018).
+"""frontmatter.py — SharePoint-specific frontmatter writer.
 
-Spec S18 adds the ``sharepoint.sync`` sub-block::
+Bidirectional sync adds the ``sharepoint.sync`` sub-block::
 
     sharepoint:
       sync:

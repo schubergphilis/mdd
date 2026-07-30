@@ -1,4 +1,4 @@
-"""Atomic apply layer for SharePoint bidirectional sync (spec S18).
+"""Atomic apply layer for SharePoint bidirectional sync.
 
 Each public function corresponds to one :class:`~mdd.sharepoint.diff.PairAction`.
 All file writes are atomic (write to ``*.tmp``, then ``os.replace``).

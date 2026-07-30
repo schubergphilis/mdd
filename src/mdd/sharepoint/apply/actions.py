@@ -1,4 +1,4 @@
-"""Per-PairAction apply functions for SharePoint sync (spec S18)."""
+"""Per-PairAction apply functions for SharePoint sync."""
 
 from __future__ import annotations
 

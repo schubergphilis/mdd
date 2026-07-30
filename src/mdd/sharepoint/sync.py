@@ -1,4 +1,4 @@
-"""sync.py — sync-root resolution, site discovery (spec S10), and bidirectional sync (spec S18)."""
+"""sync.py — sync-root resolution, site discovery, and bidirectional sync."""
 
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ def list_sites(sync_root: Path) -> list[SiteEntry]:
 
 
 # ---------------------------------------------------------------------------
-# Bidirectional sync — spec S18
+# Bidirectional sync
 # ---------------------------------------------------------------------------
 
 _DIRTY_TREE_MESSAGE = (
@@ -152,7 +152,7 @@ def _is_real_filename(name: str) -> bool:
 
 @dataclass
 class _WalkStats:
-    """Accounting bucket for an S39-aware walk.
+    """Accounting bucket for an ignore-aware walk.
 
     Tracks pruned directories and per-file skips so the caller can fold
     them into the per-sync ``skipped_ignored`` counter without re-walking
@@ -212,7 +212,7 @@ def _classify_walk_child(
     """Route one walk entry: ignore non-files, push surviving dirs, keep files.
 
     Kept as a top-level helper so :func:`_walk_real_files` stays inside the
-    S37 cognitive-complexity ceiling.
+    cognitive-complexity ceiling.
     """
     if not _is_real_filename(child.name):
         return
@@ -231,7 +231,7 @@ def _walk_real_files(
     rel_base: Path | None = None,
     stats: _WalkStats | None = None,
 ) -> list[Path]:
-    """Return sorted real files under *root*, honouring the S39 matcher.
+    """Return sorted real files under *root*, honouring the ``.mddignore`` matcher.
 
     Dotfiles and Word locks are skipped (matches the prior ``rglob``
     behaviour). When *matcher* is supplied:
@@ -280,7 +280,7 @@ def _walk_for_pairs(
 
     Returns pairs sorted by the office path.
 
-    *matcher* (spec S39) — when supplied, prunes ignored subtrees in
+    *matcher* — when supplied, prunes ignored subtrees in
     *source_root* before listing and drops files matched by ``is_ignored``.
     The matcher is applied to **source_root only**; existing destination
     state is honoured the same way ``git`` honours already-tracked files
@@ -301,7 +301,7 @@ def _walk_for_pairs(
 
     # Orphaned .md in output (no office sibling in source). The matcher
     # never touches output_root — already-synced state is the user's to
-    # clean up (spec S39 "already-synced state").
+    # clean up.
     for fp in _walk_real_files(output_root):
         if fp.suffix.lower() != ".md" or fp in seen_md:
             continue
@@ -395,7 +395,7 @@ def _run_prune_ignored(
     *,
     dry_run: bool,
 ) -> None:
-    """Apply the ``--prune-ignored`` pre-pass against *dest_root* (spec S39).
+    """Apply the ``--prune-ignored`` pre-pass against *dest_root*.
 
     Walks the mirror tree once, deletes (or — under ``dry_run`` — logs)
     every file the matcher marks ignored, and updates the summary
@@ -476,7 +476,7 @@ def sync_folder(  # noqa: PLR0913
     _check_dirty(output_dir)
 
     summary = SyncRunSummary()
-    # Spec S39: prune-ignored runs BEFORE the normal sync walk so the
+    # prune-ignored runs BEFORE the normal sync walk so the
     # ``would prune (ignored, dry-run)`` lines still show up under
     # ``--dry-run``. Summary counters are surfaced even when no work was
     # done — empty matcher = empty walk = zero counter, no surprise.
@@ -490,9 +490,9 @@ def sync_folder(  # noqa: PLR0913
 
     # Roll the source-side ``.mddignore`` skips into the summary so the
     # caller can surface a "N skipped (ignored)" line. Pruned directories
-    # are counted once each; per-file skips are counted exactly. Spec
-    # S39 explicitly does not require exact descendant counts. Done
-    # before the dry-run branch so dry-run reports the matcher's effect.
+    # are counted once each rather than by descendant count; per-file
+    # skips are counted exactly. Done before the dry-run branch so
+    # dry-run reports the matcher's effect.
     summary.skipped_ignored = len(walk_stats.skipped_files) + len(walk_stats.pruned_dirs)
     summary.skipped_ignored_paths = [str(p) for p in walk_stats.skipped_files]
     summary.skipped_ignored_paths.extend(str(p) + "/" for p in walk_stats.pruned_dirs)
@@ -590,7 +590,7 @@ def _mirror_target_for_site(site_name: str, mapping_path: Path | None) -> Mirror
     """Return the mirror target for *site_name*.
 
     The key is the mapped repo name; the backend owns the group/host
-    prefix, so this stays provider-agnostic (spec S44).
+    prefix, so this stays provider-agnostic.
     """
     return MirrorTarget(kind="sharepoint", key=repo_name(site_name, load_mapping(mapping_path)))
 

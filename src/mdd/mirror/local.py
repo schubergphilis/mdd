@@ -1,4 +1,4 @@
-"""Local-only mirror backend (spec S44).
+"""Local-only mirror backend.
 
 The backend used when a sync runs without ``--push``: it never resolves
 a remote, so the orchestrator commits the mirror work-tree and stops.

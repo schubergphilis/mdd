@@ -1,4 +1,4 @@
-"""Resolve mirror roots from mdd config files (spec S19).
+"""Resolve mirror roots from mdd config files.
 
 Loads the config file of every registered root source (see
 :mod:`mdd.search.sources`) and extracts the ``output_dir`` value for each

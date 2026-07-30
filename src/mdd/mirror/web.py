@@ -1,4 +1,4 @@
-"""Browse-URL plumbing for mirror backends (spec S44).
+"""Browse-URL plumbing for mirror backends.
 
 A mirror's *browse* URL — the page a human opens to read a mirrored file — is
 provider knowledge, exactly like the clone URL. The host is deployment

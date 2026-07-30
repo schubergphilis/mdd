@@ -1,6 +1,6 @@
-"""MirrorBackend protocol + result dataclasses (spec S44).
+"""MirrorBackend protocol + result dataclasses.
 
-Mirrors the converter-registry pattern (spec S15): a ``Protocol`` plus
+Mirrors the converter-registry pattern: a ``Protocol`` plus
 small frozen dataclasses describing the seam's inputs and outputs.
 Concrete backends live in sibling modules (:mod:`mdd.mirror.local`,
 :mod:`mdd.mirror.git`); a wrapper distribution supplies its own
@@ -56,7 +56,7 @@ class EnsureOutcome:
 
 
 class MirrorBackend(Protocol):
-    """Provider seam for the sync engines' git-mirror push step (spec S44).
+    """Provider seam for the sync engines' git-mirror push step.
 
     Extracts the provider-specific operations out of the otherwise
     generic commit-and-push orchestration:

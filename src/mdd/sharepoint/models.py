@@ -1,4 +1,4 @@
-"""Typed models for SharePoint frontmatter (spec S40).
+"""Typed models for SharePoint frontmatter.
 
 This module exposes typed pydantic models that replace the
 hand-rolled ``yaml.safe_load`` + ``isinstance(parsed, dict)`` +
@@ -50,8 +50,8 @@ class SharepointSync(FrontmatterModel):
 
     All string fields default to ``None`` so a first-encounter file
     (no prior sync) still validates.  ``update_office`` defaults to
-    ``False`` (the conservative default — see spec S18): md→office
-    rendering only happens when the user opts in.
+    ``False`` (the conservative default): md→office rendering only
+    happens when the user opts in.
     """
 
     office_sha256_at_sync: str | None = None

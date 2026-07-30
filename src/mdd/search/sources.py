@@ -1,4 +1,4 @@
-"""Root-source registry for `mdd search` (spec S19).
+"""Root-source registry for `mdd search`.
 
 Mirrors :mod:`mdd.mirror.registry`: a module-level ``dict`` keyed by a
 normalized source type, an explicit :func:`register_root_source` that
@@ -8,7 +8,7 @@ raises on a duplicate key, and a lookup helper.
 A wrapper distribution registers its own from its CLI entry point, next
 to where it registers its mirror backend — that is how the SBP wrapper
 adds ``lucid`` without the open-source core carrying a search filter for
-an integration it does not ship (spec S44).
+an integration it does not ship.
 """
 
 from __future__ import annotations
@@ -102,8 +102,6 @@ SHAREPOINT = RootSource(
     collection="sites",
     label="SharePoint",
 )
-# Per S08's `mdd/docs/<repo>` layout, docs roots live in the global
-# config under a flat `docs:` mapping rather than in a file of their own.
 DOCS = RootSource(
     source_type="docs",
     config_name="config",

@@ -1,4 +1,4 @@
-"""rules.py — per-file action decision table for SharePoint export (spec S10)."""
+"""rules.py — per-file action decision table for SharePoint export."""
 
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -17,7 +17,7 @@ class FileAction(StrEnum):
     IGNORE = "ignore"
     SKIP_WITH_WARNING = "skip_with_warning"
     SKIP_IGNORED = "skip_ignored"
-    """Skipped because the path matches a ``.mddignore`` rule (spec S39)."""
+    """Skipped because the path matches a ``.mddignore`` rule."""
 
 
 IMAGE_EXTENSIONS: frozenset[str] = frozenset(
@@ -56,7 +56,7 @@ def decide(
 
     Rules (first match wins):
       0. If *matcher* is supplied and ``is_ignored(rel_path)`` is True →
-         :attr:`SKIP_IGNORED` (spec S39 source-side filter).
+         :attr:`SKIP_IGNORED` (source-side ``.mddignore`` filter).
       1. If *has_sibling_md*: the caller already found a ``<name>.<ext>.md`` next
          to this file — treat the ``.md`` as the master, copy it through.
       2. ``.docx`` / ``.doc`` → convert with Docling.
@@ -71,7 +71,7 @@ def decide(
     (``.docx``, ``.doc``, ``.pptx``, ``.pdf``).  For ``.md`` files the
     sibling-md concept does not apply — they are always :attr:`COPY_MARKDOWN`.
 
-    The optional *matcher* / *rel_path* pair (spec S39) lets callers funnel
+    The optional *matcher* / *rel_path* pair lets callers funnel
     every per-file decision through the same gate. When *matcher* is ``None``
     or *rel_path* is ``None`` the ignore check is silently skipped — backward
     compatible with the original two-argument signature.

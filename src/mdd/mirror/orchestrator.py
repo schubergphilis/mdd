@@ -1,4 +1,4 @@
-"""Generic commit-and-push orchestration for the sync engines (spec S44).
+"""Generic commit-and-push orchestration for the sync engines.
 
 The provider-agnostic part of ending a sync run — refuse-or-bootstrap
 the work-tree, commit, and (optionally) ensure-the-remote + push —
