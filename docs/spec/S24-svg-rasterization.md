@@ -13,7 +13,7 @@ Once landed, `mdd convert`, `mdd confluence sync`, `mdd sharepoint
 sync`, and any wrapper-supplied sync command all gain SVG rasterization
 automatically.
 
-Originates from research doc 004.
+Originates from research note R04.
 
 ## Requirements
 

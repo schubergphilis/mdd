@@ -11,7 +11,7 @@
 Bundled in one spec because they share infrastructure (caching,
 output handling, frontmatter awareness) and are similarly small.
 
-Originates from research doc 003.
+Originates from research note R03.
 
 ## Subcommands
 

@@ -8,7 +8,7 @@
 
 `mdd search` returns matches in a human-readable or JSON form. No AI, no network, no token. Built first so agents and humans can use it immediately. Mirror locations include Confluence spaces, SharePoint sites, docs repos, and any further root source a wrapper distribution registers.
 
-Originates from research doc 003.
+Originates from research note R03.
 
 ## Subcommands
 
@@ -158,7 +158,7 @@ frontmatter at format time.
 ## Out of scope
 
 - Building a search index. ripgrep over filesystem is enough.
-- Semantic / embedding-based search (deferred per research 003;
+- Semantic / embedding-based search (deferred per research note R03;
   reconsidered if review-quality demands it).
 - Cross-mirror linking. Search returns paths; the user (or agent)
   navigates.

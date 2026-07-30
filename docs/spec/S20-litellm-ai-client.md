@@ -6,7 +6,7 @@
 
 ## Introduction
 
-This spec covers foundational plumbing for [S21](S21-ai-rewrite-and-index.md), [S22](S22-ai-review-command.md), and [S23](S23-skills-bundle.md); no user-facing command ships here. The package exposes a small API for downstream `mdd ai *` subcommands: one `Client` class, retry/concurrency/caching applied uniformly, and a reserved embeddings surface. Originates from research doc 003.
+This spec covers foundational plumbing for [S21](S21-ai-rewrite-and-index.md), [S22](S22-ai-review-command.md), and [S23](S23-skills-bundle.md); no user-facing command ships here. The package exposes a small API for downstream `mdd ai *` subcommands: one `Client` class, retry/concurrency/caching applied uniformly, and a reserved embeddings surface. Originates from research note R03.
 
 ## Config schema
 
