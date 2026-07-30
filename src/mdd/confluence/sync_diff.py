@@ -72,7 +72,7 @@ def _wants_content_pull(
 
     Two triggers:
     1. Remote version advanced past local.
-    2. Issue #86 — local was previously exported under ``--no-attachments``
+    2. Local was previously exported under ``--no-attachments``
        (carries the ``attachments_skipped`` marker) and the current run is
        NOT skipping attachments, so we must back-fill them.
     """
@@ -155,7 +155,7 @@ def _content_edit_event(
     *,
     skip_attachments: bool,
 ) -> SyncEvent | None:
-    """Return CONTENT_EDIT when remote advanced OR a #86 attachment back-fill is due."""
+    """Return CONTENT_EDIT when remote advanced OR an attachment back-fill is due."""
     if not _wants_content_pull(d, c, skip_attachments=skip_attachments):
         return None
     # Orchestrator (sync.py) upgrades to CONFLICT after reading the local body;

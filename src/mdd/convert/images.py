@@ -64,7 +64,7 @@ _JPEG_ENCODE_KWARGS: dict[str, object] = {
 _PNG_ENCODE_KWARGS: dict[str, object] = {"optimize": True}
 
 # Longest-edge cap before encoding. Above this we resize with LANCZOS.
-# Markdown viewers don't benefit from above-4k; it's just bloat. See P03 #95.
+# Markdown viewers don't benefit from above-4k; it's just bloat.
 _MAX_LONGEST_EDGE = 4096
 
 

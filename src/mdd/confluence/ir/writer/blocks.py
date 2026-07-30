@@ -263,7 +263,7 @@ def _render_confluence_macro(
     out.append(f"<ac:structured-macro{attrs_str}>")
     for key, value in block.params.items():
         out.append(f"<ac:parameter ac:name={quoteattr(key)}>{value}</ac:parameter>")
-    # Spike fix 3: honour rich_body vs plain_body — don't emit
+    # Honour rich_body vs plain_body — don't emit
     # <ac:rich-text-body> when rich_body is False.
     if block.rich_body:
         out.append("<ac:rich-text-body>")

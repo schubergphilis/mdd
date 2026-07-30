@@ -65,8 +65,8 @@ _RETRY_DELAYS = (1, 2, 4, 8)  # seconds between retries
 # silent infinite loops impossible.
 MAX_PAGINATION_ITERATIONS = 9
 
-# Explicit per-phase timeouts (issue #79: bare ``timeout=30.0`` did not fire
-# during a TLS-level read stall on example.atlassian.net).  All four
+# Explicit per-phase timeouts — a bare ``timeout=30.0`` did not fire
+# during a TLS-level read stall against a real tenant.  All four
 # phases get the same 30 s budget so the user sees a clear error within the
 # minute instead of an indefinite hang.
 _DEFAULT_TIMEOUT = httpx.Timeout(connect=30.0, read=30.0, write=30.0, pool=30.0)
@@ -177,11 +177,10 @@ class ConfluenceClient:
         Retry delays have up to 10 % jitter to avoid lockstep retry storms
         when multiple processes hit the same rate-limit window.
 
-        Issue #79: previously only :class:`httpx.ConnectError` was caught.
         :class:`httpx.TimeoutException` (covering ``ReadTimeout``,
-        ``ConnectTimeout``, ``WriteTimeout``, ``PoolTimeout``) is now caught
-        too so a slow / stuck server surfaces a clear ``ConfluenceError``
-        instead of an opaque traceback.
+        ``ConnectTimeout``, ``WriteTimeout``, ``PoolTimeout``) is caught
+        alongside :class:`httpx.ConnectError` so a slow / stuck server
+        surfaces a clear ``ConfluenceError`` instead of an opaque traceback.
         """
         url = self._base_url + path
         client = self._get_http()
@@ -344,7 +343,7 @@ class ConfluenceClient:
         * ``downloadLink`` — relative URL for the binary.  Not used by
           :meth:`download_attachment` / :meth:`download_attachment_to_file`
           (which build the REST download path from ``pageId`` + ``id``
-          instead — see :func:`rest_attachment_download_path` and issue #76).
+          instead — see :func:`rest_attachment_download_path`).
 
         The pagination loop is bounded by ``MAX_PAGINATION_ITERATIONS`` as
         a safety guard against runaway loops.
@@ -355,7 +354,7 @@ class ConfluenceClient:
         params: dict[str, str | int] | None = {"limit": 250}
         for _ in range(MAX_PAGINATION_ITERATIONS):
             # ``params=None`` on follow-up pages; ``params={}`` would strip
-            # the ``_links.next`` cursor (#79).
+            # the ``_links.next`` cursor.
             data = self.get(path, params=params)
             results.extend(_extract_dict_list(data, "results"))
             next_url = _extract_next_link(data)
@@ -376,7 +375,7 @@ class ConfluenceClient:
         Builds the URL from ``pageId`` and ``id`` on the v2 attachment dict
         (see :func:`rest_attachment_download_path`).  The legacy
         ``/wiki/download/attachments/...`` path is gated to OAuth-only on
-        some tenants (issue #76); the REST path accepts Basic auth + API
+        some tenants; the REST path accepts Basic auth + API
         token instead.
         """
         download_url = rest_attachment_download_path(attachment)

@@ -367,8 +367,7 @@ def convert_pptx(src: Path, dst: Path) -> None:
     Raises :class:`mdd.convert.CorruptSourceError` when *src* is empty
     or is not a valid Office Open XML package (e.g. truncated downloads,
     deliberately-broken decks). Callers at the sync-dispatch boundary
-    route this to a soft-skip counter rather than the hard-error counter
-    (issue #129).
+    route this to a soft-skip counter rather than the hard-error counter.
     """
     # lazy: python-pptx pulls lxml; loaded only on pptx conversion
     from pptx import Presentation  # pyright: ignore[reportMissingModuleSource]  # noqa: PLC0415

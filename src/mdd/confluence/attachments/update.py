@@ -112,8 +112,8 @@ def sync_attachments_for_update(
        - Compute SHA-256.
        - If hash matches manifest entry → skip.
        - Otherwise upload via the v1 attachments endpoint.
-    4. Rasterize any ``.svg`` referenced as a markdown image (issue #143 —
-       Confluence does not render SVG inline) and upload the PNG alongside.
+    4. Rasterize any ``.svg`` referenced as a markdown image (Confluence does
+       not render SVG inline) and upload the PNG alongside.
     5. Return the updated manifest entries (unchanged entries preserved) and
        the body to render.
 

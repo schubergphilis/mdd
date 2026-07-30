@@ -174,7 +174,7 @@ def list_pages_for_sync(
     """
     results: list[dict[str, Any]] = []
     # Confluence v2 query params are kebab-case: ``space-id``, not ``spaceId``
-    # (issue #79).  Atlassian silently *ignores* unknown params, so passing
+    # Atlassian silently *ignores* unknown params, so passing
     # ``spaceId`` would return every page in the tenant — fast path to an
     # infinite pagination loop.
     params: dict[str, str | int] | None = {
@@ -190,7 +190,7 @@ def list_pages_for_sync(
         # httpx interprets an empty dict as "replace the URL's query string
         # with these params", which would strip the cursor + space-id from
         # the ``_links.next`` URL and re-trigger the unfiltered tenant-wide
-        # listing (root cause of #79's runaway loop).
+        # listing, which is how the runaway pagination loop happened.
         data = client.get(path, params=params)
         _append_page_items(data, results)
         next_path = _next_page_path(data)

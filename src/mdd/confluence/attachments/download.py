@@ -90,7 +90,7 @@ def _download_one(
         dest.write_bytes(data)
     except Exception as exc:
         # Per-attachment failure must not abort the whole page export
-        # (issue #77).  Mirror the sync_all_attachments pattern: log to
+        # Mirror the sync_all_attachments pattern: log to
         # stderr, skip the manifest append, and continue with the next
         # reference so the markdown body still gets written by the
         # caller in export.py.

@@ -500,7 +500,7 @@ def _write_docx(src: Path, dst: Path) -> Path | None:
 
     Raises :class:`mdd.convert.CorruptSourceError` when *src* is empty
     or is not a valid Office Open XML package. The dispatcher routes
-    this to a soft-skip counter (issue #129).
+    this to a soft-skip counter.
     """
     # lazy: python-docx pulls lxml; loaded only when reading docx
     from docx.opc.exceptions import (  # pyright: ignore[reportMissingModuleSource]  # noqa: PLC0415
