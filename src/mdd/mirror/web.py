@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -24,7 +25,66 @@ from urllib.parse import quote, urlsplit
 GITLAB_BLOB_INFIX = "/-/blob/"
 GITHUB_BLOB_INFIX = "/blob/"
 
-_SSH_URL_RE = re.compile(r"^git@([^:]+):(.+?)(?:\.git)?$")
+_SSH_URL_RE = re.compile(r"^git@([^:]+):(.+)$")
+
+
+@dataclass(frozen=True)
+class CloneUrlParts:
+    """A git clone URL taken apart, host-agnostically.
+
+    ``host`` is the lower-cased hostname without any port; ``port`` carries
+    the port when the URL had one (never for the ``git@host:path`` form,
+    which cannot express one). ``path`` is the repository path with any
+    leading slash and ``.git`` suffix removed, and ``namespace`` / ``repo``
+    are that path split at the last ``/`` — ``namespace`` is the owner or
+    group path and is empty for a repo sitting at the root.
+    """
+
+    host: str
+    path: str
+    namespace: str
+    repo: str
+    port: int | None = None
+
+
+def split_clone_url(remote_url: str) -> CloneUrlParts | None:
+    """Split a git clone URL into its components, or ``None`` if unrecognised.
+
+    Handles the two forms git remotes are written in practice:
+
+    - ``git@host:namespace/repo.git`` (scp-like)
+    - ``https://host/namespace/repo.git`` (and ``http://``, and without the
+      ``.git`` suffix)
+
+    ``ssh://git@host:22/namespace/repo.git`` is deliberately not recognised;
+    no caller has needed it and guessing at the browse host for an explicit
+    ssh port would be wrong.
+
+    Backends use this to answer questions the browse URL cannot: whether a
+    work-tree's remote is theirs (``guard_remote``), and what owner and repo
+    name to build a forge API path from.
+    """
+    url = remote_url.strip()
+
+    ssh_match = _SSH_URL_RE.match(url)
+    if ssh_match:
+        return _parts(ssh_match.group(1), ssh_match.group(2), None)
+
+    if url.startswith(("https://", "http://")):
+        parsed = urlsplit(url)
+        if not parsed.hostname:
+            return None
+        return _parts(parsed.hostname, parsed.path, parsed.port)
+
+    return None
+
+
+def _parts(host: str, raw_path: str, port: int | None) -> CloneUrlParts | None:
+    path = raw_path.strip("/").removesuffix(".git")
+    if not path:
+        return None
+    namespace, _, repo = path.rpartition("/")
+    return CloneUrlParts(host=host.lower(), path=path, namespace=namespace, repo=repo, port=port)
 
 
 def clone_url_to_web(remote_url: str, *, allowed_host: str) -> str | None:
@@ -39,25 +99,11 @@ def clone_url_to_web(remote_url: str, *, allowed_host: str) -> str | None:
     (case-insensitive) — the caller's mirror lives somewhere else, so no URL
     can be claimed for it.
     """
-    url = remote_url.strip()
-
-    # SSH form: git@host:path/repo(.git)?
-    ssh_match = _SSH_URL_RE.match(url)
-    if ssh_match:
-        host = ssh_match.group(1).lower()
-        if host != allowed_host.lower():
-            return None
-        path = ssh_match.group(2)
-        return f"https://{host}/{path}"
-
-    # HTTPS form
-    if url.startswith(("https://", "http://")):
-        parsed = urlsplit(url)
-        if (parsed.hostname or "").lower() != allowed_host.lower():
-            return None
-        return url.removesuffix(".git")
-
-    return None
+    parts = split_clone_url(remote_url)
+    if parts is None or parts.host != allowed_host.strip().lower():
+        return None
+    port = f":{parts.port}" if parts.port else ""
+    return f"https://{parts.host}{port}/{parts.path}"
 
 
 def _git_out(cwd: Path, *args: str) -> str | None:
