@@ -8,6 +8,9 @@ Determines the next free spec number via new-doc-number.py, reads the
 template from docs/spec/spec-template.md, writes docs/spec/S<NN>-<slug>.md,
 and prints the path.
 
+`--also PATH` (repeatable) is forwarded to new-doc-number.py verbatim —
+see that script's docstring for why a wrapper repo needs it.
+
 Exit codes:
     0  — success.
     1  — argument or filesystem error.
@@ -21,14 +24,12 @@ import sys
 from pathlib import Path
 
 
-def next_spec_number() -> str:
+def next_spec_number(also: list[Path]) -> str:
     """Return the next free spec number as a zero-padded 2-digit string."""
-    result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / "new-doc-number.py"), "spec"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    argv = [sys.executable, str(Path(__file__).parent / "new-doc-number.py"), "spec"]
+    for path in also:
+        argv += ["--also", str(path)]
+    result = subprocess.run(argv, check=True, capture_output=True, text=True)
     return result.stdout.strip()
 
 
@@ -54,12 +55,20 @@ def build_spec_content(slug: str, number: str, template_path: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Scaffold a new spec document under docs/spec/.")
     parser.add_argument("slug", help="Short kebab-case slug for the spec (e.g. my-feature).")
+    parser.add_argument(
+        "--also",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="PATH",
+        help="forwarded to new-doc-number.py: dir whose numbers also count as used",
+    )
     args = parser.parse_args()
 
     slug: str = args.slug
 
     try:
-        number = next_spec_number()
+        number = next_spec_number(args.also)
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: failed to get next spec number: {exc.stderr}", file=sys.stderr)
         sys.exit(1)
