@@ -28,16 +28,18 @@ export default defineConfig({
 	integrations: [
 		excludeDesignRecordFromLlmsFull(),
 		starlight({
-			title: 'mdd',
+			title: 'MDD Does Docs',
 			description,
 			favicon: '/favicon.png',
-			// The wordmark is a dark slate that disappears against the dark nav
-			// bar, so dark mode gets a recoloured variant. Regenerate it with
-			// `mise run derive-dark-logo` if the source logo changes.
+			// The icon alone, not the full wordmark: the site title beside it
+			// already spells the name out, so the wordmark said it twice. Its
+			// line art is a dark slate that disappears against the dark nav bar,
+			// so dark mode gets a recoloured variant; regenerate both with
+			// `mise run derive-dark-svg-assets`.
 			logo: {
-				light: './src/assets/mdd-logo.png',
-				dark: './src/assets/mdd-logo-dark.png',
-				alt: 'mdd',
+				light: './src/assets/mdd-icon.svg',
+				dark: './src/assets/mdd-icon-dark.svg',
+				alt: 'MDD',
 				replacesTitle: false,
 			},
 			pagefind: true,
