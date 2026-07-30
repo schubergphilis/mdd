@@ -1,4 +1,4 @@
-"""Typed frontmatter / config / JSON parsing layer (spec S40).
+"""Typed frontmatter / config / JSON parsing layer.
 
 Three small parsing helpers and a base class:
 
@@ -46,7 +46,7 @@ class FrontmatterModel(BaseModel):
     ``version: "5"`` still decodes into ``int`` for users who quoted
     the value in YAML.  Frontmatter models MUST NOT use
     ``StrictInt`` / ``StrictBool`` / ``StrictStr`` and MUST NOT set
-    ``ConfigDict(strict=True)`` (spec S40 §Strictness posture).
+    ``ConfigDict(strict=True)``.
     """
 
     model_config = ConfigDict(extra="forbid")

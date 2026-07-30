@@ -1,6 +1,6 @@
 """Configured markdown-it-py parser for the mdd markdown flavour.
 
-Spec S30 §"Markdown flavour":
+The flavour:
 
     CommonMark core + table + strikethrough + linkify + tasklists
     + custom fenced_div (callouts + confluence-macro)

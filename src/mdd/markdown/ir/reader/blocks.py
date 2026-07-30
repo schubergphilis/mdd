@@ -166,7 +166,7 @@ def _consume_container(tokens: list[Token], i: int, out: list[Block], ctx: IRCon
     name = open_type[len("container_") : -len("_open")]
     info = open_tok.info.strip()
 
-    # Layout containers (spec S30): `:::layout` wraps `::::layout-section
+    # Layout containers: `:::layout` wraps `::::layout-section
     # layout_type="..."` blocks, each containing `:::::layout-cell` blocks.
     # Handle these via a dedicated consumer to preserve the Layout / LayoutSection
     # / LayoutCell structure rather than collapsing them into generic raw fallbacks.

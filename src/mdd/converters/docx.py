@@ -58,13 +58,11 @@ _BOILERPLATE_LINE_RES = [
     re.compile(r"^\s*[-*]\s+Actions are on the \[", re.IGNORECASE),
 ]
 
-# site-specific DOCX heuristics (spec S44 / plan P03 MR A5): the two-column
-# metadata-table extraction (meeting-minutes "For / Date / Author / …" tables)
-# and the "Meeting Logistics" boilerplate stripper. On by default so the
-# original behaviour is unchanged; a deployment without those templates
-# turns it off via
-# :func:`set_sbp_docx_heuristics` (the open-source core defaults it off in the
-# reference wrapper — plan P03 phases C–E).
+# site-specific DOCX heuristics: the two-column metadata-table extraction
+# (meeting-minutes "For / Date / Author / …" tables) and the "Meeting
+# Logistics" boilerplate stripper. On by default so the original behaviour is
+# unchanged; a deployment without those templates turns it off via
+# :func:`set_sbp_docx_heuristics`.
 _sbp_docx_heuristics = True
 
 
@@ -453,9 +451,9 @@ def _inject_image_links(md: str, links: list[str]) -> str:
 
     Replacements happen in document order. If we collected more links than
     Docling left placeholders, the extras are appended at the end so the
-    image isn't silently dropped from the markdown — the plan's
-    acceptance criterion is "image present, link somewhere in the same
-    block" rather than perfect positioning.
+    image isn't silently dropped from the markdown. The bar is "image
+    present, link somewhere in the same block" rather than perfect
+    positioning.
     """
     placeholder = "<!-- image -->"
     remaining = md

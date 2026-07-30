@@ -1,10 +1,8 @@
 """Document container and identity-walk helpers.
 
 `Document` is the root of the IR. It carries the top-level block
-list plus the metadata fields called out in
-[spec S28](../../../docs/spec/S28-document-ir-foundation.md)
-section "Public API": `source_format`, `parsed_at`, `fallbacks`,
-plus `page_title` and `node_id_counter`.
+list plus `source_format`, `parsed_at`, `fallbacks`, `page_title`
+and `node_id_counter`.
 """
 
 from __future__ import annotations

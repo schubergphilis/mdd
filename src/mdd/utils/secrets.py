@@ -73,10 +73,10 @@ def resolve_secret(value: str, *, account: str | None = None) -> str:
             check=False,
         )
     except FileNotFoundError as exc:
-        raise SecretError("op CLI not installed; see spec S07") from exc
+        raise SecretError("op CLI not installed; install the 1Password CLI and retry") from exc
 
     if result.returncode == 127:
-        raise SecretError("op CLI not installed; see spec S07")
+        raise SecretError("op CLI not installed; install the 1Password CLI and retry")
 
     if result.returncode != 0:
         stderr = result.stderr or ""

@@ -14,7 +14,7 @@ into IR nodes. Confluence-specific shapes are recognised via:
 * ``:::confluence-macro {…}`` fenced divs → ``ConfluenceMacro``.
 * ` ```confluence-xml ` fenced code blocks → ``RawBlock(format="confluence-storage")``.
 
-Fallback policy (spec S30 §"Fallback policy"):
+Fallback policy:
   inline HTML     → ``RawInline(format="html")``
   block HTML      → ``RawBlock(format="html")``
   confluence-xml  → ``RawBlock(format="confluence-storage")``

@@ -2,7 +2,7 @@
 
 Entry point: ``render_markdown(doc: Document) -> str``.
 
-Conventions (spec S30 §"Writer behaviour"):
+Conventions:
 
 * Standard CommonMark for headings, paragraphs, lists, blockquotes, code,
   tables, hr.

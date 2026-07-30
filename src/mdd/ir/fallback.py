@@ -11,10 +11,9 @@ re-exports them and adds:
   that construct the `RawBlock` / `RawInline` *and* append the
   event to the context in one call, so reader code stays readable.
 
-Per spec S28 §"Fallback contract" the IR layer itself only defines
-the mechanism. Per-format policy (which shapes count as
-recognised vs. fall through) lives in the converter specs 029 and
-030.
+The IR layer only defines the mechanism. Which shapes count as
+recognised versus fall through is per-format policy, decided by each
+reader/writer, not here.
 """
 
 from __future__ import annotations
