@@ -1,7 +1,7 @@
 """Attribute helpers for Confluence storage XHTML.
 
 ``all_attrs_ordered()`` builds the single source-order ``attributes`` dict
-(spec S28 §"Identity and provenance fields") used by every IR node.
+used by every IR node.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ def qname(key: str) -> str:
 def all_attrs_ordered(node: Any, *, skip: tuple[str, ...] = ()) -> dict[str, str]:
     """All attributes in source order as a single dict with qname-normalised keys.
 
-    This is the new ``attributes`` dict (spec S28 §"Identity and provenance
-    fields") that replaces the identity/attrs split.  lxml preserves source
-    attribute order via ``etree.attrib.items()``, so the returned dict
+    This is the ``attributes`` dict that replaces the identity/attrs split.
+    lxml preserves source attribute order via ``etree.attrib.items()``, so
+    the returned dict
     round-trips byte-perfect.
     """
     skip_set = set(skip)

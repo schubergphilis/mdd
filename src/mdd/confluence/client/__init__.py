@@ -1,4 +1,4 @@
-"""Confluence REST API client with retry/backoff (spec S09).
+"""Confluence REST API client with retry/backoff.
 
 The dominant public symbol — :class:`ConfluenceClient` — lives in this
 ``__init__.py``. Topic-grouped helper modules sit alongside:
@@ -8,8 +8,6 @@ The dominant public symbol — :class:`ConfluenceClient` — lives in this
 
 Request/response trace hooks come from :mod:`mdd.utils.http_trace`, and
 retry-decision helpers from :mod:`mdd.utils.retry`.
-
-# S36-exception: dominant public class; internal class split is a separate refactor
 """
 
 from __future__ import annotations
@@ -43,12 +41,12 @@ __all__ = [
 
 @dataclass(frozen=True)
 class PutPageOptions:
-    """Optional fields for :meth:`ConfluenceClient.put_page` (spec S27).
+    """Optional fields for :meth:`ConfluenceClient.put_page`.
 
     Bundled so that adding ``parent_id`` / ``status`` to ``put_page``'s
-    signature does not push it past the project's 6-arg structural limit
-    (S34).  When both fields are at their defaults the PUT behaves
-    identically to the original 5-positional signature.
+    signature does not push it past the project's 6-arg structural limit.
+    When both fields are at their defaults the PUT behaves identically to
+    the original 5-positional signature.
     """
 
     parent_id: str | None = None
@@ -58,7 +56,7 @@ class PutPageOptions:
 log = get_logger(__name__)
 
 
-# 5 attempts total: 1 initial + 4 retries (spec S09 line 259).
+# 5 attempts total: 1 initial + 4 retries.
 _RETRY_DELAYS = (1, 2, 4, 8)  # seconds between retries
 
 # Safety guard against runaway pagination loops.  Set deliberately tight while
@@ -281,7 +279,7 @@ class ConfluenceClient:
         )
 
     def get_page_ancestors(self, page_id: str) -> list[dict[str, Any]]:
-        """Fetch the ancestor chain for a page (spec S27).
+        """Fetch the ancestor chain for a page.
 
         ``GET /wiki/api/v2/pages/{page_id}/ancestors``
 
@@ -551,7 +549,7 @@ class ConfluenceClient:
         exactly like the historic 5-positional signature — the page keeps
         its parent and remains current.  Bundling these in an options
         dataclass keeps :meth:`put_page` within the ``max-args`` quality
-        gate while still letting S27 share this primitive.
+        gate while still letting move/archive callers share this primitive.
         """
         opts = options if options is not None else PutPageOptions()
         self._validate_id(page_id, "page_id")

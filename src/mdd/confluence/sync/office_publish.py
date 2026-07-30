@@ -1,4 +1,4 @@
-"""Office-publish helpers (spec S17) wired into the sync pipeline."""
+"""Office-publish helpers wired into the sync pipeline."""
 
 from __future__ import annotations
 
@@ -130,9 +130,9 @@ def run_office_publish(
     dry_run: bool = False,
     managed_config: ManagedConfig | None = None,
 ) -> None:
-    """Run publish_office for all tracked pages that have opted in (spec S17).
+    """Run publish_office for all tracked pages that have opted in.
 
-    Called after attachment sync (spec S16's hook) and before the commit.
+    Called after attachment sync and before the commit.
     Failures are recorded in ``summary.failures``; sync continues.
     """
     ctx = OfficePublishCtx(
