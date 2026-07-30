@@ -1,4 +1,4 @@
-"""Per-page materialisation helpers for ``move-page`` (spec S27).
+"""Per-page materialisation helpers for ``move-page``.
 
 When ``mdd confluence move-page`` lands a file under a new parent
 whose ancestor chain is not yet fully present in the local mirror,
@@ -16,7 +16,7 @@ calls these helpers for each missing link before doing the ``git mv``:
 These helpers are written to be callable from the imperative mutate
 path without rebuilding a full :class:`MirrorState`.
 
-Partial materialisation is acceptable on failure per S27: the
+Partial materialisation is acceptable on failure: the
 Confluence-side move is the source of truth and is not rolled back;
 ``sync-space`` reconciles any half-built local state.
 """
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 # Conventional filename for the "directory-shaped" representation of a
-# page that has at least one child page (spec S27).  Lives here, not in
+# page that has at least one child page.  Lives here, not in
 # :mod:`mdd.confluence.paths`, because today it is only produced by the
 # move-page materialisation path; sync still uses the flat+sibling
 # layout for newly-pulled trees.
@@ -70,7 +70,7 @@ def pull_single_page(
     that ``sync-space`` uses for new / content-edit events.  After the
     pipeline writes ``target_dir/<sanitized-title>.md``, this helper
     renames the file to ``target_dir/_index.md`` so the directory
-    represents an ancestor page per S27's tree layout.
+    represents an ancestor page in the mirror tree.
 
     Attachments are fetched the same way sync does (the export pipeline
     handles them).  The caller is responsible for staging the resulting
@@ -100,7 +100,7 @@ def promote_flat_to_dir(
 
     Used when an ancestor page is present in the mirror as a flat
     ``Title.md`` (no children directory yet) and now needs to acquire
-    a child.  Per S27 the post-state is ``Title/_index.md``.
+    a child.  The post-state is ``Title/_index.md``.
 
     The page's attachments directory (``<stem>-attachments/``) is moved
     alongside the page when present.  Both moves go through
@@ -108,7 +108,7 @@ def promote_flat_to_dir(
     history.
 
     Raises :class:`mdd.confluence.apply.ApplyError` when the underlying
-    ``git mv`` fails.  The caller's recovery hint (S27) covers this case.
+    ``git mv`` fails; the caller turns that into a recovery hint.
     """
     expected_dir.mkdir(parents=True, exist_ok=True)
     new_index_path = expected_dir / INDEX_BASENAME

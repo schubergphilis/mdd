@@ -1,4 +1,4 @@
-"""Create a new Confluence page from a local Markdown file (spec 009d).
+"""Create a new Confluence page from a local Markdown file.
 
 Two-phase create
 ----------------

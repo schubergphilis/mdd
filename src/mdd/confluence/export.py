@@ -1,4 +1,4 @@
-"""Export a Confluence page or space to Markdown files (spec S09)."""
+"""Export a Confluence page or space to Markdown files."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def _nested_str(data: dict[str, Any], *keys: str) -> str:
 
 
 def _print_attachment_summary(summary: AttachmentSyncSummary) -> None:
-    """Emit the per-page attachment summary line (spec S16).
+    """Emit the per-page attachment summary line.
 
     Suppressed when nothing was synced — the all-zero line is pure noise
     on attachment-free pages (issue #89).
@@ -239,7 +239,7 @@ def _sync_attachments(
     page_name: str,
     attachment_refs: list[AttachmentRef],
 ) -> list[AttachmentManifestEntry]:
-    """Download body-referenced images then sync all attachments (spec S09 + S16)."""
+    """Download body-referenced images then sync all attachments."""
     img_manifest: list[AttachmentManifestEntry] = []
     if attachment_refs:
         img_manifest = download_for_page(
@@ -344,7 +344,7 @@ def _apply_managed_classification(
     conf_fm: dict[str, Any],
     body_storage: str,
 ) -> ManagedClassification | None:
-    """Classify the page per spec S26 and stamp ``managed_*`` keys when managed."""
+    """Classify the page and stamp ``managed_*`` keys when it is managed elsewhere."""
     if ctx.managed_config is None:
         return None
     page_info = build_page_info_from_page_data(ctx.page_data, body_storage)
@@ -408,11 +408,12 @@ def export_page(  # noqa: PLR0913
         out_dir: Directory to write the output file into.
         page_data: Pre-fetched page data (optional; avoids a second API call).
         max_attachment_size_bytes: If set, skip attachment downloads above this
-            size threshold (spec S16 ``--max-attachment-size``).
+            size threshold (the ``--max-attachment-size`` flag).
         existing_attachments_manifest: Current attachments manifest from the
             local mirror's frontmatter (used as download/conversion cache).
-        managed_config: When provided, classifies the page via spec S26 and
-            stamps managed-elsewhere frontmatter + replaces export header.
+        managed_config: When provided, classifies the page as
+            managed-elsewhere or not, stamping frontmatter and replacing the
+            export header when it is.
         include_export_header: When False, the leading ``> **Confluence
             export**`` blockquote is omitted. Useful for round-trip testing
             and other scripted exports where the header is noise rather

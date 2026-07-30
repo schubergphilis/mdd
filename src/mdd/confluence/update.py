@@ -1,4 +1,4 @@
-"""Update a Confluence page from a local Markdown file (spec 009c)."""
+"""Update a Confluence page from a local Markdown file."""
 
 from __future__ import annotations
 
@@ -250,7 +250,7 @@ def _fetch_and_check_managed(
     page_id: str,
     managed_config: ManagedConfig | None,
 ) -> dict[str, Any]:
-    """Fetch the remote page and refuse if it is externally managed (spec S26)."""
+    """Fetch the remote page and refuse if it is externally managed."""
     try:
         page_data = client.get_page(page_id)
     except ConfluenceError as exc:
@@ -275,7 +275,7 @@ def _check_no_remote_advance(remote_version: int, local_version: int) -> None:
     """Refuse to push when the remote has advanced past the local snapshot.
 
     Delegates to ``mdd.confluence.version.check_version_drift`` so the same
-    wording is shared with the S27 mutate orchestrators (P06 phase 1).
+    wording is shared with the mutate orchestrators.
     """
     try:
         check_version_drift(local_version, remote_version)
@@ -327,7 +327,7 @@ def _render_body_xhtml(md_path: Path, body_stripped: str, remote_storage: str) -
     ``schema-version``, ``ac:breakout-*`` …) from the remote storage IR onto
     the freshly-parsed-from-markdown IR. Without this step every round-trip
     strips identity from layout/section/cell/macro/paragraph nodes because
-    the markdown leg intentionally does not carry them (spec S33 §R3). New
+    the markdown leg intentionally does not carry them. New
     blocks the user authored locally have no match in the remote IR and
     render without identity — Confluence assigns fresh ids on save, which
     is what we want.
