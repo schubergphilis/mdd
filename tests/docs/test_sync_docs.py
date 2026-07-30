@@ -205,7 +205,45 @@ def test_relative_link_preserves_fragment_across_sections(tmp_path: Path) -> Non
 
     assert sync_docs.run(tmp_path) == 0
     body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
-    assert "(/mdd/spec/S07-data-protection/#exports)" in body
+    assert "(/mdd/spec/s07-data-protection/#exports)" in body
+
+
+def test_site_urls_are_lowercased_to_match_starlight_slugs(tmp_path: Path) -> None:
+    """Starlight serves `S07-data-protection.md` at `.../s07-data-protection/`.
+
+    A link that keeps the filename's case resolves to a 404 on the deployed
+    site, and nothing else in the pipeline would notice: the link checker only
+    asks whether the target file exists in the repository.
+    """
+    write_file(
+        tmp_path / "docs" / "guide" / "01-install.md",
+        "# Install\n\nSee [S07](../spec/S07-data-protection.md) and"
+        " [R14](../research/R14-documentation-strategy.md).\n",
+    )
+    write_file(
+        tmp_path / "docs" / "spec" / "S07-data-protection.md",
+        "# S07: Data protection\n\n**Purpose:** Protect data.\n",
+    )
+    write_file(
+        tmp_path / "docs" / "research" / "R14-documentation-strategy.md",
+        "# 014 - Documentation strategy\n\nA note.\n",
+    )
+
+    assert sync_docs.run(tmp_path) == 0
+    body = dest_path(tmp_path, "guide", "install.md").read_text(encoding="utf-8")
+    assert "(/mdd/spec/s07-data-protection/)" in body
+    assert "(/mdd/research/r14-documentation-strategy/)" in body
+
+    # The destination filename keeps its original case; only the URL is folded.
+    assert dest_path(tmp_path, "spec", "S07-data-protection.md").exists()
+
+
+def test_raw_markdown_twin_path_is_lowercased(tmp_path: Path) -> None:
+    """A twin is fetched by URL, so its path must match the page's slug."""
+    write_file(tmp_path / "docs" / "guide" / "01-Install.md", "# Install\n\nBody.\n")
+
+    assert sync_docs.run(tmp_path) == 0
+    assert (tmp_path / "site" / "public" / "guide" / "install.md").exists()
 
 
 def test_relative_link_to_unpublished_file_becomes_github_url(tmp_path: Path) -> None:
