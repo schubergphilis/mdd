@@ -1,4 +1,4 @@
-"""Tests for the spec S39 ``.mddignore`` wiring in ``mdd confluence sync-space`` (issue #118)."""
+"""Tests for the ``.mddignore`` wiring in ``mdd confluence sync-space``."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ class TestBuildPageRelPaths:
         assert str(rels["200"].child_rel) == "Archive/Old Doc"
 
     def test_nbsp_title_rel_path_uses_ascii_space(self) -> None:
-        # Issue #140: a title with U+00A0 NO-BREAK SPACE between words must
+        # A title with U+00A0 NO-BREAK SPACE between words must
         # produce the same rel-path as the plain-ASCII-space equivalent, so
         # the synthetic path agrees with both the real export path
         # (export.build_path_map, which also calls `sanitize`) and a
@@ -147,7 +147,7 @@ class TestFilterDesired:
 
     def test_already_tracked_pages_are_preserved(self, tmp_path: Path) -> None:
         # Page "100" matches the pattern but is already in mirror.tracked —
-        # MUST NOT be dropped (S39 contract: ignore only blocks new pulls).
+        # MUST NOT be dropped: ignore only blocks new pulls.
         desired = {"100": _dp("100", "Archive")}
         client = MagicMock()
         client.get_folder.side_effect = Exception("no folders")
@@ -160,7 +160,7 @@ class TestFilterDesired:
         assert skipped == []
 
     def test_nbsp_title_matches_ascii_space_pattern(self, tmp_path: Path) -> None:
-        # Issue #140 repro: a page titled with U+00A0 between words must be
+        # A page titled with U+00A0 between words must be
         # filtered by a `.mddignore` pattern typed with plain ASCII spaces.
         title = "Malicious\xa0litellm\xa0Supply\xa0Chain\xa0Attack"
         desired = {
@@ -323,7 +323,7 @@ class TestSyncSpaceMatcherSummary:
         assert summary.skipped_ignored_paths == []
 
     def test_already_synced_page_not_dropped_on_new_pattern(self, tmp_path: Path) -> None:
-        """S39 contract: adding a pattern must NOT delete already-synced pages."""
+        """Adding a pattern must NOT delete already-synced pages."""
         output_dir = tmp_path / "mirror"
         _init_git_repo(output_dir)
 

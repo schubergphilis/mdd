@@ -93,7 +93,7 @@ class TestLoadMapping:
         assert len(result) == 2
         assert result["HR Documentation"].repo_name == "HR-Documentation"
 
-    # --- Spec-010 dict-keyed format ---
+    # --- dict-keyed format ---
 
     def test_spec_empty_dict_returns_empty(self, tmp_path: Path) -> None:
         mapping_file = tmp_path / "sharepoint-mapping.yaml"

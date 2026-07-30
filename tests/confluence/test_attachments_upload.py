@@ -122,7 +122,7 @@ class TestSyncAttachmentsForUpdate:
     def test_missing_file_emits_warning(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Issue #31: missing local attachment must produce a logger warning."""
+        """A missing local attachment must produce a logger warning."""
         client = _make_client()
         body_md = "![ghost](nonexistent.png)"
 
@@ -150,7 +150,7 @@ class TestSyncAttachmentsForUpdate:
         assert len(result) == 1
 
     def test_traversal_path_ref_is_skipped(self, tmp_path: Path) -> None:
-        """Issue #12: upload-side traversal reference must not read outside working_dir."""
+        """An upload-side traversal reference must not read outside working_dir."""
         # Create a file outside tmp_path to simulate a potential traversal target
         outside_dir = tmp_path.parent / "outside"
         outside_dir.mkdir(exist_ok=True)

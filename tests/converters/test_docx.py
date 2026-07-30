@@ -275,7 +275,7 @@ def _docx_with_images(tmp_path: Path, name: str, image_count: int) -> Path:
 
 
 class TestDocxImageExtraction:
-    """#97: embedded docx images are written to an attachments dir and linked."""
+    """Embedded docx images are written to an attachments dir and linked."""
 
     def test_two_images_written_and_linked(self, tmp_path: Path) -> None:
         src = _docx_with_images(tmp_path, "pics.docx", image_count=2)
@@ -368,7 +368,7 @@ class TestDocxImageInjection:
 
 
 class TestWriteDocxCorruptSource:
-    """Issue #129: _write_docx raises CorruptSourceError for empty/garbage input."""
+    """_write_docx raises CorruptSourceError for empty/garbage input."""
 
     def test_zero_byte_docx_raises_corrupt(self, tmp_path: Path) -> None:
         import pytest
@@ -410,7 +410,7 @@ class TestWriteDocxCorruptSource:
 
 
 class TestSbpDocxHeuristicsGate:
-    """The site-specific metadata + boilerplate heuristics can be turned off (S44)."""
+    """The site-specific metadata + boilerplate heuristics can be turned off."""
 
     def _reset(self) -> None:
         from mdd.converters.docx import set_sbp_docx_heuristics

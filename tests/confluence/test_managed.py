@@ -1,4 +1,4 @@
-"""Tests for managed-elsewhere detection cascade (spec S26)."""
+"""Tests for managed-elsewhere detection cascade."""
 
 from __future__ import annotations
 

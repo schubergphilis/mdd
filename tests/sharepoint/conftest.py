@@ -1,8 +1,8 @@
 """Test-isolation helpers for tests/lucid.
 
 Two effects of running the ``mdd`` CLI inside another test linger across
-test boundaries and break later tests after issue #122 routed status
-output through :mod:`logging` instead of ``print``:
+test boundaries and break later tests, now that status output is routed
+through :mod:`logging` instead of ``print``:
 
 1. :func:`mdd.utils.logging.configure` attaches a
    :class:`logging.StreamHandler` bound to the ``sys.stderr`` of the

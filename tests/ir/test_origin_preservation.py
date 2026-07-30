@@ -1,7 +1,4 @@
-"""Tests for Origin field population and preserving-mode reader/writer plumbing.
-
-See spec S31 §"Whitespace preservation model" for the contract these tests verify.
-"""
+"""Tests for Origin field population and preserving-mode reader/writer plumbing."""
 
 from __future__ import annotations
 
@@ -216,7 +213,7 @@ class TestConfluenceWriterPreservingMode:
 
 
 # ---------------------------------------------------------------------------
-# R1 byte-perfect gate (spec S33)
+# R1 byte-perfect gate
 # ---------------------------------------------------------------------------
 
 

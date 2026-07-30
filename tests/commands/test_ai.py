@@ -1,4 +1,4 @@
-"""Tests for mdd.commands.ai — CLI dispatcher (spec S35 entrypoint)."""
+"""Tests for mdd.commands.ai — CLI dispatcher."""
 
 from __future__ import annotations
 

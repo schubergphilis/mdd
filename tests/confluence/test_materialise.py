@@ -1,4 +1,4 @@
-"""Tests for mdd.confluence.materialise — per-page pull / promote helpers (spec S27)."""
+"""Tests for mdd.confluence.materialise — per-page pull / promote helpers."""
 
 from __future__ import annotations
 

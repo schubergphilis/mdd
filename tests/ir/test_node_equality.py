@@ -1,7 +1,7 @@
 """Frozen-dataclass equality + immutability checks for every IR node.
 
-Spec S28 names `from_json(to_json(ir)) == ir` as a real invariant.
-The pre-condition is that every node defines structural equality
+`from_json(to_json(ir)) == ir` is a real invariant. The
+pre-condition is that every node defines structural equality
 and forbids field mutation. This module hand-builds at least one
 instance of every block + inline class and asserts both.
 """

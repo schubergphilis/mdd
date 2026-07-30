@@ -66,7 +66,7 @@ class TestWrite:
         assert path.exists()
 
     def test_tmp_file_cleaned_up_on_write_failure(self, tmp_path: Path) -> None:
-        """Issue #44: if writing the tmp file raises, no orphan .tmp must remain."""
+        """If writing the tmp file raises, no orphan .tmp must remain."""
         path = tmp_path / "page.md"
         tmp_file = path.with_suffix(".md.tmp")
 
@@ -85,7 +85,7 @@ class TestWrite:
         assert not tmp_file.exists()
 
     def test_tmp_file_cleaned_up_on_replace_failure(self, tmp_path: Path) -> None:
-        """Issue #44: if os.replace raises, no orphan .tmp must remain."""
+        """If os.replace raises, no orphan .tmp must remain."""
 
         path = tmp_path / "page.md"
         tmp_file = path.with_suffix(".md.tmp")

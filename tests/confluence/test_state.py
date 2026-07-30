@@ -1,4 +1,4 @@
-"""Tests for confluence state module (spec S14)."""
+"""Tests for confluence state module."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ class TestBuildMirrorStateUntracked:
 class TestBuildMirrorStateAttachmentDerived:
     """`*-attachments/<stem>.<ext>.md` files are converter outputs, not user-authored.
 
-    Issue #87 — they should be classified as ``attachment_derived``, not ``manual``,
+    They must be classified as ``attachment_derived``, not ``manual``,
     so the sync summary does not flag them as drift to investigate.
     """
 

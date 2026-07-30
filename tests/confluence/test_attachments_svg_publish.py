@@ -1,4 +1,4 @@
-"""Tests for SVG->PNG rasterization on Confluence publish (issue #143).
+"""Tests for SVG->PNG rasterization on Confluence publish.
 
 ``sync_attachments_for_update`` (the update-page/create-page attachment
 upload path) historically uploaded every locally-referenced file

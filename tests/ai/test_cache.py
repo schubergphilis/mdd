@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.cache — filesystem cache (spec S20)."""
+"""Tests for mdd.ai.cache — filesystem cache."""
 
 from __future__ import annotations
 

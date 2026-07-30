@@ -1,13 +1,13 @@
 """Entity-handling regression tests for ``mdd.confluence.ir.reader``.
 
-issue #90: HTML5 entities (``&rsquo;``, ``&mdash;``, ``&hellip;`` …) inside
-XML attribute values must survive the lxml round-trip as Unicode characters
+HTML5 entities (``&rsquo;``, ``&mdash;``, ``&hellip;`` …) inside XML
+attribute values must survive the lxml round-trip as Unicode characters
 rather than being silently dropped by ``recover=True``. The five
 XML-predefined entities continue to pass through inside tags so lxml decodes
 them natively.
 
-Companion to the element-text coverage from #73 (already exercised by
-``tests/ir/test_origin_preservation.py``).
+Companion to the element-text coverage in
+``tests/ir/test_origin_preservation.py``.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ class TestAttributeEntityPreservation:
 
 
 class TestElementTextEntityStillWorks:
-    """Regression: the #73 element-text entity decoding must not regress."""
+    """Regression: element-text entity decoding must not regress."""
 
     def test_hellip_in_element_text(self) -> None:
         doc = parse_confluence_storage("<p>wait&hellip;for it</p>")

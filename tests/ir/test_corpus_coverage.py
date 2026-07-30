@@ -1,7 +1,7 @@
 """Corpus coverage matrix gate.
 
-Per spec S32 §"Coverage matrix": every IR node class must have ≥ 1
-occurrence somewhere in the corpus. Two classes are intentionally
+Every IR node class must have ≥ 1 occurrence somewhere in the
+corpus. Two classes are intentionally
 left in ``_KNOWN_GAPS`` because they can never be observed through
 ``parse_confluence_storage`` (the only direction this gate measures):
 
@@ -13,7 +13,7 @@ left in ``_KNOWN_GAPS`` because they can never be observed through
 
 The remaining six classes that were missing in the initial 35-fixture
 corpus (Emoticon, Image, LineBreak, Placeholder, RawInline,
-Strikethrough) were closed in Phase 5 (2026-05-13) — they now have
+Strikethrough) were closed on 2026-05-13 — they now have
 focused fixtures and are hard-failed on regression.
 """
 

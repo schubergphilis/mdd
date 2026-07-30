@@ -1,7 +1,7 @@
-"""Tests for the spec S39 ``--prune-ignored`` wiring in ``mdd confluence sync-space``.
+"""Tests for the ``--prune-ignored`` wiring in ``mdd confluence sync-space``.
 
-P04 MR 2 — Confluence side of issue #120. Mirrors the sharepoint test set
-in ``tests/sharepoint/test_bidirectional_sync.py::TestSyncFolderPruneIgnored``.
+Mirrors the sharepoint test set in
+``tests/sharepoint/test_bidirectional_sync.py::TestSyncFolderPruneIgnored``.
 """
 
 from __future__ import annotations

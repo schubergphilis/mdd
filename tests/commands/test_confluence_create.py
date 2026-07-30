@@ -1,4 +1,4 @@
-"""Tests for mdd commands: confluence create page (spec 009d)."""
+"""Tests for mdd commands: confluence create page."""
 
 from __future__ import annotations
 

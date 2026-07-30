@@ -1,4 +1,4 @@
-"""Tests for mdd.confluence.tree — page tree builder (spec 009b)."""
+"""Tests for mdd.confluence.tree — page tree builder."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ class TestListPages:
         assert len(pages) == 6
         assert client.get.call_count == 2
 
-        # First call should be with space-id param (kebab-case, per v2 API; #79)
+        # First call should be with space-id param (kebab-case, per v2 API)
         first_call_args = client.get.call_args_list[0]
         assert first_call_args[0][0] == "/wiki/api/v2/pages"
         params = first_call_args[1]["params"]
@@ -467,7 +467,7 @@ class TestNodeBuilderHelpers:
 
 
 # ---------------------------------------------------------------------------
-# ancestor_chain_for_move (spec S27)
+# ancestor_chain_for_move
 # ---------------------------------------------------------------------------
 
 

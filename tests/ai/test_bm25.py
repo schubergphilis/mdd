@@ -1,4 +1,4 @@
-"""Tests for mdd.ai.bm25 — BM25 index wrapper (spec S22)."""
+"""Tests for mdd.ai.bm25 — BM25 index wrapper."""
 
 from __future__ import annotations
 

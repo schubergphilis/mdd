@@ -1,4 +1,4 @@
-"""Tests for mdd.mirror.registry (spec S44)."""
+"""Tests for mdd.mirror.registry."""
 
 from __future__ import annotations
 

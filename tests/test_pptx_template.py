@@ -1,13 +1,13 @@
 """Structural tests for the bundled simple-presentation*.pptx templates.
 
-Regression coverage for issue #75: pandoc's pptx writer expects 11 slide
-layouts in the reference doc (matching the standard Microsoft layout set).
-When the template only had 9, pandoc added slideLayout10/11 as parts in the
-rendered archive without wiring them into slideMaster1.xml.rels, producing
-orphan layouts that triggered PowerPoint's repair dialog.
+Pandoc's pptx writer expects 11 slide layouts in the reference doc (matching
+the standard Microsoft layout set). When the template only had 9, pandoc
+added slideLayout10/11 as parts in the rendered archive without wiring them
+into slideMaster1.xml.rels, producing orphan layouts that triggered
+PowerPoint's repair dialog.
 
-Also covers issue #19: `simple-presentation-compact.pptx` is the same archive
-with a smaller `<p:bodyStyle>` scale, derived by
+Also covers `simple-presentation-compact.pptx`: the same archive with a
+smaller `<p:bodyStyle>` scale, derived by
 ``scripts/derive-compact-pptx.py``.
 """
 
@@ -150,7 +150,7 @@ class TestBundledTemplate:
 
 
 class TestCompactTemplate:
-    """The compact variant differs from the default in exactly one XML part (issue #19)."""
+    """The compact variant differs from the default in exactly one XML part."""
 
     def test_default_scale_unchanged(self) -> None:
         assert _body_style_sizes(TEMPLATE) == DEFAULT_BODY_SIZES

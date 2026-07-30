@@ -28,7 +28,7 @@ def _mock_response(
     mock.status_code = status_code
     mock.is_success = 200 <= status_code < 300
     mock.text = ""
-    # Set up headers as a dict-like mock (Retry-After support, spec S16)
+    # Set up headers as a dict-like mock (Retry-After support)
     header_dict: dict[str, str] = headers or {}
 
     def _headers_get(key: str, default: str | None = None) -> str | None:
@@ -54,7 +54,7 @@ class TestRetryOn429:
         ):
             client.get("/test")
 
-        # 5 attempts total (spec S09): 1 initial + 4 retries with delays 1,2,4,8.
+        # 5 attempts total: 1 initial + 4 retries with delays 1,2,4,8.
         # The last attempt has delay=None so no sleep before it — sleep is called 4 times.
         assert mock_sleep.call_count == 4
 
@@ -139,7 +139,7 @@ class TestConnectErrorRetry:
         ):
             client.get("/test")
 
-        # 5 attempts total (spec S09): 1 initial + 4 retries; sleep before each retry.
+        # 5 attempts total: 1 initial + 4 retries; sleep before each retry.
         assert mock_sleep.call_count == 4
 
     def test_connect_error_then_success(self) -> None:
@@ -165,7 +165,7 @@ class TestConnectErrorRetry:
 
 
 class TestTimeoutErrorRetry:
-    """Issue #79: TimeoutException (read/connect/write/pool) should retry and surface clearly."""
+    """TimeoutException (read/connect/write/pool) should retry and surface clearly."""
 
     def test_read_timeout_retries_then_raises(self) -> None:
         client = _make_client()
@@ -200,7 +200,7 @@ class TestTimeoutErrorRetry:
 
 
 class TestRetryAfterHeader:
-    """spec S16: 429 with Retry-After must honour the header value (capped at 60 s)."""
+    """A 429 with Retry-After must honour the header value (capped at 60 s)."""
 
     def test_429_with_retry_after_uses_header_value(self) -> None:
         client = _make_client()

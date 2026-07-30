@@ -411,7 +411,7 @@ class TestMappingFlag:
 
 
 # ---------------------------------------------------------------------------
-# `.mddignore` CLI wiring — spec S39
+# `.mddignore` CLI wiring
 # ---------------------------------------------------------------------------
 
 
@@ -594,7 +594,7 @@ class TestIgnoreFlag:
     def test_sync_site_read_only_and_prune_ignored_rejected(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # Spec S39: ``--read-only`` + ``--prune-ignored`` MUST be rejected
+        # ``--read-only`` + ``--prune-ignored`` MUST be rejected
         # at parse time with a clear error and non-zero exit code.
         output_dir = tmp_path / "out"
         output_dir.mkdir()

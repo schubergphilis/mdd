@@ -1,4 +1,4 @@
-"""Contract tests for the built-in mirror backends (spec S44)."""
+"""Contract tests for the built-in mirror backends."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ class TestGenericGitBackend:
         assert GenericGitBackend().reachable() is True
 
     def test_web_url_is_none(self, tmp_path: Path) -> None:
-        """No browse convention is guessed for a plain git remote (S44)."""
+        """No browse convention is guessed for a plain git remote."""
         assert GenericGitBackend().web_url(tmp_path / "Page.md") is None
 
     def test_push_refuses_non_repo(self, tmp_path: Path) -> None:

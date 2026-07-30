@@ -1,4 +1,4 @@
-"""Tests for :mod:`mdd.confluence.sync.deletions` (issue #88, plan P04).
+"""Tests for :mod:`mdd.confluence.sync.deletions`.
 
 Covers the branch between git-backed deletion (``git rm``) and plain-filesystem
 deletion (``Path.unlink`` / ``shutil.rmtree``). The latter applies when the
@@ -150,8 +150,8 @@ def test_apply_deletions_non_git_dir(tmp_path: Path, caplog: pytest.LogCaptureFi
     """End-to-end: ``apply_deletions`` on a non-git mirror physically removes files
     without logging any error.
 
-    Regression: before the #88 fix every DELETED event ran ``git rm`` which
-    failed with ``fatal: not a git repository`` (exit 128) on a plain mirror.
+    Regression: every DELETED event used to run ``git rm``, which failed with
+    ``fatal: not a git repository`` (exit 128) on a plain mirror.
     """
     page, att_dir = _make_page_with_attachments(tmp_path)
     events = [

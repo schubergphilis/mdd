@@ -1,6 +1,6 @@
 """Benchmark gates for the IR round-trip.
 
-Per spec S33 §"Benchmark gates":
+The gates:
 
 | Gate | Threshold |
 |------|-----------|
@@ -66,7 +66,7 @@ def _measure_corpus(snapshots: list[SnapshotFixture]) -> dict[str, float]:
             try:
                 _r3_once(snap.storage_xhtml)
             except Exception:
-                # Some fixtures exercise Origin shapes Phase 4 hasn't covered;
+                # Some fixtures exercise Origin shapes not yet covered;
                 # skip the benchmark for those — the correctness gate already
                 # xfails them.
                 runs_ms.append(float("nan"))
@@ -126,6 +126,6 @@ def test_benchmark_r3_timings(corpus_snapshots: list[SnapshotFixture]) -> None:
     assert not failures, (
         "benchmark thresholds exceeded: "
         + "; ".join(failures)
-        + ". Per spec S33: 'If they flake, raise — don't disable'. "
+        + ". If they flake, raise — don't disable. "
         + "Calibrate by re-measuring then lifting the gate."
     )
