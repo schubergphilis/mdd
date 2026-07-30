@@ -3,7 +3,7 @@
 Names without a leading underscore are shared across sibling modules
 inside ``mdd.confluence.ir.writer``. Names with an underscore stay
 local to this module. The package boundary is the encapsulation
-surface (S36).
+surface.
 """
 
 from __future__ import annotations

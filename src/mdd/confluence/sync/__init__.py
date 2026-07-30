@@ -1,4 +1,4 @@
-"""Bidirectional Confluence space sync orchestrator (spec S14).
+"""Bidirectional Confluence space sync orchestrator.
 
 Steps:
   1. Build desired state from Confluence (paginated tree fetch).
@@ -13,7 +13,7 @@ Topic-grouped sub-modules:
 - ``_helpers`` — tiny cross-module helpers.
 - ``state`` — desired-state fetch + parent-path map + cross-space probe.
 - ``local_edits`` — detect locally-edited tracked pages.
-- ``office_publish`` — spec S17 office-publish wiring.
+- ``office_publish`` — office-publish wiring.
 - ``renames`` — RENAME / MOVE / ARCHIVE / UNARCHIVE application.
 - ``pull`` — new-page / content-edit application.
 - ``push`` — LOCAL_PUSH application.
@@ -69,7 +69,7 @@ def _run_prune_ignored(
     opts: SyncOptions,
     summary: SyncSummary,
 ) -> None:
-    """Apply the spec S39 ``--prune-ignored`` pre-pass against *output_dir*.
+    """Apply the ``--prune-ignored`` pre-pass against *output_dir*.
 
     Walks the mirror tree once, deletes (or — under ``opts.dry_run`` — logs)
     every file the matcher marks ignored, and updates the summary counters.
@@ -101,7 +101,7 @@ def _apply_mddignore(
     client: ConfluenceClient,
     summary: SyncSummary,
 ) -> dict[str, DesiredPage]:
-    """Apply the spec S39 ``.mddignore`` matcher to *desired* (issue #118).
+    """Apply the ``.mddignore`` matcher to *desired* (issue #118).
 
     Drops new pages the matcher would ignore so they never become NEW
     events. Already-tracked pages are preserved — newly-added patterns
@@ -151,7 +151,7 @@ def sync_space(
         raise ApplyError(_DIRTY_TREE_MESSAGE)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Spec S39 opt-in cleanup. Runs BEFORE the normal sync so the
+    # Opt-in cleanup. Runs BEFORE the normal sync so the
     # ``would prune (ignored, dry-run)`` lines still show up under
     # ``--dry-run`` and so the new pull does not re-fetch a page we
     # just deleted on disk in the same invocation.

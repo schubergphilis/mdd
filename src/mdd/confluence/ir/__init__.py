@@ -1,6 +1,6 @@
 """Confluence storage XHTML ↔ IR converters.
 
-Public API (spec S29, spec S31):
+Public API:
 
 - ``parse_confluence_storage(storage, *, ctx, page_title, mode)`` → ``Document``
 - ``render_confluence_storage(doc, *, mode)`` → ``str``

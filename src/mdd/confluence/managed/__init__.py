@@ -1,4 +1,4 @@
-"""Detection cascade for externally-managed Confluence pages (spec S26).
+"""Detection cascade for externally-managed Confluence pages.
 
 Provides :func:`classify_page` which evaluates five layers in priority order:
 

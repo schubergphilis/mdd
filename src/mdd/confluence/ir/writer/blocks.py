@@ -286,8 +286,8 @@ def _render_raw_block(
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
     # In preserving mode, emit the verbatim source bytes when available.
-    # If the reader truncated raw_bytes (over ORIGIN_RAW_BYTES_CAP, spec S31
-    # §"Open questions" #1), fall through to the canonical render below.
+    # If the reader truncated raw_bytes (over ORIGIN_RAW_BYTES_CAP), fall
+    # through to the canonical render below.
     if (
         mode == "preserving"
         and block.origin is not None

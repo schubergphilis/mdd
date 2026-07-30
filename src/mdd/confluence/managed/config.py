@@ -1,4 +1,4 @@
-"""Managed-publishers config: typed models, parsing, merging, file loading (spec S40 + S26)."""
+"""Managed-publishers config: typed models, parsing, merging, file loading."""
 
 from __future__ import annotations
 
@@ -99,8 +99,8 @@ def _parse_config(data: Mapping[str, object]) -> ManagedConfig:
     """Parse a raw YAML mapping into a :class:`ManagedConfig`.
 
     Propagates :class:`pydantic.ValidationError` on unknown keys or
-    bad shapes — per spec S40, config files surface validation
-    failures rather than silently dropping entries.
+    bad shapes: config files surface validation failures rather than
+    silently dropping entries.
     """
     return ManagedConfig.model_validate(data)
 
@@ -163,9 +163,8 @@ def load_managed_config(
 
     Raises:
         pydantic.ValidationError: when a config file contains unknown
-            keys or wrongly-typed values.  Spec S40 §Error handling
-            mandates that config-file shape errors are surfaced rather
-            than silently dropped.
+            keys or wrongly-typed values.  Config-file shape errors are
+            surfaced rather than silently dropped.
 
     Returns:
         A merged :class:`ManagedConfig`.
