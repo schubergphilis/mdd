@@ -1,4 +1,4 @@
-"""publish_office.py — render + upload + body-callout for office publishing (spec S17).
+"""publish_office.py — render + upload + body-callout for office publishing.
 
 Called by ``sync.py`` for every page whose frontmatter contains::
 
@@ -178,7 +178,8 @@ def _cache_hit(
 def _attachment_name(md_path: Path, fmt: str) -> str:
     """Return the Confluence attachment filename for *md_path* and *fmt*.
 
-    Uses the spec-009 sanitiser on the stem, then appends the format extension.
+    Uses :func:`mdd.confluence.paths.sanitize` on the stem, then appends the
+    format extension.
     """
     stem = sanitize(md_path.stem)
     return f"{stem}.{fmt}"
@@ -244,7 +245,7 @@ def _emit_render_warnings(render_result: RenderResult) -> None:
 
 @dataclass
 class _PublishAction:
-    """Render + upload office attachments for one page (spec S17).
+    """Render + upload office attachments for one page.
 
     The constructor takes the raw inputs from :func:`publish`. :meth:`execute`
     runs the full pipeline (read frontmatter, parse formats, managed/Quarto
@@ -333,7 +334,7 @@ class _PublishAction:
         self.summary.body_xhtml = updated_body
 
     def _is_managed_elsewhere(self) -> bool:
-        """Return True when spec S26 says this page is managed elsewhere."""
+        """Return True when this page is classified as managed elsewhere."""
         if self.managed_config is None:
             return False
         page_info = build_page_info_from_page_data(self.page_data, self.body_xhtml)
@@ -585,7 +586,8 @@ def publish(  # noqa: PLR0913
         template_dir: Override directory for reference templates.  When ``None``,
             bundled defaults are used.
         dry_run: If True, skip rendering and uploading; log what would happen.
-        managed_config: When provided, classified via spec S26 before any write.
+        managed_config: When provided, the page is classified as
+            managed-elsewhere or not before any write.
             If managed, returns immediately with an empty summary (skip).
         page_data: Pre-fetched page API response dict (used to build PageInfo when
             *managed_config* is provided without already-fetched data).
@@ -599,7 +601,7 @@ def publish(  # noqa: PLR0913
         - Quarto absence is a hard warning (logged to stderr); the body is returned
           unchanged and the summary records a failure.
         - Per-format render/upload failures are recorded in the summary and do NOT
-          propagate as exceptions (best-effort policy per spec S14).
+          propagate as exceptions — publishing is best-effort per format.
         - OfficePublishCollisionError IS propagated so the caller can surface it.
     """
     return _PublishAction(

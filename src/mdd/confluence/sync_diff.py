@@ -1,9 +1,9 @@
-"""Pure diff functions: desired_map + current_map → sync events (spec S14).
+"""Pure diff functions: desired_map + current_map → sync events.
 
 This module deliberately has no I/O — everything is computed from
 in-memory maps.  It renames the concept of ``diff`` to avoid clashing
 with ``mdd.confluence.diff`` which implements the XHTML unified-diff
-for spec S09's update-page command.
+for the update-page command.
 """
 
 from __future__ import annotations

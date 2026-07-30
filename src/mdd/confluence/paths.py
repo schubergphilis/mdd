@@ -1,4 +1,4 @@
-"""Filename sanitization and collision handling for Confluence exports (spec S09)."""
+"""Filename sanitization and collision handling for Confluence exports."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ _UNICODE_SPACE_RUN = re.compile("[\u0020\u00a0\u1680\u2000-\u200a\u202f\u205f\u3
 def sanitize(title: str) -> str:
     """Convert a Confluence page title to a safe filesystem filename (without extension).
 
-    Rules (spec S09):
+    Rules:
     - Normalize to NFC and fold runs of Unicode space-separator characters
       (category Zs — NBSP and friends) to a single ASCII space (issue #140)
     - Replace <>:"/\\|?*\\n\\t\\r with -
