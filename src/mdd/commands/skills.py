@@ -27,27 +27,91 @@ def _bundle_root() -> Path:
     return Path(str(ref))
 
 
-def _discover_bundled_skills() -> tuple[str, ...]:
-    """Return the skill directory names actually present in the bundle.
+# Skill roots in registration order. The core bundle is pre-registered as
+# the first entry; a distribution that composes the CLI (spec S44) appends
+# its own root from its entry point, and later entries win on a name
+# collision so a wrapper can deliberately override a core skill.
+_SKILL_ROOTS: list[Path] = [_bundle_root()]
+
+# Lazily-built ``{skill name: owning root}`` map. ``None`` means "not
+# discovered yet". Invalidated by :func:`register_skill_root`, because
+# discovery has to survive a registration that happens after import.
+_skill_index_cache: dict[str, Path] | None = None
+
+
+def register_skill_root(path: Path | str) -> None:
+    """Register an additional directory of bundled skills.
+
+    The counterpart of :func:`mdd.mirror.register_backend` and
+    ``build_dispatcher(extra_commands=...)`` for the skills bundle: a
+    composing distribution calls
+    ``register_skill_root(files("my_dist") / "skills")`` from its entry
+    point, before building the dispatcher, and its skills then show up in
+    ``mdd skills list`` / ``install`` / ``uninstall`` alongside the core's.
+
+    Registration order is significant: **the last-registered root wins** on
+    a name collision. The core bundle is registered first, so a wrapper can
+    ship its own version of a core skill by using the same directory name.
+    ``mdd skills list`` prints the owning root for every skill so an
+    unintended shadow stays diagnosable.
+    """
+    global _skill_index_cache
+    _SKILL_ROOTS.append(Path(path))
+    _skill_index_cache = None
+
+
+def skill_roots() -> tuple[Path, ...]:
+    """Return the registered skill roots, in registration order."""
+    return tuple(_SKILL_ROOTS)
+
+
+def _discover_bundled_skills() -> dict[str, Path]:
+    """Map each bundled skill's directory name to the root that owns it.
 
     Discovered rather than listed, because a hard-coded tuple drifts the
-    moment the bundle changes — and it does change: a wrapper distribution
-    ships a different subset of skills than the open-source core (spec
-    S44). A directory counts as a skill when it contains ``SKILL.md``.
+    moment the bundle changes — and it does change: the set of roots is a
+    registration seam (:func:`register_skill_root`), so a wrapper
+    distribution ships skills of its own on top of the core's, and may
+    override a core skill by reusing its name (spec S23). A directory
+    counts as a skill when it contains ``SKILL.md``.
+
+    Roots are walked in registration order and later roots overwrite
+    earlier ones, implementing the last-registered-wins rule.
     """
-    root = _bundle_root()
-    if not root.is_dir():
-        return ()
-    return tuple(sorted(entry.name for entry in root.iterdir() if (entry / "SKILL.md").is_file()))
+    found: dict[str, Path] = {}
+    for root in _SKILL_ROOTS:
+        if not root.is_dir():
+            continue
+        for entry in root.iterdir():
+            if (entry / "SKILL.md").is_file():
+                found[entry.name] = root
+    return {name: found[name] for name in sorted(found)}
 
 
-# Skill directory names shipped with this distribution.
-_BUNDLED_SKILL_NAMES: tuple[str, ...] = _discover_bundled_skills()
+def _skill_index() -> dict[str, Path]:
+    """Return the cached ``{skill name: owning root}`` map, building it lazily."""
+    global _skill_index_cache
+    if _skill_index_cache is None:
+        _skill_index_cache = _discover_bundled_skills()
+    return _skill_index_cache
+
+
+def bundled_skill_names() -> tuple[str, ...]:
+    """Return the names of every bundled skill, sorted, across all roots."""
+    return tuple(_skill_index())
 
 
 def _bundled_skill_path(name: str) -> Path:
-    """Return the Path for a specific bundled skill directory."""
-    return _bundle_root() / name
+    """Return the Path for a specific bundled skill directory.
+
+    Resolves through the same last-registered-wins index that
+    :func:`bundled_skill_names` reports, so ``install`` can never pick a
+    different copy than ``list`` displayed. Unknown names fall back to the
+    core root, which yields a nonexistent path the callers report as
+    "bundle missing".
+    """
+    root = _skill_index().get(name, _SKILL_ROOTS[0])
+    return root / name
 
 
 # ---------------------------------------------------------------------------
@@ -112,16 +176,35 @@ class _SkillsUninstallArgs(argparse.Namespace):
     target: Path | None
 
 
+def _print_root_legend(roots: tuple[Path, ...]) -> dict[Path, str]:
+    """Print the numbered skill-root legend and return the per-root markers.
+
+    Every listed skill is tagged with its root's marker, so a wrapper
+    distribution shadowing a core skill (last-registered wins) is visible
+    instead of silent.
+    """
+    print("Skill roots (last registered wins on a name collision):")  # noqa: T201  # program output
+    markers: dict[Path, str] = {}
+    for index, root in enumerate(roots, start=1):
+        markers[root] = f"[{index}]"
+        print(f"  [{index}] {root}")  # noqa: T201  # program output
+    return markers
+
+
 def _run_list(ns: argparse.Namespace) -> int:
     args = cast("_SkillsListArgs", ns)
     target_dir = _resolve_target(args.target)
     print(f"Bundled skills (target: {target_dir}):")  # noqa: T201  # program output
     print()  # noqa: T201  # program output
-    for name in _BUNDLED_SKILL_NAMES:
+    markers = _print_root_legend(skill_roots())
+    print()  # noqa: T201  # program output
+    for name, root in _skill_index().items():
         status = _entry_status(target_dir, name)
         bundled_path = _bundled_skill_path(name)
         bundle_note = "" if bundled_path.exists() else " [bundle missing!]"
-        print(f"  {name:<32}  {status}{bundle_note}")  # noqa: T201  # program output
+        marker = markers.get(root, f"[{root}]")
+        # program output for piping
+        print(f"  {name:<32}  {status:<14}{marker}{bundle_note}")  # noqa: T201
     return 0
 
 
@@ -159,7 +242,7 @@ def _run_install(ns: argparse.Namespace) -> int:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     exit_code = 0
-    for name in _BUNDLED_SKILL_NAMES:
+    for name in bundled_skill_names():
         if _install_one(name, target_dir, force=args.force) != 0:
             exit_code = 1
     return exit_code
@@ -174,7 +257,7 @@ def _run_uninstall(ns: argparse.Namespace) -> int:
         return 0
 
     removed = 0
-    for name in _BUNDLED_SKILL_NAMES:
+    for name in bundled_skill_names():
         entry = target_dir / name
         if _is_our_symlink(entry, name):
             entry.unlink()
