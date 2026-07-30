@@ -1,12 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 238 238" width="238" height="238">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
   <title>mdd</title>
-  <g transform="translate(53,16)">
-    <rect x="0" y="14" width="132" height="178" rx="20" fill="none" stroke="#333A40" stroke-width="20"/>
-    <g stroke="#C17A23" stroke-width="18" stroke-linecap="round">
-      <line x1="34" y1="66" x2="98" y2="66"/>
-      <line x1="34" y1="103" x2="98" y2="103"/>
-      <line x1="34" y1="140" x2="76" y2="140"/>
+  <defs>
+    <!-- Knockouts keep the line art legible where the stacks overlap, without needing a fill. -->
+    <mask id="cut-a-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="53" y="35" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="cut-b-front" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <rect x="111" y="111" width="76" height="94" rx="14" fill="#000" stroke="#000" stroke-width="24"/>
+    </mask>
+    <mask id="cut-b-stack" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="320">
+      <rect x="-40" y="-40" width="320" height="320" fill="#fff"/>
+      <g fill="#000" stroke="#000" stroke-width="24">
+        <rect x="111" y="111" width="76" height="94" rx="14"/>
+        <rect x="128" y="128" width="76" height="94" rx="14"/>
+      </g>
+    </mask>
+  </defs>
+
+  <!-- sync arrows: a clockwise loop around the two stacks, each turning a rounded 90 degrees -->
+  <g stroke="#C17A23" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M152,36 H170 A16,16 0 0 1 186,52 V72" fill="none"/>
+    <path d="M186,88 L172,70 L200,70 Z" fill="#C17A23" stroke-width="8"/>
+    <path d="M88,204 H70 A16,16 0 0 1 54,188 V168" fill="none"/>
+    <path d="M54,152 L68,170 L40,170 Z" fill="#C17A23" stroke-width="8"/>
+  </g>
+
+  <!-- upper-left stack -->
+  <g mask="url(#cut-b-stack)">
+    <path d="M112,35 V32 Q112,18 98,18 H50 Q36,18 36,32 V98 Q36,112 50,112 H53"
+          fill="none" stroke="#333A40" stroke-width="12" stroke-linecap="round" mask="url(#cut-a-front)"/>
+    <rect x="53" y="35" width="76" height="94" rx="14" fill="none" stroke="#333A40" stroke-width="12"/>
+    <g stroke="#C17A23" stroke-width="10" stroke-linecap="round">
+      <line x1="68" y1="59" x2="114" y2="59"/>
+      <line x1="68" y1="80" x2="114" y2="80"/>
+      <line x1="68" y1="101" x2="92" y2="101"/>
     </g>
+  </g>
+
+  <!-- lower-right stack -->
+  <path d="M128,205 V208 Q128,222 142,222 H190 Q204,222 204,208 V142 Q204,128 190,128 H187"
+        fill="none" stroke="#333A40" stroke-width="12" stroke-linecap="round" mask="url(#cut-b-front)"/>
+  <rect x="111" y="111" width="76" height="94" rx="14" fill="none" stroke="#333A40" stroke-width="12"/>
+  <g stroke="#C17A23" stroke-width="10" stroke-linecap="round">
+    <line x1="126" y1="135" x2="172" y2="135"/>
+    <line x1="126" y1="156" x2="172" y2="156"/>
+    <line x1="126" y1="177" x2="150" y2="177"/>
   </g>
 </svg>
