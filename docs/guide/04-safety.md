@@ -96,7 +96,8 @@ and not carried across a round-trip:
 
 - **Comments.** Neither inline nor page comments.
 - **Page restrictions.** `mdd` reads them only to decide that a page is
-  read-only for you, and never sets them.
+  read-only for you, and never sets them. That read is advisory and can
+  fail open — see the cascade table below.
 - **Page properties** and content properties.
 - **Labels on push.** Labels are exported into frontmatter, but a push does
   not write them back.
@@ -115,18 +116,61 @@ If another system publishes a Confluence page — a docs pipeline, an
 external sync job — `mdd` must not fight it. The "managed elsewhere"
 mechanism detects those pages and blocks every push to them.
 
-Detection runs on every push attempt, in this order: the page's space is in
-a configured managed list; an ancestor page is a configured managed
-subtree root; the last author's account id belongs to a configured
-publisher; the page body matches a publisher's marker pattern; or the
-Confluence restrictions say you cannot update the page.
+Detection runs on every push attempt, as a five-layer cascade in this
+order:
 
-A match is final. There is no `--force` for it, no frontmatter escape
-hatch, and no per-page bypass. `mdd confluence update-page` exits with the
-publisher's message; `mdd confluence sync-space` skips the page and reports
-it in the run summary, and the run still exits 0 because that is expected
-steady state. Pulling a managed page always works, and the exported file
-carries a header saying who owns it and where to edit it.
+| | Layer | Kind |
+|---|---|---|
+| 1 | the page's space is in a configured managed list | guarantee |
+| 2 | an ancestor page is a configured managed subtree root | guarantee |
+| 3 | the last author's account id belongs to a configured publisher | guarantee |
+| 4 | the page body matches a publisher's marker pattern | guarantee |
+| 5 | the Confluence restrictions say you cannot update the page | advisory |
+
+The distinction in that last column matters, and it is the one thing to
+take away from this section.
+
+**Layers 1–4 are guarantees.** Each is a local comparison between the page
+data `mdd` already has and your config. There is no network call and
+nothing to time out. If a page matches one of them, it is blocked, every
+time.
+
+**Layer 5 is advisory, and it fails open.** Checking page restrictions
+means asking the Confluence API. That call can fail — an outage, an
+expired token, a response shape this client does not understand — and when
+it does, `mdd` cannot tell "you may update this page" from "I could not
+find out". It proceeds with the push. That is deliberate: a Confluence
+hiccup must not silently block all publishing.
+
+What it no longer does is hide it. A failed check logs a warning naming
+the page, and `mdd confluence sync-space` reports the total at the end of
+the run:
+
+```
+Restriction check unverified: 3 — pushed without confirming update
+permission (Confluence restriction API call failed; see warnings above)
+```
+
+The same count goes into the sync commit message, so the mirror's git
+history records it too. If you see that line, three pages were pushed
+without the permission check having actually run. Whether that matters
+depends on whether those pages were restricted — which is exactly what
+`mdd` could not determine. Re-run the sync once Confluence is healthy to
+get a real answer.
+
+So: do not rely on layer 5 to protect a page. If a page must never be
+pushed, name it in layers 1–4 — a managed space, a managed subtree, a
+publisher account id, or a body marker — or, for whole spaces, use the
+confidentiality blacklist below. Confluence restrictions are a useful
+backstop, not a control `mdd` can promise to enforce.
+
+A match on any layer is final. There is no `--force` for it, no
+frontmatter escape hatch, and no per-page bypass. `mdd confluence
+update-page` exits with the publisher's message; `mdd confluence
+sync-space` skips the page and reports it in the run summary, and the run
+still exits 0 because that is expected steady state. Pulling a managed
+page always works, and the exported file carries a header saying who owns
+it and where to edit it.
 
 To bypass a wrong detection you edit `configs/external-publishers.yaml` to
 remove the fingerprint, which leaves a diff in git. That friction is the
@@ -139,29 +183,66 @@ site names that must not leave their source system. Matching is
 case-insensitive, exact by default, with a trailing `*` for a prefix match
 and no other wildcards.
 
-Be precise about what this protects in the open-source core:
+Both halves are enforced, and enforcement happens at the *entry point* of
+each command — before anything is fetched or written, not just before a
+push:
 
-> [!WARNING]
-> The SharePoint side is enforced. `mdd sharepoint sync-site` and
-> `sync-folder` call the blacklist check before doing any work, so a
-> blacklisted site name aborts the whole run.
->
-> The Confluence side is **not** enforced in this distribution. No
-> Confluence command consults the blacklist, and the built-in git mirror
-> backend applies no data-protection gate — its own source says so. Only
-> `mdd search --exclude-blacklisted` reads the Confluence list. A
-> deployment that supplies its own mirror backend can add the gate; the
-> core does not have one.
+| Command | Checks |
+|---|---|
+| `mdd confluence sync-space` | the space key you passed |
+| `mdd confluence export-page` | the space the page belongs to |
+| `mdd confluence rename-page`, `move-page`, `archive-page`, `unarchive-page` | the space of any page pulled to materialise the change |
+| `mdd sharepoint sync-site`, `sync-folder` | the site name, derived from the folder |
+| `mdd search --exclude-blacklisted` | drops blacklisted roots from results |
+| `mdd sharepoint list-sites` | reports each site's blacklist status, changes nothing |
 
-Also note that the file shipped in this repository is a template. Its
+`mdd confluence create-page` and `update-page` are not in that table. They
+push a local file up to Confluence, which moves content the other way, so
+there is nothing for the blacklist to protect.
+
+A match aborts the whole run. Nothing is written, no partial mirror is left
+behind, and `--dry-run` is checked too — it is not a way to preview a
+blacklisted space. The error names the space or site, the pattern it
+matched, and the file that declares that pattern, because entries union
+across several files and "edit the config" is not useful advice when four
+of them could be the one.
+
+Three things to be aware of:
+
+**A blacklisted space cannot be exported locally either.** The gate is at
+the entry point, so exporting to a plain local directory is refused just
+like a push. There is no "just for me" copy. If you need one, remove the
+entry — which leaves a diff in git, which is the point.
+
+**A config must be reachable, or nothing runs.** With no
+`data-protection.yaml` found anywhere, sync and export abort rather than
+proceeding unprotected. If you hit that error, create
+`~/.config/mdd/data-protection.yaml` with two empty lists:
+
+```yaml
+confluence:
+  blacklisted_spaces: []
+sharepoint:
+  blacklisted_sites: []
+```
+
+**The file shipped in this repository is a template.** Its
 `blacklisted_spaces` list is empty and its site list is illustrative. An
-empty blacklist blocks nothing. Entries combine across the bundled file,
-`~/.config/mdd/data-protection.yaml`, a `./configs/` copy, and any
+empty blacklist blocks nothing — enforcement being wired up does not
+protect a space you have not listed. Entries combine across the bundled
+file, `~/.config/mdd/data-protection.yaml`, a `./configs/` copy, and any
 `--blacklist` argument, so you extend the list rather than replacing it.
 
-The blacklist governs publishing. It is not a filter on what gets pulled
-into the mirror in the first place; that is `.mddignore`, and the two do
-not interact.
+What the blacklist is not: a filter on what gets pulled into the mirror
+page by page. That is `.mddignore`, and the two do not interact. The
+blacklist works at whole-space and whole-site granularity, which is the
+unit an operator can actually review.
+
+The built-in git mirror backend applies no data-protection gate of its own
+— its source says so, and that is deliberate. A deployment that supplies
+its own mirror backend can add a push-time gate on top. It does not need
+to for the blacklist to hold, because the entry-point check has already
+run by then.
 
 ## Dry runs, prompts, and where there are none
 
@@ -235,8 +316,8 @@ matters. In short:
 - There is no 1.0. Breaking changes land between `0.x` minor versions.
 - The data-protection support described above exists
   ([S07](../spec/S07-data-protection.md)) and has not been independently
-  reviewed either, and as noted, its Confluence half is not wired up in
-  this distribution.
+  reviewed either. Its Confluence half went unwired for months before
+  anyone noticed, which is the kind of thing a review is for.
 - `mdd ai` output comes from a model. It can be wrong.
 
 Report vulnerabilities privately. Do not include real customer data, live
