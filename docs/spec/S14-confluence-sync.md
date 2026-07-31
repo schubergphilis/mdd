@@ -47,7 +47,8 @@ reconciliation algorithm below flows directly from those two facts.
 - Operations applied in a fixed order to satisfy preconditions: renames/moves → collision resolution → archive/unarchive → new local pages → content pulls → content pushes → deletions → metadata-only refresh.
 - Filename collision resolution: append `(page-id)` to **both** colliding files (not just the incomer).
 - Git operations via `subprocess.run` (mv, rm, add, commit, status); no new Python git library dependency.
-- Optional push through the active mirror backend, including the [S07](S07-data-protection.md) confidentiality blacklist gate.
+- Optional push through the active mirror backend, applying its own host allow-list.
+- The [S07](S07-data-protection.md) confidentiality blacklist gate also applies to this command; see S07 for the current trigger condition.
 
 ## Subcommands
 
@@ -208,8 +209,9 @@ forge this ends up on is a wiring decision, not part of this spec:
   problem surfaces from the push attempt; the user gets one clear error,
   not two.
 - The push itself goes through the backend's `push`, which applies its own
-  host allow-list plus the [S07](S07-data-protection.md) confidentiality
-  blacklist gate. If the current branch has no upstream tracking yet
+  host allow-list. The [S07](S07-data-protection.md) confidentiality
+  blacklist gate also applies to this command — see S07 for the current
+  trigger condition. If the current branch has no upstream tracking yet
   (first push), the generic implementation uses
   `git push -u origin <branch>`, rebasing onto `origin/<branch>` first if
   the remote already has commits.
@@ -262,7 +264,7 @@ clarifications:
 ## Related upstream specs
 
 - [000-specs](000-specs.md) — shared conventions
-- [007-data-protection](S07-data-protection.md) — confidentiality blacklist gate applied on `--push`
+- [007-data-protection](S07-data-protection.md) — confidentiality blacklist gate; see S07 for the current trigger condition
 - [009-confluence-command](S09-confluence-command.md) — HTTP client, URL parsing, filename sanitization, frontmatter schema, attachment sync, body conversion, and per-verb primitives reused
 - [027-confluence-page-rename-move-archive](S27-confluence-page-rename-move-archive.md) — the imperative rename / move / archive / unarchive subcommands, and why archive/unarchive leave the export header alone
 
