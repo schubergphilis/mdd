@@ -119,10 +119,6 @@ run = "python3 scripts/spec-check.py"
 description = "Refresh _snapshots/ under tests/corpus/confluence/ from a live Confluence instance"
 run = "uv run python scripts/refresh-corpus.py \"$@\""
 
-[tasks.test-corpus]
-description = "Run the corpus-snapshot smoke test"
-run = "uv run python -m pytest tests/confluence/test_corpus_smoke.py -v"
-
 [tasks.ir-roundtrip]
 description = "R1/R2/R3 IR round-trip suites (storage, markdown, full)."
 run = "uv run python -m pytest tests/ir/test_r1_storage_roundtrip.py tests/ir/test_r2_markdown_roundtrip.py tests/ir/test_r3_full_roundtrip.py --no-cov -q"
