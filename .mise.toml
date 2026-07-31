@@ -67,6 +67,8 @@ run = "uv run pip-audit --progress-spinner off"
 
 [tasks.check-mdd-commands]
 description = "Verify every `mdd …` string in user-facing prose is a real command"
+# Scans the working directory. A distribution composing this CLI runs the same
+# script from a sibling checkout with `--repo-root` and `--dispatcher`.
 run = "uv run python scripts/check-mdd-commands.py"
 
 [tasks.check-mdd-commands-all]
