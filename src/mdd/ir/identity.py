@@ -443,6 +443,15 @@ def _reattach_table_cell(fresh: TableCell, cached: TableCell) -> TableCell:
     return replace(fresh, **updates)
 
 
+# `ac:type` is excluded from attributes grafting: markdown carries the
+# section type in the fenced-div `layout_type` field, so grafting the cached
+# one would create a mismatch between `attributes` (grafted ac:type) and the
+# typed `layout_type` field — and the storage writer prefers `attributes`.
+# An authored type change would be silently dropped, and inserting or
+# removing a section would shift every later section onto the wrong type.
+_SECTION_TYPE_ATTRS: frozenset[str] = frozenset({"ac:type"})
+
+
 def _reattach_layout_section(fresh: LayoutSection, cached: LayoutSection) -> LayoutSection:
     cells = [
         _reattach_layout_cell(f, cached.cells[i]) if i < len(cached.cells) else f
@@ -456,7 +465,9 @@ def _reattach_layout_section(fresh: LayoutSection, cached: LayoutSection) -> Lay
         "cells": cells,
     }
     if cached.attributes:
-        merged_b = _merge_attributes_onto(fresh.attributes, cached.attributes)
+        merged_b = _merge_attributes_onto(
+            fresh.attributes, cached.attributes, skip=_SECTION_TYPE_ATTRS
+        )
         if merged_b is not None:
             updates["attributes"] = merged_b
     return replace(fresh, **updates)
