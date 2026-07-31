@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mdd.confluence.ir import parse_confluence_storage, render_confluence_storage
 from mdd.ir import (
     BulletList,
@@ -265,3 +267,58 @@ class TestReattach:
         assert tbl.rows[0].attributes.get("ac:local-id") == "r1"
         assert tbl.rows[0].cells[0].attributes.get("ac:local-id") == "c1"
         assert tbl.rows[0].cells[0].children[0].node_id == "b00003"  # type: ignore[union-attr]
+
+
+def _publish(cached_storage: str, fresh_markdown: str) -> str:
+    """Storage → IR, markdown → IR, reattach, render — the update-page path."""
+    cached = parse_confluence_storage(cached_storage, mode="preserving")
+    merged = reattach(parse_markdown(fresh_markdown), cached)
+    return render_confluence_storage(merged, mode="preserving").strip()
+
+
+class TestReattachInlineEdits:
+    """Edits that markdown carries must survive, visible text or not."""
+
+    @pytest.mark.parametrize(
+        ("cached_storage", "fresh_markdown", "expected"),
+        [
+            pytest.param(
+                '<p>see <a href="https://a.example/old">docs</a></p>',
+                "see [docs](https://b.example/new)\n",
+                '<p>see <a href="https://b.example/new">docs</a></p>',
+                id="link-target-changed",
+            ),
+            pytest.param(
+                '<p>see <a href="https://a.example/old">docs</a></p>',
+                "see [the docs](https://b.example/new)\n",
+                '<p>see <a href="https://b.example/new">the docs</a></p>',
+                id="link-target-and-label-changed",
+            ),
+            pytest.param(
+                "<p>see <strong>this</strong></p>",
+                "see *this*\n",
+                "<p>see <em>this</em></p>",
+                id="strong-to-emph",
+            ),
+            pytest.param(
+                "<p>see this</p>",
+                "see that\n",
+                "<p>see that</p>",
+                id="plain-text-edited",
+            ),
+        ],
+    )
+    def test_edit_reaches_the_page(
+        self, cached_storage: str, fresh_markdown: str, expected: str
+    ) -> None:
+        assert _publish(cached_storage, fresh_markdown) == expected
+
+    def test_softbreak_collapse_keeps_cached_inlines(self) -> None:
+        """The tolerance the short-circuit exists for: markdown drops SoftBreaks."""
+        cached_storage = "<p>see\nthis</p>"
+        assert _publish(cached_storage, "see this\n") == cached_storage
+
+    def test_autolink_from_plain_text_keeps_cached_inlines(self) -> None:
+        """A bare URL in text comes back as a `Link`; that is not an edit."""
+        cached_storage = "<p>see https://example.com/docs</p>"
+        assert _publish(cached_storage, "see https://example.com/docs\n") == cached_storage
