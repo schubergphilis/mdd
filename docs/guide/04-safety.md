@@ -240,9 +240,12 @@ unit an operator can actually review.
 
 The built-in git mirror backend applies no data-protection gate of its own
 — its source says so, and that is deliberate. A deployment that supplies
-its own mirror backend can add a push-time gate on top. It does not need
-to for the blacklist to hold, because the entry-point check has already
-run by then.
+its own mirror backend can add a second gate in its push path, and `mdd`
+ships the helper for doing so: it infers the source system from the
+work-tree and checks the matching list, refusing a work-tree it cannot
+identify. That is defence in depth, not the mechanism. The blacklist holds
+without it, because the entry-point check has already run by the time
+anything reaches a push.
 
 ## Dry runs, prompts, and where there are none
 

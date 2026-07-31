@@ -354,6 +354,14 @@ def gate_push(path: Path, *, blacklist_file: Path | None = None) -> None:
     check_sharepoint. Raises BlacklistError or BlacklistConfigError on
     violation.
 
+    This exists for a deployment's mirror backend, which sees a work-tree and
+    a remote rather than a space key, and gates at push time. It has no caller
+    among the sync and export commands here: those know their own source
+    system and call check_confluence / check_sharepoint directly at their
+    entry points, before any content is fetched or written. Both are real
+    enforcement points, so do not remove this one for looking unused from
+    inside this package.
+
     Fail-closed behaviour:
     - If the source system cannot be identified (OTHER), raises BlacklistConfigError.
       To opt out, add ``mdd-source: none`` to the YAML frontmatter of any top-level

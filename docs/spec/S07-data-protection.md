@@ -13,7 +13,8 @@ Two rules apply to every `mdd` command:
 2. **Confidentiality blacklist** lists Confluence spaces and SharePoint
    sites whose content must never leave its source system. Every `mdd`
    sync and export command consults the blacklist at its entry point,
-   before it fetches or writes anything.
+   before it fetches or writes anything, and a mirror backend a
+   deployment supplies consults it again before it pushes.
 
 This is the canonical reference for both rules;
 [S09](S09-confluence-command.md) (Confluence),
@@ -99,17 +100,31 @@ deployment supplies defer to it.
      but does **not** match `Advisory Board`. `Appraisal*` matches
      `Appraisal`, `Appraisals`, `Appraisals - Alice Example`,
      `Appraisal Cycle 2026`.
-4. **The gate fires at the entry point of every sync and export, not at
-   the push step.** `sync_space`, `sync_site`, `sync_folder`,
-   `export_site`, `export_folder` and `export_page` each call the
-   blacklist helper before they fetch or write anything, so a blacklisted
-   space or site aborts the whole run rather than being caught per page
-   deep in an apply loop. `--dry-run` is gated too: it is not a preview
-   escape hatch. A mirror backend a deployment supplies may add its own
-   push-time gate on top; that is additional defence, not the mechanism.
-   Gating at the entry point rather than at `--push` is deliberate — the
-   push is far downstream of the point where protected content has
-   already been written to a work-tree that is usually a git clone.
+4. **There are two enforcement points, and both are real.**
+
+   1. **Sync and export entry points.** `sync_space`, `sync_site`,
+      `sync_folder`, `export_site`, `export_folder` and `export_page`
+      each call `check_confluence` / `check_sharepoint` before they fetch
+      or write anything, on the space key or site name they were asked to
+      operate on. A blacklisted space or site aborts the whole run rather
+      than being caught per page deep in an apply loop. `--dry-run` is
+      gated too: it is not a preview escape hatch.
+   2. **A mirror backend's push.** A deployment that supplies its own
+      mirror backend gates again in that backend's push path, before any
+      git mutation. A backend sees a work-tree and a remote rather than a
+      space key, so it uses `gate_push`, which infers the source system
+      from the work-tree and dispatches to the right list.
+
+   Point 1 is the one an operator should reason about: it is what makes
+   the blacklist mean "this content never leaves its source system", and
+   it holds whether or not a deployment supplies a backend at all.
+   Point 2 is defence in depth for the deployments that have one, and it
+   is the last line before content reaches a remote. Neither replaces the
+   other, and neither is dead code for the other's existence.
+
+   Gating at the entry point rather than only at `--push` is deliberate:
+   a push is far downstream of the moment protected content has already
+   been written to a work-tree that is usually a git clone.
 5. **`--force` does not override the blacklist.** Removing an entry
    requires editing the config file, which leaves a diff in git history.
    This is intentional friction.
@@ -152,12 +167,23 @@ or per-file variant of the check: the unit the operator blacklists is a
 space or a site, so the gate belongs where that identity is known and
 before the work starts.
 
-The helper also detects which source system an existing work-tree
-mirrors (frontmatter scan + `origin` URL inspection), so a deployment's
-mirror backend can gate its own push without the caller telling it which
-list to consult. That path has no caller inside the core — the core's
-sync and export entry points always know their own source system — and
-exists for backends outside it.
+The same module carries the backend-side half of the gate: `gate_push`
+detects which source system an existing work-tree mirrors (frontmatter
+scan + `origin` URL inspection) and dispatches to the matching list, so a
+mirror backend can gate a push without being told which list to consult.
+It fails closed — an unidentifiable work-tree is refused rather than
+allowed, and the opt-out is an explicit `mdd-source: none` in the
+frontmatter of a top-level `.md` file.
+
+`gate_push` has no caller among the sync and export commands, and that is
+correct rather than an omission: those commands are handed a space key or
+a site name, so detection would be a worse way to answer a question they
+already know the answer to. Its caller is a deployment's mirror backend.
+Keeping the detection here rather than in each backend is deliberate — it
+is generic logic with no deployment-specific knowledge in it, and pushing
+it outward would make every future backend reimplement it. This is worth
+stating because a reader who greps for callers inside this package will
+find none and conclude the helper is dead.
 
 **Naming the file that refused.** Entries union across up to four files,
 so a refusal reports which of them declares the matching pattern.
