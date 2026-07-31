@@ -30,6 +30,7 @@ from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from mdd.mirror.protocol import MirrorBackend
+    from mdd.sharepoint.models import SharepointCliConfig
     from mdd.utils.mddignore import MddIgnore
 
 
@@ -53,7 +54,7 @@ class SiteEntry:
 _DOCUMENTS_SUFFIX = " - Documents"
 
 
-def resolve_sync_root(config: object | None = None) -> Path:
+def resolve_sync_root(config: SharepointCliConfig | None = None) -> Path:
     """Return the OneDrive sync root directory.
 
     Resolution order:
@@ -64,14 +65,12 @@ def resolve_sync_root(config: object | None = None) -> Path:
          tenant synced the choice is ambiguous and the config must say.
       3. Raise :class:`SyncRootMissing`.
     """
-    if config is not None:
-        sp = getattr(config, "sharepoint", None)
-        if sp is not None:
-            sync_root_raw = getattr(sp, "sync_root", None)
-            if sync_root_raw is not None:
-                candidate = Path(sync_root_raw).expanduser()
-                if candidate.exists():
-                    return candidate
+    if config is not None and config.sharepoint is not None:
+        sync_root_raw = config.sharepoint.sync_root
+        if sync_root_raw is not None:
+            candidate = Path(sync_root_raw).expanduser()
+            if candidate.exists():
+                return candidate
 
     cloud = Path.home() / "Library" / "CloudStorage"
     shared = sorted(p for p in cloud.glob("OneDrive-SharedLibraries-*") if p.is_dir())
@@ -598,7 +597,7 @@ def _mirror_target_for_site(site_name: str, mapping_path: Path | None) -> Mirror
 def sync_site(  # noqa: PLR0913
     site_name: str,
     *,
-    config: object | None = None,
+    config: SharepointCliConfig | None = None,
     output_dir: Path,
     dry_run: bool = False,
     push: bool = False,

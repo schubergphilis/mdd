@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlsplit
 
 import yaml as _yaml
@@ -32,6 +32,9 @@ from mdd.sharepoint.sync import (
 from mdd.utils.blacklist import check_sharepoint
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from mdd.sharepoint.models import SharepointCliConfig
 
 log = get_logger(__name__)
 
@@ -423,7 +426,7 @@ def _write_with_frontmatter(  # noqa: PLR0913
 def export_site(
     site_name: str,
     *,
-    config: object | None = None,
+    config: SharepointCliConfig | None = None,
     mapping: dict[str, MappingEntry],
     output_dir: Path,
     force: bool = False,

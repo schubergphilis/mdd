@@ -18,6 +18,7 @@ from mdd.sharepoint.export import (
     export_folder,
     export_site,
 )
+from mdd.sharepoint.models import SharepointCliConfig, SharepointCliSection
 from mdd.sharepoint.sync import derive_site_name
 from mdd.utils.blacklist import BlacklistError
 from tests.mirror_stub import STUB_GROUP, STUB_HOST, stub_backend
@@ -352,20 +353,9 @@ class TestExportFolder:
         mock_walk.assert_not_called()
 
 
-def _make_config(sync_root: Path) -> object:
+def _make_config(sync_root: Path) -> SharepointCliConfig:
     """Return a minimal config object pointing at sync_root."""
-
-    class _SP:
-        pass
-
-    class _Cfg:
-        pass
-
-    sp = _SP()
-    sp.sync_root = str(sync_root)  # type: ignore[attr-defined]
-    cfg = _Cfg()
-    cfg.sharepoint = sp  # type: ignore[attr-defined]
-    return cfg
+    return SharepointCliConfig(sharepoint=SharepointCliSection(sync_root=str(sync_root)))
 
 
 class TestDefaultOutputForSite:

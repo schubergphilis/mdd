@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import yaml  # pyright: ignore[reportMissingModuleSource]
+from pydantic import ValidationError
 
 from mdd.mirror.hints import clone_hint
 from mdd.sharepoint.mapping import load_mapping, repo_name
+from mdd.sharepoint.models import SharepointCliConfig
 from mdd.sharepoint.sync import SyncError, SyncRootMissing, list_sites, resolve_sync_root
 from mdd.utils.blacklist import BlacklistConfigError, BlacklistError
 from mdd.utils.logging import get_logger
@@ -24,8 +26,8 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _load_config(config_path: Path) -> object | None:
-    """Load a YAML config file. Returns None on failure (error printed to stderr)."""
+def _load_config(config_path: Path) -> SharepointCliConfig | None:
+    """Load and validate a YAML config file. Returns None on failure (error printed to stderr)."""
     if not config_path.exists():
         log.error("config: file not found: %s", config_path)
         return None
@@ -35,14 +37,26 @@ def _load_config(config_path: Path) -> object | None:
         log.error("config: cannot read %s: %s", config_path, exc)
         return None
     try:
-        return yaml.safe_load(raw)
+        parsed = yaml.safe_load(raw)
     except yaml.YAMLError as exc:
         log.error("config: failed to parse %s: %s", config_path, exc)
         return None
+    if parsed is None:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        log.error("config: %s must be a YAML mapping", config_path)
+        return None
+    try:
+        return SharepointCliConfig.model_validate(parsed)
+    except ValidationError as exc:
+        log.error("config: %s: %s", config_path, exc)
+        return None
 
 
-def _load_config_or_exit(config_path: Path | None) -> tuple[object | None, int | None]:
-    """Resolve --config Path to a parsed object. Returns (config, exit_code)."""
+def _load_config_or_exit(
+    config_path: Path | None,
+) -> tuple[SharepointCliConfig | None, int | None]:
+    """Resolve --config Path to a validated config. Returns (config, exit_code)."""
     if config_path is None:
         return None, None
     config = _load_config(config_path)
