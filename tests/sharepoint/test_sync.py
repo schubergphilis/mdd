@@ -166,3 +166,56 @@ class TestResolveSyncRoot:
             pytest.raises(SyncRootMissing, match="macOS"),
         ):
             resolve_sync_root()
+
+
+class TestLoadConfigSchema:
+    """Pin `_load_config`'s validation behaviour against the documented config schema."""
+
+    def test_documented_config_schema_loads(self, tmp_path: Path) -> None:
+        """The exact YAML from the sharepoint command's config schema documentation."""
+        sync_root = tmp_path / "sync-root"
+        sync_root.mkdir()
+        config_path = tmp_path / "sharepoint.yaml"
+        config_path.write_text(
+            f"""\
+sharepoint:
+  sync_root: {sync_root}
+  sites:
+    AI:
+      output_dir: ./output/ai
+    "Academy Coordination":
+      output_dir: ./output/academy
+"""
+        )
+
+        config = _load_config(config_path)
+        assert config is not None
+
+        result = resolve_sync_root(config)
+        assert result == sync_root
+
+    def test_unknown_key_under_sharepoint_raises(self, tmp_path: Path) -> None:
+        """A typo'd key (e.g. `snyc_root`) must not be silently dropped."""
+        config_path = tmp_path / "sharepoint.yaml"
+        config_path.write_text("sharepoint:\n  snyc_root: /typo\n")
+
+        assert _load_config(config_path) is None
+
+    def test_unrelated_top_level_sections_survive(self, tmp_path: Path) -> None:
+        """A shared config.yaml carrying confluence/ai sections alongside sharepoint."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(
+            """\
+confluence:
+  url: https://example.atlassian.net
+ai:
+  url: https://ai.example.com
+sharepoint:
+  sync_root: /some/root
+"""
+        )
+
+        config = _load_config(config_path)
+        assert config is not None
+        assert config.sharepoint is not None
+        assert config.sharepoint.sync_root == "/some/root"
