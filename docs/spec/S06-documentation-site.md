@@ -6,10 +6,10 @@
 
 ## Introduction
 
-`mdd` has 38 specs, 14 research notes, a README, `CONTRIBUTING.md` and
-`AGENTS.md`. All of it is design record or contributor guidance. There is
-nothing for somebody who wants to mirror a Confluence space and needs to know
-what will happen to their data.
+`mdd` has dozens of specs, a similarly-sized pile of research notes, a
+README, `CONTRIBUTING.md` and `AGENTS.md`. All of it is design record or
+contributor guidance. There is nothing for somebody who wants to mirror a
+Confluence space and needs to know what will happen to their data.
 
 `mdd` is a documentation tool, so the absence of its own documentation is a
 credibility problem as well as a usability one.
