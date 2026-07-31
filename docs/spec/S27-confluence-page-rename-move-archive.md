@@ -122,7 +122,7 @@ def rename_page(file, new_title, *, client, config, repo) -> int:
   - Unit: version-conflict refusal (mock client returns higher `version_number` than local frontmatter).
   - Unit: cross-space rejection on `move`.
   - Unit: rename + collision (sibling with same sanitised basename) → both files get `(page-id)` suffix per [S14](S14-confluence-sync.md) rule.
-  - Unit: archive flips frontmatter `status` and export header; unarchive flips them back.
+  - Unit: archive flips frontmatter `status` only (the export header is left alone — see "Export header for archive / unarchive" below); unarchive flips it back.
   - Unit: `--dry-run` makes no API calls and no working-tree changes (assert mock client receives zero calls).
   - Unit: `--no-commit` leaves staged changes; no new commit.
   - Unit: refresh-failure recovery message when API succeeds but `git mv` fails (simulate via permissions error).
