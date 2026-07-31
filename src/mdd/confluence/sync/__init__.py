@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.apply import ApplyError, is_dirty, print_plan_summary
 from mdd.confluence.tree import get_space_id
+from mdd.utils.blacklist import check_confluence
 from mdd.utils.logging import get_logger
 
 from ._types import SyncOptions, SyncSummary
@@ -141,10 +142,19 @@ def sync_space(
 
     Returns:
         :class:`SyncSummary` with counts and notes.
+
+    Raises:
+        BlacklistError: If *space_key* is on the confidentiality blacklist.
+        BlacklistConfigError: If no data-protection config declares the
+            Confluence section.
     """
     if opts is None:
         opts = SyncOptions()
     summary = SyncSummary()
+
+    # Confidentiality gate first, before any fetch or write: a blacklisted
+    # space aborts the whole run, including under --dry-run.
+    check_confluence(space_key)
 
     # Dirty working tree check.
     if not opts.dry_run and is_dirty(output_dir):
