@@ -12,6 +12,14 @@ The scheme:
 Extras (space, anchor, width, …) ride on semicolon-delimited query segments:
     confluence-page:MDD/Home;anchor=intro;version-at-save=3
 
+``/`` and ``#`` in the ``page``/``blogpost`` convenience form are structural:
+a bare ``/`` separates ``<space>`` from ``<title>`` and a bare ``#``
+separates ``<title>`` from ``<anchor>``. A title that itself contains one of
+these characters must escape it (``%2F``, ``%23``) — the renderer does this
+for you, and the parser only treats an *unescaped* ``/``/``#`` as the
+separator, so the escaped form always survives round-tripping as a literal
+character in the title instead.
+
 Public surface:
 
     parse_confluence_uri(uri)  -> ConfluenceLink | ConfluenceImage | None
@@ -47,6 +55,8 @@ def parse_confluence_link_uri(uri: str) -> ConfluenceLink | None:
         kind = _LINK_SCHEMES[scheme]
         if kind in ("page", "blogpost"):
             raw_target, raw_extras = _unpack_space_and_anchor(raw_target, raw_extras)
+        else:
+            raw_target = urllib.parse.unquote(raw_target)
         anchor = raw_extras.get("anchor", "")
         attributes = {"ac:anchor": anchor} if anchor else {}
         return ConfluenceLink(
@@ -70,6 +80,7 @@ def parse_confluence_image_uri(uri: str) -> ConfluenceImage | None:
         return None
     if scheme in _IMAGE_SRC_SCHEMES:
         target, raw_extras = _split_extras(rest)
+        target = urllib.parse.unquote(target)
         source_kind: str = "attachment" if scheme == "confluence-attachment" else "url"
         # Move image presentation attrs into attributes with ac: prefix.
         attributes = {f"ac:{k}": v for k, v in raw_extras.items()}
@@ -143,7 +154,12 @@ def render_confluence_uri(node: ConfluenceLink | ConfluenceImage) -> str:
     if node.target_kind == "url":
         return node.target
     scheme = _LINK_SCHEMES_OUT[node.target_kind]
-    return _render_link_extras(node, f"{scheme}:{_pct(node.target)}")
+    # ``page``/``blogpost`` targets are subject to the ``/`` (space) and
+    # ``#`` (anchor) convenience-form split on parse, so a literal ``/``
+    # or ``#`` in the title must round-trip percent-encoded, not bare.
+    unpacked = node.target_kind in ("page", "blogpost")
+    target = _pct(node.target, safe="" if unpacked else "/")
+    return _render_link_extras(node, f"{scheme}:{target}")
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +168,16 @@ def render_confluence_uri(node: ConfluenceLink | ConfluenceImage) -> str:
 
 
 def _split_extras(raw: str) -> tuple[str, dict[str, str]]:
-    """Split ``target;key=value;key2=value2`` into (target, extras)."""
+    """Split ``target;key=value;key2=value2`` into (target, extras).
+
+    The target is returned still percent-encoded. ``/`` and ``#`` inside it
+    are structural delimiters for :func:`_unpack_space_and_anchor`, and an
+    escaped ``%2F``/``%23`` must still look escaped when that split happens
+    — decoding here first would turn an escaped delimiter into a bare one
+    and make it indistinguishable from the real thing.
+    """
     parts = raw.split(";")
-    target = urllib.parse.unquote(parts[0])
+    target = parts[0]
     extras: dict[str, str] = {}
     for part in parts[1:]:
         if not part:
@@ -178,19 +201,31 @@ def _unpack_space_and_anchor(target: str, extras: dict[str, str]) -> tuple[str, 
 
     Explicit extras win: if the URI already carries
     ``;space-key=`` / ``;anchor=`` we leave the target untouched.
+
+    ``target`` arrives still percent-encoded (see :func:`_split_extras`), so
+    a title containing a literal ``/`` or ``#`` — escaped as ``%2F``/``%23``
+    on render — never gets mistaken for the separator. Each piece is
+    decoded only after the structural split is done.
     """
     if "#" in target and "anchor" not in extras:
         target, _, anchor = target.rpartition("#")
         if anchor:
-            extras = {**extras, "anchor": anchor}
+            extras = {**extras, "anchor": urllib.parse.unquote(anchor)}
     if "/" in target and "space-key" not in extras:
         space, _, rest = target.partition("/")
         if space and rest:
             target = rest
-            extras = {**extras, "space-key": space}
-    return target, extras
+            extras = {**extras, "space-key": urllib.parse.unquote(space)}
+    return urllib.parse.unquote(target), extras
 
 
-def _pct(text: str) -> str:
-    """Percent-encode characters that would break the URI shape."""
-    return urllib.parse.quote(text, safe="/")
+def _pct(text: str, safe: str = "/") -> str:
+    """Percent-encode characters that would break the URI shape.
+
+    ``safe`` defaults to leaving ``/`` bare, which is fine for values that
+    are never split on it (attachment/URL sources, extras values). Callers
+    whose target is subject to the ``/``-space and ``#``-anchor split —
+    :func:`_unpack_space_and_anchor` — must pass ``safe=""`` so a literal
+    ``/`` or ``#`` in the payload comes back out escaped.
+    """
+    return urllib.parse.quote(text, safe=safe)

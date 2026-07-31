@@ -199,16 +199,20 @@ def _find_match(tokens: list[Token], i: int, close_type: str, end: int) -> int:
 
 
 def _build_link(href: str, title: str | None, body: list[Inline]) -> Inline:
-    decoded = urllib.parse.unquote(href)
-    conf = parse_confluence_link_uri(decoded)
+    # Try the confluence-* schemes on the raw, still-encoded href first:
+    # they use percent-encoding as their own internal escaping (e.g. a
+    # slash in a page title round-trips as %2F), and unquoting the whole
+    # href up front — as the plain-Link fallback below does for
+    # readability — would strip that escaping before it can be read back.
+    conf = parse_confluence_link_uri(href)
     if conf is not None:
         return replace(conf, body_tokens=body)
+    decoded = urllib.parse.unquote(href)
     return Link(href=decoded, tokens=body, title=title)
 
 
 def _build_image(src: str, alt: str, title: str | None) -> Inline:
-    decoded = urllib.parse.unquote(src)
-    conf = parse_confluence_image_uri(decoded)
+    conf = parse_confluence_image_uri(src)
     if conf is not None:
         # Merge width/align/alt from title slot ("width=400 align=center").
         attributes = dict(conf.attributes)
@@ -220,4 +224,5 @@ def _build_image(src: str, alt: str, title: str | None) -> Inline:
         if alt:
             attributes["ac:alt"] = alt
         return replace(conf, attributes=attributes)
+    decoded = urllib.parse.unquote(src)
     return Image(src=decoded, alt=alt, title=title)

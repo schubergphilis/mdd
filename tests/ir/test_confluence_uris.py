@@ -332,3 +332,88 @@ def test_confluence_link_with_spaces_in_target() -> None:
     link = parsed.children[0].inlines[0]  # type: ignore[union-attr]
     assert isinstance(link, ConfluenceLink)
     assert link.target == "My Page Title"
+
+
+# ---------------------------------------------------------------------------
+# Structural-delimiter escaping (``/`` and ``#`` in the title itself)
+# ---------------------------------------------------------------------------
+
+
+def _roundtrip_page_title(target: str) -> ConfluenceLink:
+    doc = Document(
+        children=[Paragraph(inlines=[ConfluenceLink(target_kind="page", target=target)])]
+    )
+    md = render_markdown(doc)
+    parsed = parse_markdown(md)
+    link = parsed.children[0].inlines[0]  # type: ignore[union-attr]
+    assert isinstance(link, ConfluenceLink)
+    return link
+
+
+def test_title_with_slash_roundtrips_as_literal_not_space_key() -> None:
+    link = _roundtrip_page_title("IT/OT Overview")
+    assert link.target == "IT/OT Overview"
+    assert link.space_key == ""
+
+
+def test_title_with_hash_roundtrips_as_literal_not_anchor() -> None:
+    link = _roundtrip_page_title("Release #3 notes")
+    assert link.target == "Release #3 notes"
+    assert link.attributes.get("ac:anchor", "") == ""
+
+
+def test_title_with_slash_and_hash_roundtrips() -> None:
+    link = _roundtrip_page_title("Both/slash and #anchor char")
+    assert link.target == "Both/slash and #anchor char"
+    assert link.space_key == ""
+    assert link.attributes.get("ac:anchor", "") == ""
+
+
+def test_title_with_semicolon_roundtrips() -> None:
+    """Regression guard: the ``;`` extras delimiter must keep working."""
+    link = _roundtrip_page_title("Q1; Q2 review")
+    assert link.target == "Q1; Q2 review"
+
+
+def test_bare_convenience_form_still_splits_on_unescaped_delimiters() -> None:
+    """A hand-written ``Space/Title#Anchor`` URI must still parse as three parts."""
+    node = parse_confluence_uri("confluence-page:MDD/Home#intro")
+    assert isinstance(node, ConfluenceLink)
+    assert node.target == "Home"
+    assert node.space_key == "MDD"
+    assert node.attributes.get("ac:anchor") == "intro"
+
+
+def test_explicit_space_key_extra_with_slashed_title() -> None:
+    """An explicit ``;space-key=`` extra combined with a slashed title.
+
+    The explicit extra must win over the bare-``/`` convenience split, and
+    the literal slash in the title must still round-trip.
+    """
+    doc = Document(
+        children=[
+            Paragraph(
+                inlines=[
+                    ConfluenceLink(
+                        target_kind="page",
+                        target="IT/OT Overview",
+                        space_key="ENG",
+                    )
+                ]
+            )
+        ]
+    )
+    md = render_markdown(doc)
+    assert "space-key=ENG" in md
+    parsed = parse_markdown(md)
+    link = parsed.children[0].inlines[0]  # type: ignore[union-attr]
+    assert isinstance(link, ConfluenceLink)
+    assert link.target == "IT/OT Overview"
+    assert link.space_key == "ENG"
+
+
+def test_plain_title_roundtrips() -> None:
+    link = _roundtrip_page_title("Plain Title")
+    assert link.target == "Plain Title"
+    assert link.space_key == ""
+    assert link.attributes.get("ac:anchor", "") == ""

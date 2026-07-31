@@ -80,6 +80,12 @@ them back to `ConfluenceLink` at parse time. This keeps the
 markdown human-readable without HTML comments or sidecar
 attributes leaking into the prose.
 
+For `page`/`blogpost`, `/` and `#` are structural: an unescaped `/`
+splits `<space>` from `<title>`, and an unescaped `#` splits `<title>`
+from `<anchor>`. A title containing either character round-trips with
+it percent-encoded (`%2F`, `%23`) instead, so the split only ever fires
+on the real separator.
+
 `ConfluenceImage` follows the same pattern with
 `confluence-attachment:` URIs in `Image.target` and width/height/
 alignment encoded in the standard markdown image title slot:
