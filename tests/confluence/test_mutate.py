@@ -945,3 +945,182 @@ class TestMovePageMaterialisation:
         assert 'chore(mirror): move "Old Title" to "Existing Parent"' in msg
         # No materialisation section.
         assert "materialised ancestors" not in msg
+
+
+# ---------------------------------------------------------------------------
+# repo root discovery for a page nested under a parent (not at the mirror root)
+# ---------------------------------------------------------------------------
+
+
+class TestNestedPageRepoRoot:
+    """rename-page / move-page for a page that is not at the mirror root.
+
+    Every test above puts its page directly in ``repo``, which is also
+    the git work tree root — so ``md_path.parent`` and the real repo
+    root happen to coincide. A page with a parent lives one or more
+    directories down; these tests put it there and check that a
+    relative ``md_path`` argument, an absolute one, and the
+    materialisation / commit paths that follow all still resolve
+    against the real repo root rather than the page's own directory.
+    """
+
+    def test_rename_relative_path_from_mirror_root(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relative ``md_path`` (as typed from the mirror root) must not double-prefix."""
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        monkeypatch.chdir(repo)
+        rel_md_path = md_path.relative_to(repo)
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = rename_page(rel_md_path, "New Title", opts=opts)
+
+        assert rc == 0
+        assert (sub / "New Title.md").exists()
+        assert not md_path.exists()
+
+    def test_rename_absolute_path_independent_of_cwd(self, repo: Path) -> None:
+        """An absolute ``md_path`` must work with the process cwd left untouched."""
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        # Deliberately no chdir: repo root discovery must key off md_path,
+        # not the process's current working directory.
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = rename_page(md_path, "New Title", opts=opts)
+
+        assert rc == 0
+        assert (sub / "New Title.md").exists()
+        assert not md_path.exists()
+
+    def test_rename_dirty_check_covers_whole_repo(self, repo: Path) -> None:
+        """A dirty file elsewhere in the repo still refuses a nested-page rename."""
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm())
+        (repo / "unrelated.txt").write_text("committed\n", encoding="utf-8")
+        _commit_all(repo)
+        (repo / "unrelated.txt").write_text("dirty\n", encoding="utf-8")
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = rename_page(md_path, "New Title", opts=opts)
+
+        assert rc == 1
+        mock_client.put_page.assert_not_called()
+
+    def test_move_nested_page_lands_under_real_repo_root(self, repo: Path) -> None:
+        """A move from a nested page must resolve the new parent under the real root.
+
+        The new parent already exists as a mirror dir, but *at the repo
+        root* — a sibling of ``Section``, not a descendant of it. Using
+        the page's own parent directory as the mirror root would look
+        for it (and fail to find it) under ``Section/Subsection``
+        instead.
+        """
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm(page_id="12345"))
+        parent_dir = repo / "New Parent"
+        parent_dir.mkdir()
+        (parent_dir / "_index.md").write_text(
+            "---\nconfluence:\n  page_id: '99999'\n---\nx\n",
+            encoding="utf-8",
+        )
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(parent_response=_parent_response("99999", "New Parent"))
+        mock_client.get_page_ancestors.return_value = []
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.mutate.pull_single_page") as fake_pull,
+            patch("mdd.confluence.mutate.promote_flat_to_dir") as fake_promote,
+        ):
+            rc = move_page(md_path, "99999", opts=opts)
+
+        assert rc == 0
+        # No materialisation: the parent dir was found at the real root.
+        fake_pull.assert_not_called()
+        fake_promote.assert_not_called()
+        assert (parent_dir / "Old Title.md").exists()
+        assert not md_path.exists()
+        # The whole move is staged and committed, not just the
+        # Section/Subsection subtree the page used to live in.
+        status = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(repo), capture_output=True, text=True
+        ).stdout
+        assert status == ""
+
+    def test_move_nested_page_materialises_new_parent_at_real_root(self, repo: Path) -> None:
+        """An absent new parent is materialised under the real root, not the source subdir."""
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm(page_id="12345"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(parent_response=_parent_response("99999", "New Parent"))
+        mock_client.get_page_ancestors.return_value = []
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        target_dirs: dict[str, Path] = {}
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            _patch_pull_writes_index(target_dirs),
+        ):
+            rc = move_page(md_path, "99999", opts=opts)
+
+        assert rc == 0
+        assert target_dirs["99999"] == repo / "New Parent"
+        assert (repo / "New Parent" / "_index.md").exists()
+        assert (repo / "New Parent" / "Old Title.md").exists()
+        # Materialised files outside Section/Subsection are staged too.
+        status = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=str(repo), capture_output=True, text=True
+        ).stdout
+        assert status == ""
+
+    def test_move_nested_page_commit_body_paths_relative_to_real_root(self, repo: Path) -> None:
+        """Commit-body display paths are repo-root-relative, not subdir-relative."""
+        sub = repo / "Section" / "Subsection"
+        sub.mkdir(parents=True)
+        md_path = sub / "Old-Title.md"
+        _write_md(md_path, _make_fm(page_id="12345"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(parent_response=_parent_response("99999", "New Parent"))
+        mock_client.get_page_ancestors.return_value = []
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        target_dirs: dict[str, Path] = {}
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            _patch_pull_writes_index(target_dirs),
+        ):
+            rc = move_page(md_path, "99999", opts=opts)
+
+        assert rc == 0
+        msg = _last_commit_message(repo)
+        assert "New Parent/_index.md  (page 99999)" in msg
+        assert "moved:" in msg
+        assert "Section/Subsection/Old-Title.md -> New Parent/Old Title.md" in msg

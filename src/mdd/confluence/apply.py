@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.paths import sanitize
@@ -22,7 +23,6 @@ from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
     import subprocess
-    from pathlib import Path
 
 log = get_logger(__name__)
 
@@ -42,6 +42,18 @@ def _git(args: list[str], cwd: Path, *, timeout: int = 30) -> subprocess.Complet
         return run_git(args, cwd, timeout=timeout)
     except GitError as exc:
         raise ApplyError(str(exc)) from exc
+
+
+def find_repo_root(start: Path) -> Path:
+    """Return the top-level directory of the git work tree containing *start*.
+
+    Uses ``git rev-parse --show-toplevel`` run from *start*, which resolves
+    correctly no matter how deep *start* is nested inside the work tree —
+    unlike assuming a fixed number of parent directories (e.g. the file's
+    own parent, which is only the mirror root for a page with no parent).
+    """
+    result = _git(["rev-parse", "--show-toplevel"], start)
+    return Path(result.stdout.strip()).resolve()
 
 
 def git_mv(src: Path, dst: Path, repo_dir: Path) -> None:
