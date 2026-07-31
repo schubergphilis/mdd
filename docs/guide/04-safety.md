@@ -214,16 +214,44 @@ the entry point, so exporting to a plain local directory is refused just
 like a push. There is no "just for me" copy. If you need one, remove the
 entry — which leaves a diff in git, which is the point.
 
-**A config must be reachable, or nothing runs.** With no
-`data-protection.yaml` found anywhere, sync and export abort rather than
-proceeding unprotected. If you hit that error, create
-`~/.config/mdd/data-protection.yaml` with two empty lists:
+**A data-protection config is required, not optional.** This is the one
+thing on this page likely to stop you before you start. With no
+`data-protection.yaml` found anywhere, `mdd confluence sync-space`,
+`export-page`, the page-mutating Confluence commands and
+`mdd sharepoint sync-site` / `sync-folder` **refuse to run at all** — a
+hard error and exit 1, not a warning you can ignore. That applies even if
+you want to protect nothing: `mdd` will not assume an allow-all on your
+behalf, because a missing file would then silently disable the control.
 
-```yaml
+You are most likely to hit this if you installed `mdd` from a built
+package rather than from a source checkout. A checkout carries
+`configs/data-protection.yaml`; a package does not.
+
+The fix, which works for every install shape:
+
+```bash
+mkdir -p ~/.config/mdd
+cat > ~/.config/mdd/data-protection.yaml <<'EOF'
 confluence:
   blacklisted_spaces: []
 sharepoint:
   blacklisted_sites: []
+EOF
+```
+
+Both sections have to be present. Empty lists mean "protect nothing" —
+that is a decision you are recording, not a default you inherit. Add the
+space keys and site names you want protected to the lists.
+
+The error itself says all of this, including the file contents, so you do
+not need this page in front of you when it happens:
+
+```
+blacklist config: No data-protection blacklist found, and one is required.
+  Sync and export refuse to run until a blacklist declares which Confluence
+  spaces and SharePoint sites must never leave their source system.
+  To proceed, create ~/.config/mdd/data-protection.yaml containing:
+  ...
 ```
 
 **The file shipped in this repository is a template.** Its
@@ -319,8 +347,8 @@ matters. In short:
 - There is no 1.0. Breaking changes land between `0.x` minor versions.
 - The data-protection support described above exists
   ([S07](../spec/S07-data-protection.md)) and has not been independently
-  reviewed either. Its Confluence half went unwired for months before
-  anyone noticed, which is the kind of thing a review is for.
+  reviewed either. Nobody wired up its Confluence half for months, and
+  nobody noticed — which is the kind of thing a review is for.
 - `mdd ai` output comes from a model. It can be wrong.
 
 Report vulnerabilities privately. Do not include real customer data, live

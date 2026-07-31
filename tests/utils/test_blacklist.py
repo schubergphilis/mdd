@@ -141,6 +141,24 @@ class TestCheckConfluence:
         with pytest.raises(BlacklistConfigError, match="No data-protection blacklist found"):
             check_confluence("ENGINEERING")
 
+    def test_no_blacklist_message_is_actionable(self) -> None:
+        """The refusal has to tell someone with no config what file to write.
+
+        A packaged install carries no bundled blacklist, so this message is
+        the whole of what such a user gets. It must name the per-user path and
+        both required sections, and must not offer a flag the gated commands
+        do not have.
+        """
+        with pytest.raises(BlacklistConfigError) as exc_info:
+            check_confluence("ENGINEERING")
+        msg = str(exc_info.value)
+        assert "~/.config/mdd/data-protection.yaml" in msg
+        assert "blacklisted_spaces: []" in msg
+        assert "blacklisted_sites: []" in msg
+        # Only `mdd search` accepts --blacklist; suggesting it here sends a
+        # sync-space or sync-site user after a flag that does not exist.
+        assert "--blacklist" not in msg
+
 
 class TestPatternSource:
     """Naming the declaring file is best-effort and must never mask the refusal."""
