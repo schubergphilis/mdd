@@ -265,11 +265,11 @@ confluence:
   username: your-email@example.com
   api_token: op://Employee/confluence-pat/token   # 1Password reference
 
-spaces:
-  ENGINEERING:
-    output_dir: ./output/engineering
-  PRODUCT:
-    output_dir: ./output/product
+  spaces:
+    ENGINEERING:
+      output_dir: ./output/engineering
+    PRODUCT:
+      output_dir: ./output/product
 ```
 
 - Default config search path: `./configs/confluence.yaml`, then
@@ -278,6 +278,17 @@ spaces:
   [S07](S07-data-protection.md). Raw tokens, env-var interpolation
   for tokens, and `.env` files are not supported.
 - `username` is the Atlassian account email; not a secret.
+- `spaces` is nested under `confluence:`, not top-level — this is what
+  [`mdd search`](S19-search-command.md) reads to find every configured
+  mirror root (`confluence.spaces.<key>.output_dir`). None of the
+  `mdd confluence` subcommands above read `output_dir` from config:
+  `export-page` takes `--output` directly, and `sync-space` (see
+  [S14](S14-confluence-sync.md)) either takes `--output` or falls back
+  to `default_output_for_space()`'s origin-URL heuristic — it detects
+  when the current working tree is already a clone of the space's
+  mirror repo and defaults to `.` in that case. `output_dir` in config
+  is `mdd search`'s bookkeeping for "where are my mirrors", not a
+  setting the sync/export path consults.
 
 ## Frontmatter schema
 
