@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mdd.confluence.ir import parse_confluence_storage, render_confluence_storage
 from mdd.ir import (
     BulletList,
     ConfluenceLink,
@@ -20,6 +21,20 @@ from mdd.ir import (
     reattach,
 )
 from mdd.ir.identity import IdAllocator
+from mdd.markdown.ir import parse_markdown
+
+
+def _storage_section(layout_type: str, n_cells: int, local_id: str) -> str:
+    cells = "".join(f"<ac:layout-cell><p>cell{i}</p></ac:layout-cell>" for i in range(n_cells))
+    return (
+        f'<ac:layout-section ac:type="{layout_type}" ac:local-id="{local_id}">'
+        f"{cells}</ac:layout-section>"
+    )
+
+
+def _markdown_section(layout_type: str, n_cells: int) -> str:
+    cells = "".join(f":::::layout-cell\n\ncell{i}\n\n:::::\n" for i in range(n_cells))
+    return f'::::layout-section layout_type="{layout_type}"\n{cells}::::\n'
 
 
 class TestIdAllocator:
@@ -152,6 +167,73 @@ class TestReattach:
         para: Paragraph = merged.children[0]  # type: ignore[assignment]
         link: ConfluenceLink = para.inlines[0]  # type: ignore[assignment]
         assert link.attributes.get("ac:macro-id") == "lk1"
+
+    def test_layout_section_keeps_fresh_layout_type(self) -> None:
+        """An authored `layout_type` change beats the cached `ac:type`."""
+        cached = Document(
+            children=[
+                Layout(
+                    sections=[
+                        LayoutSection(
+                            layout_type="two_equal",
+                            cells=[LayoutCell(children=[Paragraph(inlines=[Text("a")])])],
+                            attributes={"ac:type": "two_equal", "ac:local-id": "s1"},
+                        )
+                    ],
+                    node_id="b00001",
+                )
+            ]
+        )
+        fresh = Document(
+            children=[
+                Layout(
+                    sections=[
+                        LayoutSection(
+                            layout_type="three_equal",
+                            cells=[LayoutCell(children=[Paragraph(inlines=[Text("a")])])],
+                        )
+                    ]
+                )
+            ]
+        )
+        merged = reattach(fresh, cached)
+        layout: Layout = merged.children[0]  # type: ignore[assignment]
+        section = layout.sections[0]
+        assert section.layout_type == "three_equal"
+        # `ac:type` is not grafted, so the writer falls back to `layout_type`.
+        assert "ac:type" not in section.attributes
+        # Every other cached attribute still grafts.
+        assert section.attributes.get("ac:local-id") == "s1"
+
+    def test_layout_section_insert_does_not_shift_types(self) -> None:
+        """Inserting a section keeps every later section's authored type."""
+        cached_storage = (
+            "<ac:layout>"
+            + _storage_section("fixed-width", 1, "s1")
+            + _storage_section("two_equal", 2, "s2")
+            + _storage_section("fixed-width", 1, "s3")
+            + "</ac:layout>"
+        )
+        fresh_markdown = (
+            ":::layout\n"
+            + _markdown_section("fixed-width", 1)
+            + _markdown_section("two_equal", 2)
+            + _markdown_section("two_equal", 2)  # inserted before the footer
+            + _markdown_section("fixed-width", 1)
+            + ":::\n"
+        )
+        cached = parse_confluence_storage(cached_storage, mode="preserving")
+        merged = reattach(parse_markdown(fresh_markdown), cached)
+        layout: Layout = merged.children[0]  # type: ignore[assignment]
+        assert [s.layout_type for s in layout.sections] == [
+            "fixed-width",
+            "two_equal",
+            "two_equal",
+            "fixed-width",
+        ]
+        out = render_confluence_storage(merged, mode="preserving")
+        assert out.count('ac:type="two_equal"') == 2
+        assert out.count('ac:type="fixed-width"') == 2
 
     def test_table_reattach(self) -> None:
         cached = Document(
