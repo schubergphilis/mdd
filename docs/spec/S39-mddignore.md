@@ -18,7 +18,7 @@ None of these commands currently expose a way to skip source paths. Every file u
 
 [`utils/blacklist.py`](S07-data-protection.md) (the data-protection gate) exists but operates on the **destination push** side — it prevents publishing certain content out of the mirror. It does not, and is not designed to, filter the **source pull** side. They are different layers and do not interact.
 
-This spec defines a single shared source-side filter — `.mddignore` — usable by all three sync commands above. The first wiring lands in SharePoint; Confluence and Lucid wiring follow as separate work, on top of the same matcher.
+This spec defines a single shared source-side filter — `.mddignore` — usable by all three sync commands above. The first wiring landed in SharePoint; Confluence wiring landed on top of the same matcher (see [Confluence wiring](#confluence-wiring) below); Lucid wiring follows as separate work.
 
 ## Requirements
 
@@ -77,7 +77,7 @@ Interactions with other flags:
 - **`--dry-run`** combined with `--prune-ignored`: the prune pass logs each path it WOULD delete (INFO, prefixed to make the dry-run intent visible) but performs no deletion. The summary line reads `N pruned (ignored, dry-run)`.
 - **`--read-only`** combined with `--prune-ignored` MUST be rejected at argument-parse time with a clear error and a non-zero exit code. Both flags are explicit user choices about destructiveness; the combination is contradictory ("don't write to the source" + "delete locally") and silently picking one would be surprising. Users who want a local prune without source writes can run `--prune-ignored` alone (the SharePoint/Confluence `--read-only` semantics never required this combination to begin with).
 
-`--prune-ignored` is supported in `mdd sharepoint sync-site` / `sync-folder`, `mdd confluence sync-space`, and `mdd lucid sync-folder`. The Confluence and Lucid wirings depend on those commands first consuming `.mddignore` (the matcher-load and `--ignore` plumbing land separately as part of the v1 follow-up wiring).
+`--prune-ignored` is supported in `mdd sharepoint sync-site` / `sync-folder` and `mdd confluence sync-space`. The `mdd lucid sync-folder` wiring depends on that command first consuming `.mddignore` (the matcher-load and `--ignore` plumbing land separately as part of the v1 follow-up wiring).
 
 ### Performance: directory-level pruning
 
@@ -150,11 +150,42 @@ Each sync command wires the matcher in two places:
 
 For SharePoint specifically (the first wiring), the natural touch points are the sync walker in `src/mdd/sharepoint/sync.py` and the per-file decision function in `src/mdd/sharepoint/rules.py`. A new `FileAction` variant (e.g. `SKIP_IGNORED`) carries the skip through the existing action pipeline so the summary builder can count it without bespoke plumbing.
 
-For Confluence and Lucid, the wiring is analogous but is **not** part of this spec's first delivery — those are follow-up work tracked separately. The matcher API is designed so the wiring is small in each case (load once, ask `is_ignored` per page/file, ask `prune_dir` per subtree).
+For Lucid, the wiring is analogous but is **not** part of this spec's first delivery — it is follow-up work tracked separately. The matcher API is designed so the wiring is small (load once, ask `is_ignored` per file, ask `prune_dir` per subtree).
+
+### Confluence wiring
+
+Confluence has no filesystem paths to match against — a page's location is
+a title chain in the Confluence tree, not a directory on disk until
+`export`/`sync` decides where its markdown file lands. `src/mdd/confluence/sync/mddignore.py`
+bridges this: for every page in `sync-space`'s desired-state map it walks
+the same tree-building and filename-sanitisation logic `build_path_map`
+(`mdd.confluence.export`) uses, and derives the same two rel-paths the
+matcher needs — the page's own `<title>.md` rel-path, and the rel-path of
+the directory that would hold its children. Those synthetic rel-paths are
+then checked with `is_ignored` / `prune_dir` exactly as a filesystem sync
+would check a real path.
+
+Two filter passes run per `sync-space` invocation, mirroring the
+directory-pruning and per-file requirements above:
+
+1. **Subtree pruning** — a page's child-subtree rel-path is checked with
+   both `is_ignored(..., is_dir=True)` (catches a literal `Archive/`
+   pattern even on a leaf page, which has no descendants to prove
+   `prune_dir` right) and `prune_dir` (catches patterns like
+   `**/Archive/` that only resolve once descendants are considered).
+   Either match drops the page and every descendant from the desired-state
+   map in one shot — the bulk-saving case.
+2. **Per-page filtering** — every page that survives pruning is checked
+   individually against its own `<title>.md` rel-path.
+
+Pages already tracked locally (present in the current-state map, i.e.
+already have a `page_id` in some file's frontmatter) are never dropped,
+matching the "ignore blocks new pulls only" contract — the same rule the
+SharePoint wiring follows.
 
 ### `--ignore` flag
 
-Each consumer CLI (initially `mdd sharepoint sync-folder` and `mdd sharepoint sync-site`) accepts `--ignore=<path>`, declared via `argparse` with `action="append"` so it can be supplied multiple times. `--help` documents the union semantics and the relationship to `<dest>/.mddignore`.
+Each consumer CLI (`mdd sharepoint sync-folder`, `mdd sharepoint sync-site`, and `mdd confluence sync-space`) accepts `--ignore=<path>`, declared via `argparse` with `action="append"` so it can be supplied multiple times. `--help` documents the union semantics and the relationship to `<dest>/.mddignore`.
 
 ### `--prune-ignored` flag
 
@@ -181,7 +212,7 @@ For users who want to start filtering an existing mirror:
 - [000-specs](000-specs.md) — shared spec conventions.
 - [S07](S07-data-protection.md) — `utils/blacklist.py` is the destination-push gate; `.mddignore` is the source-pull filter. Different layers, no interaction.
 - [S10](S10-sharepoint-command.md) — `mdd sharepoint` consumes the matcher for OneDrive-backed sync.
-- [S14](S14-confluence-sync.md) — `mdd confluence sync` is the second consumer (follow-up wiring).
+- [S14](S14-confluence-sync.md) — `mdd confluence sync` is the second consumer, wired directly into `sync-space` (see [Confluence wiring](#confluence-wiring) above).
 - [S18](S18-sharepoint-sync.md) — bidirectional SharePoint sync; the matcher gates the pull half.
 - The private Lucid mirror — `mdd lucid sync-folder`, a wrapper-supplied
   command, is the third consumer (follow-up wiring).
@@ -198,5 +229,5 @@ For users who want to start filtering an existing mirror:
 - **Regex patterns.** Patterns are gitignore wildmatch only; no `pcre`/`re` syntax.
 - **Source-side `.mddignore` (pushed up to SharePoint/Confluence/Lucid).** The file lives in the destination mirror only. The source is read-only as far as the ignore mechanism is concerned.
 - **Auto-prune on pattern add.** `--prune-ignored` is per invocation and never sticky. `mdd` does not detect "the matcher changed since the last sync" and run an implicit prune; the user must request cleanup explicitly each time.
-- **Wiring into `mdd confluence sync` and `mdd lucid sync-folder` as part of this spec's first delivery.** The matcher is designed once for all three; the SharePoint wiring is the first integration. Confluence and Lucid follow-ups consume the same matcher with no API changes expected.
+- **Wiring into `mdd lucid sync-folder`.** The matcher is designed once for all three sync commands; SharePoint and Confluence are wired (see [Confluence wiring](#confluence-wiring) above). The Lucid follow-up consumes the same matcher with no API changes expected.
 - **Replacing or merging with [`utils/blacklist.py`](S07-data-protection.md).** The blacklist remains a separate, push-side gate.
