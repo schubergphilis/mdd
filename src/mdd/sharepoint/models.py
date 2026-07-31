@@ -96,6 +96,18 @@ class SharepointFrontmatter(FrontmatterModel):
     sharepoint: SharepointBlock | None = None
 
 
+class SharepointCliSiteEntry(FrontmatterModel):
+    """One entry under ``sharepoint.sites`` in the ``--config`` YAML file.
+
+    Documented as part of the config schema, but not read by any code
+    path today: the CLI resolves output directories from ``--output``
+    or the site→repo mapping instead. Modelled anyway so a config
+    written against the documented schema still loads.
+    """
+
+    output_dir: str | None = None
+
+
 class SharepointCliSection(FrontmatterModel):
     """The ``sharepoint:`` block in the ``--config`` YAML file.
 
@@ -106,6 +118,7 @@ class SharepointCliSection(FrontmatterModel):
     """
 
     sync_root: str | None = None
+    sites: dict[str, SharepointCliSiteEntry] | None = None
 
 
 class SharepointCliConfig(FrontmatterModel):
