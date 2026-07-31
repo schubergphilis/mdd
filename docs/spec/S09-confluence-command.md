@@ -43,6 +43,24 @@ to push. `--message` sets the version comment in Confluence page
 history. Image sync runs as part of update. On success, frontmatter is
 rewritten with the new version and updated attachment manifest.
 
+**Body-safety guards.** Before rendering and pushing, `update page`
+refuses two shapes of body that look like accidental content loss:
+
+- An **empty body** (nothing but whitespace after the export header is
+  stripped) — refused unless `--allow-empty` is passed.
+- A body that shrinks to **under 10% of the remote body's length**
+  (character count, storage XHTML on both sides) — refused unless
+  `--allow-shrink` is passed.
+
+Both are overridable per-invocation flags, not config; there is no way to
+disable the guard for every push from a repo. These are the last check
+between a bad local file (an accidental truncation, a botched merge, an
+empty export re-pushed by mistake) and wiping a live Confluence page —
+`update page` has no undo beyond Confluence's own version history. `mdd
+confluence sync-space`'s content-push step reuses this same check (see
+[S14](S14-confluence-sync.md) step 4f); there is only one implementation
+of the guard.
+
 **Header strip and footer insert** apply to both `create` and `update`:
 
 1. **Strip the "Confluence export" callout** (the blockquote at the top
