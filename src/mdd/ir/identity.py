@@ -27,6 +27,7 @@ from .nodes import (
     Emph,
     Heading,
     HorizontalRule,
+    Image,
     Inline,
     Layout,
     LayoutCell,
@@ -389,12 +390,100 @@ def _flat_text(tokens: list[Inline]) -> str:
     return " ".join("".join(parts).split())
 
 
-def _reattach_or_replace_inlines(fresh: list[Inline], cached: list[Inline]) -> list[Inline]:
-    """Reattach inline metadata; if flat-text matches end-to-end, prefer the
-    cached inline list outright. This recovers the R3 round-trip case where
-    `parse_markdown` collapsed SoftBreaks that the cached IR_a still carries.
+# The inline kinds a markdown round-trip carries faithfully, mapped to the
+# typed fields it preserves. An edit to one of these can leave the visible
+# text untouched (a repointed link, a swapped image, plain text emphasised),
+# so they take part in the "same content" test below — otherwise the cached
+# list wins and the edit never reaches the page.
+#
+# Every other kind is Confluence-native (`ConfluenceLink`, `InlineMacro`,
+# `Emoticon`, `Placeholder`, …). The markdown leg neither preserves their
+# node type — an `Emoticon` comes back as an `InlineMacro` — nor their
+# targets, so they compare as one opaque marker: a token appearing or
+# disappearing still counts, a change of kind or field does not.
+_MD_FAITHFUL_FIELDS: dict[type, tuple[str, ...]] = {
+    Strong: (),
+    Emph: (),
+    Strikethrough: (),
+    Link: ("href", "title"),
+    Image: ("src", "alt", "title"),
+    Code: ("content",),
+}
+
+# Children of the faithful container kinds, by field name.
+_MD_CHILD_FIELD: dict[type, str] = {
+    Strong: "tokens",
+    Emph: "tokens",
+    Strikethrough: "tokens",
+    Link: "tokens",
+}
+
+_OPAQUE_SHAPE: tuple[object, ...] = ("<opaque>",)
+
+
+def _inline_children(tok: Inline) -> list[Inline]:
+    field_name = _MD_CHILD_FIELD.get(type(tok))
+    if field_name is None:
+        return []
+    return cast("list[Inline]", getattr(tok, field_name))
+
+
+def _is_autolink(tok: Inline) -> bool:
+    """Is *tok* a link whose visible label is its own target?
+
+    The markdown reader turns a bare URL in running text into a `Link` (and
+    may prepend a scheme doing so), so cached plain text and a fresh
+    autolink are the same markdown. Such a link compares as text.
     """
-    if _flat_text(fresh) == _flat_text(cached):
+    if not isinstance(tok, Link):
+        return False
+    label = _flat_text(tok.tokens)
+    return tok.href in (label, f"http://{label}", f"https://{label}", f"mailto:{label}")
+
+
+def _inline_shape(tokens: list[Inline]) -> tuple[object, ...]:
+    """Structural signature of an inline list, over what markdown represents.
+
+    `Text`, `SoftBreak` and `LineBreak` are skipped: the markdown leg
+    redistributes the split between them (it collapses SoftBreaks into the
+    surrounding text), and their combined content is compared by `_flat_text`
+    instead. Every other token contributes its kind, the fields markdown
+    carries, and — for the container kinds — the flat text and signature of
+    its children, so a restructured inline run fails the comparison even
+    when it reads the same.
+    """
+    return tuple(
+        _inline_token_shape(tok)
+        for tok in tokens
+        if not isinstance(tok, (Text, SoftBreak, LineBreak)) and not _is_autolink(tok)
+    )
+
+
+def _inline_token_shape(tok: Inline) -> tuple[object, ...]:
+    fields = _MD_FAITHFUL_FIELDS.get(type(tok))
+    if fields is None:
+        return _OPAQUE_SHAPE
+    children = _inline_children(tok)
+    return (
+        type(tok).__name__,
+        tuple(getattr(tok, name) for name in fields),
+        _flat_text(children),
+        _inline_shape(children),
+    )
+
+
+def _reattach_or_replace_inlines(fresh: list[Inline], cached: list[Inline]) -> list[Inline]:
+    """Reattach inline metadata; if fresh and cached carry the same content,
+    prefer the cached inline list outright. This recovers the R3 round-trip
+    case where `parse_markdown` collapsed SoftBreaks that the cached IR_a
+    still carries.
+
+    "Same content" is textual *and* structural: matching flat text alone
+    would let the cached list override an edit that markdown represents
+    perfectly well but that leaves the rendered text unchanged — repointing
+    a link, or switching strong to emphasis.
+    """
+    if _flat_text(fresh) == _flat_text(cached) and _inline_shape(fresh) == _inline_shape(cached):
         return list(cached)
     return _reattach_inlines(fresh, cached)
 
