@@ -1,7 +1,7 @@
 """mapping.py — site-name to repo-name mapping for SharePoint mirrors."""
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,7 +14,6 @@ class MappingEntry:
 
     site_name: str
     repo_name: str
-    gitlab_group: str = field(default="mdd/sharepoint")
 
 
 _SPECIAL_CHARS_RE = re.compile(r'[\s/\\:*?"<>|]+')
@@ -50,9 +49,6 @@ def _find_mapping_file(path: Path | None) -> Path | None:
     return None
 
 
-_DEFAULT_GITLAB_GROUP = "mdd/sharepoint"
-
-
 def _load_yaml_doc(mapping_path: Path) -> dict[str, Any]:
     """Read *mapping_path* and return its top-level dict, or ``{}`` on any error.
 
@@ -81,9 +77,7 @@ def _parse_dict_entry(site_name: str, entry_raw: Any) -> MappingEntry | None:
     repo_raw: Any = entry_dict.get("repo")
     if not isinstance(repo_raw, str):
         return None
-    group_raw: Any = entry_dict.get("gitlab_group", _DEFAULT_GITLAB_GROUP)
-    gitlab_group: str = group_raw if isinstance(group_raw, str) else _DEFAULT_GITLAB_GROUP
-    return MappingEntry(site_name=site_name, repo_name=repo_raw, gitlab_group=gitlab_group)
+    return MappingEntry(site_name=site_name, repo_name=repo_raw)
 
 
 def _parse_dict_sites(sites: dict[str, Any]) -> dict[str, MappingEntry]:
@@ -137,7 +131,6 @@ def load_mapping(path: Path | None = None) -> dict[str, MappingEntry]:
         sites:
           "HR Documentation":
             repo: HR-Documentation
-            gitlab_group: mdd/sharepoint   # optional; default mdd/sharepoint
           "AI":
             repo: AI
 

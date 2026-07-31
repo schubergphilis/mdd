@@ -108,15 +108,6 @@ class TestLoadMapping:
         result = load_mapping(mapping_file)
         assert "HR Documentation" in result
         assert result["HR Documentation"].repo_name == "HR-Documentation"
-        assert result["HR Documentation"].gitlab_group == "mdd/sharepoint"
-
-    def test_spec_dict_format_with_gitlab_group(self, tmp_path: Path) -> None:
-        mapping_file = tmp_path / "sharepoint-mapping.yaml"
-        content = "sites:\n  AI / ML Team:\n    repo: AI-ML-Team\n    gitlab_group: mdd/custom\n"
-        mapping_file.write_text(content)
-        result = load_mapping(mapping_file)
-        assert result["AI / ML Team"].repo_name == "AI-ML-Team"
-        assert result["AI / ML Team"].gitlab_group == "mdd/custom"
 
     def test_spec_dict_format_multiple_entries(self, tmp_path: Path) -> None:
         mapping_file = tmp_path / "sharepoint-mapping.yaml"
@@ -134,7 +125,7 @@ class TestLoadMapping:
 
     def test_spec_dict_missing_repo_key_skipped(self, tmp_path: Path) -> None:
         mapping_file = tmp_path / "sharepoint-mapping.yaml"
-        content = "sites:\n  HR Documentation:\n    gitlab_group: mdd/sp\n"
+        content = "sites:\n  HR Documentation: {}\n"
         mapping_file.write_text(content)
         result = load_mapping(mapping_file)
         assert result == {}
