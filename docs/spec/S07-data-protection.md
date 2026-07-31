@@ -145,10 +145,29 @@ deployment supplies defer to it.
    Confluence blacklist is empty there is nothing to protect and it is
    allowed through, so a deployment that has not opted into blacklisting
    sees no new failure.
-8. **A missing blacklist config fails closed.** If no loaded file
-   declares the section being checked, the sync or export aborts rather
-   than proceeding unprotected. See "Config schema" below for the load
-   order and the error the operator gets.
+8. **A data-protection config is a prerequisite for the gated commands,
+   not an optional extra.** If no file is found anywhere, or none of the
+   files found declares the section being checked, the sync or export
+   aborts. It does not warn and continue. `mdd confluence sync-space`,
+   `export-page`, the page-mutating Confluence commands and
+   `mdd sharepoint sync-site` / `sync-folder` therefore do not run at
+   all until a blacklist exists, even for an operator who wants to
+   protect nothing.
+
+   This is intentional, and it is the one place the blacklist imposes a
+   cost on someone who never opted in. The alternative — treating "no
+   config" as "allow everything" — means a deleted, renamed or
+   mis-installed file silently disables the control, and a silently
+   disabled data-protection gate is the failure this whole spec exists
+   to prevent. Declaring two empty lists is a deliberate act that leaves
+   a file on disk; inheriting an allow-all is not.
+
+   The consequence to plan for: a packaged install does not carry the
+   bundled `configs/data-protection.yaml` (see "Config schema" below),
+   so a deployment that installs `mdd` from a built artefact must ship or
+   generate `~/.config/mdd/data-protection.yaml` as part of its setup.
+   The error the operator gets names that path and includes the minimal
+   file contents, so the failure is self-service.
 
 ## Design Approach
 
@@ -241,15 +260,20 @@ A file may declare only `confluence:` or only `sharepoint:`; the merged
 result must declare each section that is being checked, otherwise the
 gate fails closed.
 
-**Fail-closed means every sync and export needs a reachable config.**
-When nothing in the load order exists, the run aborts with an error
-naming all four locations and stating that either list may be an empty
-array. That is the deliberate choice — an absent data-protection config
-is not an allow-all — but it makes source 1 load-bearing, and source 1
-resolves relative to the checked-out source tree. An install that does
-not carry `configs/` alongside the package finds no bundled file, so a
-user of such an install needs `~/.config/mdd/data-protection.yaml` (two
-empty lists are enough) before any sync or export will run.
+**Source 1 exists only for a source checkout.** It resolves relative to
+this module's own location in the source tree, and the packaging config
+excludes `configs/` from the built distribution, so a packaged install
+finds no bundled file. For that install shape source 2 is the only one
+that applies unless the operator works from a directory with its own
+`configs/`.
+
+That interacts with the fail-closed rule in requirement 8 above: with no
+source-1 file and no source-2 file, the gated commands do not run. The
+error text therefore leads with source 2 and the exact file to create,
+rather than with the list of places that were searched, and it does not
+mention the `--blacklist` argument — that is source 4 and only
+`mdd search` accepts it, so offering it to someone running `sync-space`
+would send them after a flag their command does not have.
 
 ## 1Password setup (README pointer)
 

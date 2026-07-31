@@ -27,6 +27,30 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return cast("dict[str, Any]", result)
 
 
+# Leads with the fix rather than with what was expected: the reader of this
+# message is usually someone who installed mdd and ran a sync, and the
+# per-user path is the one that works for every install shape. The bundled
+# file is listed second because a packaged install does not carry it and a
+# reader cannot create it.
+_NO_BLACKLIST_MESSAGE = """No data-protection blacklist found, and one is required.
+  Sync and export refuse to run until a blacklist declares which Confluence
+  spaces and SharePoint sites must never leave their source system.
+  To proceed, create ~/.config/mdd/data-protection.yaml containing:
+
+    confluence:
+      blacklisted_spaces: []
+    sharepoint:
+      blacklisted_sites: []
+
+  Both sections must be present. An empty list means "protect nothing", which
+  is a deliberate choice you are making rather than a default you inherit; add
+  the space keys and site names you want protected to the lists.
+  Also searched, in order: configs/data-protection.yaml bundled with the mdd
+  install (a source checkout has this, a packaged install does not), then
+  ~/.config/mdd/data-protection.yaml, then ./configs/data-protection.yaml
+  relative to the current directory."""
+
+
 def _repo_blacklist_path() -> Path | None:
     """Return the path to the repo-bundled blacklist, or None if absent.
 
@@ -85,11 +109,5 @@ def find_blacklist_files(explicit: Path | None) -> list[Path]:
         _add(explicit)
 
     if not found:
-        raise ConfigError(
-            "No data-protection blacklist found. "
-            "Expected a bundled configs/data-protection.yaml in the mdd install, "
-            "~/.config/mdd/data-protection.yaml, or a --blacklist override. "
-            "The file must declare confluence.blacklisted_spaces and "
-            "sharepoint.blacklisted_sites; either may be an empty list."
-        )
+        raise ConfigError(_NO_BLACKLIST_MESSAGE)
     return found
