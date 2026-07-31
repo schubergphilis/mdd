@@ -138,7 +138,8 @@ class TestBuildRgTypeArgs:
     def test_all_type_includes_both(self) -> None:
         args = _build_rg_type_args("all")
         assert "md" in args
-        assert "*.qmd" in args
+        assert "qmd:*.qmd" in args
+        assert "qmd" in args
 
 
 class TestBuildRgCmd:
@@ -422,7 +423,7 @@ class TestCmdSearchArgs:
         assert filter_called == [True]
 
     def test_type_all_forwarded(self) -> None:
-        """--type all is forwarded as both --type md and *.qmd glob."""
+        """--type all is forwarded as a union of the md and qmd rg types."""
         root = _confluence_root(CONFLUENCE_MIRROR)
         captured_cmds: list[list[str]] = []
 
@@ -446,7 +447,8 @@ class TestCmdSearchArgs:
         assert captured_cmds, "rg cmd was not built"
         cmd = captured_cmds[0]
         assert "md" in cmd
-        assert "*.qmd" in cmd
+        assert "qmd:*.qmd" in cmd
+        assert "qmd" in cmd
 
 
 # ---------------------------------------------------------------------------
@@ -510,3 +512,54 @@ class TestCmdSearchEndToEnd:
         for line in captured.out.splitlines():
             if line.strip().startswith("L"):
                 assert "space: ENGINEERING" not in line
+
+    def _type_filter_root(self, tmp_path: Path) -> MirrorRoot:
+        """A root holding one .md and one .qmd file that share a search term."""
+        (tmp_path / "page.md").write_text("# Quarto notes\n")
+        (tmp_path / "notebook.qmd").write_text("# Quarto notes\n")
+        return MirrorRoot(
+            path=tmp_path,
+            mirror_name="confluence/TEST",
+            source_type="confluence",
+            identifier="TEST",
+        )
+
+    def test_type_all_finds_both_md_and_qmd(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--type all must be the union of md and qmd, not narrowed to one of them."""
+        root = self._type_filter_root(tmp_path)
+
+        with patch("mdd.commands.search.resolve_roots", return_value=[root]):
+            rc = cmd_search(["Quarto", "--type", "all"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "page.md" in out
+        assert "notebook.qmd" in out
+
+    def test_type_md_finds_only_md(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = self._type_filter_root(tmp_path)
+
+        with patch("mdd.commands.search.resolve_roots", return_value=[root]):
+            rc = cmd_search(["Quarto", "--type", "md"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "page.md" in out
+        assert "notebook.qmd" not in out
+
+    def test_type_qmd_finds_only_qmd(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = self._type_filter_root(tmp_path)
+
+        with patch("mdd.commands.search.resolve_roots", return_value=[root]):
+            rc = cmd_search(["Quarto", "--type", "qmd"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "notebook.qmd" in out
+        assert "page.md" not in out
