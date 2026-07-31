@@ -64,7 +64,12 @@ _RG_TYPE_ARGS: dict[str, list[str]] = {
     "md": ["--type", "md"],
     # rg doesn't have a built-in qmd type; use glob
     "qmd": ["--glob", "*.qmd"],
-    "all": ["--type", "md", "--glob", "*.qmd"],
+    # An inclusive --glob acts as a whitelist and overrides --type's
+    # inclusion rather than adding to it, so "all" can't be built by mixing
+    # the two. Define qmd as a custom rg type instead, so it can be unioned
+    # with the built-in md type (which covers *.markdown, *.mdown, *.mdx,
+    # *.mkd, *.mkdn too, not just *.md) via repeated --type flags.
+    "all": ["--type-add", "qmd:*.qmd", "--type", "md", "--type", "qmd"],
 }
 
 
