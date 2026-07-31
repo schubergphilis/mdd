@@ -16,7 +16,7 @@ Several `mdd` sync commands pull content from remote sources into a local mirror
 
 None of these commands currently expose a way to skip source paths. Every file under the configured root gets pulled and converted. On real corpora this is painful: our "Labs" SharePoint mirror produces a ~12 GB working tree, of which roughly 7 GB lives in `*/Archive/` and `*/old/` subtrees the user has no interest in. The only existing workaround is to delete those folders after each sync, which is tedious and gets undone on the next run.
 
-[`utils/blacklist.py`](S07-data-protection.md) (the data-protection gate) exists but operates on the **destination push** side — it prevents publishing certain content out of the mirror. It does not, and is not designed to, filter the **source pull** side. They are different layers and do not interact.
+[`utils/blacklist.py`](S07-data-protection.md) (the data-protection gate) is a coarse, whole-space/whole-site confidentiality gate — see S07 for exactly which commands it covers and when it fires. It does not, and is not designed to, do per-path filtering. They are different layers and do not interact.
 
 This spec defines a single shared source-side filter — `.mddignore` — usable by all three sync commands above. The first wiring landed in SharePoint; Confluence wiring landed on top of the same matcher (see [Confluence wiring](#confluence-wiring) below); Lucid wiring follows as separate work.
 
@@ -47,8 +47,8 @@ This spec defines a single shared source-side filter — `.mddignore` — usable
 
 ### Precedence vs. `utils/blacklist.py`
 
-- `.mddignore` runs **first**, at pull time, before any blacklist consideration. It is the cheaper and earlier check.
-- The two filters operate at different layers and are not designed to interact. A path skipped by `.mddignore` is never seen by the blacklist gate; a path allowed by `.mddignore` is then independently subject to the data-protection blacklist on push.
+- `.mddignore` and the blacklist gate operate at different layers and are not designed to interact: `.mddignore` filters *which paths* within an otherwise-permitted space/site get pulled; the blacklist gate governs *whether `mdd` touches the space/site at all* — see [S07](S07-data-protection.md) for its exact trigger condition.
+- Neither filter overrides or short-circuits the other. Skipping a path via `.mddignore` says nothing about whether that path's space/site is blacklisted, and vice versa.
 
 ### Already-synced state
 
@@ -106,7 +106,7 @@ When a sync command consults the matcher:
 
 **Union, not override, for CLI + dest file.** The CLI flag's purpose is bootstrap — the dest repo does not exist yet, so there is no `.mddignore` to either override or compose with. Once the dest repo exists and contains a `.mddignore`, the CLI flag is essentially additive in practice. Union semantics make that explicit and avoid the surprising case where a user passes `--ignore=foo` to "add to the rules" and silently loses the dest-repo file.
 
-**`.mddignore` runs before the blacklist.** The blacklist is a publish-side safety net (don't push customer data to the wrong remote). `.mddignore` is a pull-side cost-saver (don't waste bandwidth and disk on `Archive/`). They live in different command phases — pull versus push — and a file skipped on pull is never a candidate for the blacklist check on push. Statement of non-interaction, not a precedence rule.
+**`.mddignore` and the blacklist operate at different layers.** `.mddignore` is a per-path cost-saver within a space/site `mdd` is otherwise allowed to touch (don't waste bandwidth and disk on `Archive/`). The blacklist ([S07](S07-data-protection.md)) is a whole-space/whole-site confidentiality gate — see S07 for its exact trigger condition. Statement of non-interaction, not a precedence rule.
 
 **Match git on already-synced content; opt-in cleanup is explicit per invocation.** Users have strong, deeply-trained intuition for `.gitignore`: adding a pattern does not delete tracked files. Matching that intuition is the right default. Cleanup of already-synced content lives behind `--prune-ignored`, which is opt-in per invocation, never sticky, and never inferred from `.mddignore` edits. The `--read-only` + `--prune-ignored` combination is rejected rather than silently resolved — both flags are explicit choices about destructiveness, and the safe move is to make the user pick one rather than guess.
 
@@ -210,7 +210,7 @@ For users who want to start filtering an existing mirror:
 ## Related upstream specs
 
 - [000-specs](000-specs.md) — shared spec conventions.
-- [S07](S07-data-protection.md) — `utils/blacklist.py` is the destination-push gate; `.mddignore` is the source-pull filter. Different layers, no interaction.
+- [S07](S07-data-protection.md) — `utils/blacklist.py` is the whole-space/whole-site confidentiality gate; `.mddignore` is the per-path source filter. Different layers, no interaction.
 - [S10](S10-sharepoint-command.md) — `mdd sharepoint` consumes the matcher for OneDrive-backed sync.
 - [S14](S14-confluence-sync.md) — `mdd confluence sync` is the second consumer, wired directly into `sync-space` (see [Confluence wiring](#confluence-wiring) above).
 - [S18](S18-sharepoint-sync.md) — bidirectional SharePoint sync; the matcher gates the pull half.
@@ -230,4 +230,4 @@ For users who want to start filtering an existing mirror:
 - **Source-side `.mddignore` (pushed up to SharePoint/Confluence/Lucid).** The file lives in the destination mirror only. The source is read-only as far as the ignore mechanism is concerned.
 - **Auto-prune on pattern add.** `--prune-ignored` is per invocation and never sticky. `mdd` does not detect "the matcher changed since the last sync" and run an implicit prune; the user must request cleanup explicitly each time.
 - **Wiring into `mdd lucid sync-folder`.** The matcher is designed once for all three sync commands; SharePoint and Confluence are wired (see [Confluence wiring](#confluence-wiring) above). The Lucid follow-up consumes the same matcher with no API changes expected.
-- **Replacing or merging with [`utils/blacklist.py`](S07-data-protection.md).** The blacklist remains a separate, push-side gate.
+- **Replacing or merging with [`utils/blacklist.py`](S07-data-protection.md).** The blacklist remains a separate gate — see S07 for its mechanism.

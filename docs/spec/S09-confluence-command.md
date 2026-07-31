@@ -91,9 +91,10 @@ same basename) are a hard error — Confluence keys attachments by
 filename within a page. The v2 attachment endpoints are still maturing;
 the client falls back to v1 for multipart upload as needed.
 
-**Confidentiality.** `--push` (and therefore any pipeline that ends in a
-mirror push) consults the Confluence blacklist defined in
-[S07](S07-data-protection.md). Local-only export is unrestricted.
+**Confidentiality.** `mdd confluence` commands consult the Confluence
+blacklist defined in [S07](S07-data-protection.md) for a blacklisted
+space; see S07 for exactly which commands are gated and when the check
+fires.
 
 **Mirror convention.** Confluence-mastered content is mirrored to one git
 repository per space. The remote URL comes from the active mirror backend,
