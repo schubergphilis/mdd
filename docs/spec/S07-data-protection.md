@@ -2,7 +2,7 @@
 
 **Purpose:** Two cross-cutting rules that protect the organisation's data and credentials for every command.
 
-**Status:** Implemented (2026-05-19)
+**Status:** Implemented (2026-07-31)
 
 ## Introduction
 
@@ -11,8 +11,9 @@ Two rules apply to every `mdd` command:
 1. **Credentials** are resolved from 1Password at runtime via the `op` CLI;
    raw tokens never appear in config, env vars, or on disk.
 2. **Confidentiality blacklist** lists Confluence spaces and SharePoint
-   sites that must never be pushed to a remote. Every `mdd` command that
-   could publish content to a git remote consults the blacklist first.
+   sites whose content must never leave its source system. Every `mdd`
+   sync and export command consults the blacklist at its entry point,
+   before it fetches or writes anything.
 
 This is the canonical reference for both rules;
 [S09](S09-confluence-command.md) (Confluence),
@@ -24,8 +25,14 @@ deployment supplies defer to it.
 ### 1. Credentials via 1Password
 
 1. **Config files store `op://` references, not tokens.** Wherever a token
-   is required, the value in YAML must be a 1Password secret reference of
-   the form `op://<vault>/<item>/<field>`. Example:
+   is required, the value in YAML is required to be a 1Password secret
+   reference of the form `op://<vault>/<item>/<field>`. This is a rule for
+   the operator, not something the code enforces: `resolve_secret` returns
+   any value that does not start with `op://` unchanged, so a raw token
+   pasted into YAML does work. It is still forbidden — a token in a config
+   file is a token on disk, and the file is the one thing likely to be
+   copied, shared, or committed by mistake. Nothing detects the violation,
+   which is why it is written down here. Example:
    ```yaml
    confluence:
      api_token: op://Employee/confluence-pat/token
@@ -47,10 +54,12 @@ deployment supplies defer to it.
    this, `op` falls back to whichever account was active last and may
    fail with `"Employee" isn't a vault in this account`. The same
    `account` field is supported on `lucid.api_token` and `ai.api_token`.
-2. **No environment-variable token fallback.** Environment interpolation
-   in config remains supported for non-secret values (URLs, usernames),
-   but **not** for tokens. No `${CONFLUENCE_TOKEN}`, no `$GITLAB_TOKEN`
-   read from the parent shell.
+2. **No environment-variable token fallback.** No `${CONFLUENCE_TOKEN}`,
+   no `$GITLAB_TOKEN` read from the parent shell. No config value of any
+   kind is interpolated from the environment: config values are used
+   literally, and the only substitution any loader performs is `op://`
+   resolution for secrets and `~` expansion for paths. A `${VAR}` in a
+   config file is a literal `${VAR}`.
 3. **No `.env` files holding tokens, no shell exports.** If a third-party
    tool we shell out to (e.g. `glab`) needs an env var, it is set inline
    for that single subprocess invocation, populated from `op read` —
@@ -90,15 +99,41 @@ deployment supplies defer to it.
      but does **not** match `Advisory Board`. `Appraisal*` matches
      `Appraisal`, `Appraisals`, `Appraisals - Alice Example`,
      `Appraisal Cycle 2026`.
-4. **The gate fires before any remote interaction.** The `--push` paths
-   in `mdd confluence` / `mdd sharepoint`, and a mirror backend's own
-   push and remote-create steps, all call the same blacklist helper.
+4. **The gate fires at the entry point of every sync and export, not at
+   the push step.** `sync_space`, `sync_site`, `sync_folder`,
+   `export_site`, `export_folder` and `export_page` each call the
+   blacklist helper before they fetch or write anything, so a blacklisted
+   space or site aborts the whole run rather than being caught per page
+   deep in an apply loop. `--dry-run` is gated too: it is not a preview
+   escape hatch. A mirror backend a deployment supplies may add its own
+   push-time gate on top; that is additional defence, not the mechanism.
+   Gating at the entry point rather than at `--push` is deliberate — the
+   push is far downstream of the point where protected content has
+   already been written to a work-tree that is usually a git clone.
 5. **`--force` does not override the blacklist.** Removing an entry
    requires editing the config file, which leaves a diff in git history.
    This is intentional friction.
-6. **Local-only export is unrestricted.** The blacklist gates publishing,
-   not local conversion. A user can export an `Appraisals` site to a
-   non-git directory for personal use; it just cannot end up on a remote.
+6. **Local-only export is gated as well.** Earlier versions of this spec
+   said local export was unrestricted and only publishing was gated. The
+   implementation is stricter and stays that way: because the gate sits
+   at the entry point, exporting a blacklisted space or site to a plain
+   local directory is refused too, `--push` or not. The reasoning is that
+   a local directory is a weak boundary — it is usually a git clone, it
+   gets backed up, and it gets synced. The blacklist means "this content
+   does not leave its source system", and a local copy has already left.
+   The consequence to accept is that there is no supported way to export
+   a blacklisted space for personal use; removing the entry, with the
+   diff that leaves, is the only route.
+7. **An unidentifiable Confluence space is refused when anything is
+   blacklisted.** A page whose API response carries no space key cannot
+   be checked, so it is treated as potentially protected. When the
+   Confluence blacklist is empty there is nothing to protect and it is
+   allowed through, so a deployment that has not opted into blacklisting
+   sees no new failure.
+8. **A missing blacklist config fails closed.** If no loaded file
+   declares the section being checked, the sync or export aborts rather
+   than proceeding unprotected. See "Config schema" below for the load
+   order and the error the operator gets.
 
 ## Design Approach
 
@@ -109,11 +144,25 @@ config loader (Confluence, AI, and any a wrapper adds) calls it; there is no
 other code path for secrets.
 
 **Blacklist helper.** A single helper (`src/mdd/utils/blacklist.py`) is
-imported wherever a publish path exists. If a code path can write to a
-remote, it must call one of `check_confluence` / `check_sharepoint`
-first. The helper also detects which source system a work-tree mirrors
-(frontmatter scan + `origin` URL inspection) so a backend's push can look
-up the right blacklist without the caller telling it.
+imported by every sync and export entry point. A code path that pulls
+content out of Confluence or SharePoint must call `check_confluence` or
+`check_sharepoint` first, at the top of the function, on the space key or
+site name it was asked to operate on. There is deliberately no per-page
+or per-file variant of the check: the unit the operator blacklists is a
+space or a site, so the gate belongs where that identity is known and
+before the work starts.
+
+The helper also detects which source system an existing work-tree
+mirrors (frontmatter scan + `origin` URL inspection), so a deployment's
+mirror backend can gate its own push without the caller telling it which
+list to consult. That path has no caller inside the core — the core's
+sync and export entry points always know their own source system — and
+exists for backends outside it.
+
+**Naming the file that refused.** Entries union across up to four files,
+so a refusal reports which of them declares the matching pattern.
+"Remove the pattern from the config" is not actionable when four configs
+could be the one.
 
 ## Config schema
 
@@ -165,6 +214,16 @@ extend earlier ones):
 A file may declare only `confluence:` or only `sharepoint:`; the merged
 result must declare each section that is being checked, otherwise the
 gate fails closed.
+
+**Fail-closed means every sync and export needs a reachable config.**
+When nothing in the load order exists, the run aborts with an error
+naming all four locations and stating that either list may be an empty
+array. That is the deliberate choice — an absent data-protection config
+is not an allow-all — but it makes source 1 load-bearing, and source 1
+resolves relative to the checked-out source tree. An install that does
+not carry `configs/` alongside the package finds no bundled file, so a
+user of such an install needs `~/.config/mdd/data-protection.yaml` (two
+empty lists are enough) before any sync or export will run.
 
 ## 1Password setup (README pointer)
 
