@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+from mdd.commands.sharepoint import _load_config  # pyright: ignore[reportPrivateUsage]
+from mdd.sharepoint.models import SharepointCliConfig, SharepointCliSection
 from mdd.sharepoint.sync import SyncRootMissing, list_sites, resolve_sync_root
 
 if TYPE_CHECKING:
@@ -120,13 +122,8 @@ class TestResolveSyncRoot:
         custom_root = tmp_path / "custom_onedrive"
         custom_root.mkdir()
 
-        class MockSP:
-            sync_root = str(custom_root)
-
-        class MockConfig:
-            sharepoint = MockSP()
-
-        result = resolve_sync_root(MockConfig())
+        config = SharepointCliConfig(sharepoint=SharepointCliSection(sync_root=str(custom_root)))
+        result = resolve_sync_root(config)
         assert result == custom_root
 
     def test_config_override_missing_path_falls_through(self, tmp_path: Path) -> None:
@@ -135,16 +132,31 @@ class TestResolveSyncRoot:
         cloud = fake_home / "Library" / "CloudStorage" / "OneDrive-SharedLibraries-Contoso"
         cloud.mkdir(parents=True)
 
-        class MockSP:
-            sync_root = str(tmp_path / "nonexistent")
-
-        class MockConfig:
-            sharepoint = MockSP()
-
+        config = SharepointCliConfig(
+            sharepoint=SharepointCliSection(sync_root=str(tmp_path / "nonexistent"))
+        )
         with patch("mdd.sharepoint.sync.Path.home", return_value=fake_home):
-            result = resolve_sync_root(MockConfig())
+            result = resolve_sync_root(config)
         # A configured-but-missing path falls through to discovery.
         assert result == cloud
+
+    def test_config_from_real_yaml_file_is_honoured(self, tmp_path: Path) -> None:
+        """The path from `_load_config` (the CLI's real parse path) must work here too.
+
+        This is the regression test for the bug where `resolve_sync_root`
+        `getattr`'d a plain `dict` — always `None` — instead of the typed
+        config `_load_config` actually returns.
+        """
+        custom_root = tmp_path / "custom_onedrive"
+        custom_root.mkdir()
+        config_path = tmp_path / "sharepoint.yaml"
+        config_path.write_text(f"sharepoint:\n  sync_root: {custom_root}\n")
+
+        config = _load_config(config_path)
+        assert config is not None
+
+        result = resolve_sync_root(config)
+        assert result == custom_root
 
     def test_error_message_mentions_macos(self, tmp_path: Path) -> None:
         fake_home = tmp_path / "home"

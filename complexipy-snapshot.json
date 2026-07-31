@@ -128,10 +128,6 @@
     "file_name": "sync.py",
     "functions": [
       {
-        "name": "resolve_sync_root",
-        "complexity": 16
-      },
-      {
         "name": "sync_folder",
         "complexity": 18
       }

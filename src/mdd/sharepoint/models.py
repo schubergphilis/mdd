@@ -94,3 +94,28 @@ class SharepointFrontmatter(FrontmatterModel):
     model_config = ConfigDict(extra="allow")
 
     sharepoint: SharepointBlock | None = None
+
+
+class SharepointCliSection(FrontmatterModel):
+    """The ``sharepoint:`` block in the ``--config`` YAML file.
+
+    Distinct from :class:`SharepointBlock`: this models the CLI's
+    startup config (``configs/sharepoint.yaml`` or an explicit
+    ``--config`` path), not the per-file frontmatter block written into
+    each markdown mirror file.
+    """
+
+    sync_root: str | None = None
+
+
+class SharepointCliConfig(FrontmatterModel):
+    """The whole ``--config`` YAML file consumed by ``mdd sharepoint``.
+
+    Permissive at the top level so other config sections (e.g. a shared
+    ``config.yaml`` also read by other commands) survive untouched;
+    strictness lives on :class:`SharepointCliSection`.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    sharepoint: SharepointCliSection | None = None
