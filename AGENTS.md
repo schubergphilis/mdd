@@ -20,8 +20,6 @@ The installed `mdd` may be a wrapped or aliased command, so instead use `uv run 
 already ships. Invoke one with a `/` prefix when the task matches:
 
 * `/article-synthesis` — draft a `docs/articles/` page from the spec and research corpus, with citation density and preserved reversals enforced
-* `/complexipy-refactor` — refactor a function off the `complexipy-snapshot.json` watermark, with the score as a check rather than a target
-* `/refactor-module` — scoped single-module pass: run the gates over one path, judge which findings are worth acting on, apply one transformation at a time
 * `/spec-extension` — draft or extend a `docs/spec/SNN-*.md`
 * `/spec-hygiene-check` — drive `mise run spec-check` and interpret its output
 
