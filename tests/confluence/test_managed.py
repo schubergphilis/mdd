@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+import logging
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 from mdd.confluence.managed import (
@@ -18,6 +19,9 @@ from mdd.confluence.managed import (
     managed_export_header,
 )
 from mdd.confluence.managed.classify import _user_can_update  # pyright: ignore[reportPrivateUsage]
+
+if TYPE_CHECKING:
+    import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -317,12 +321,12 @@ class TestPageRestrictions:
         result = _user_can_update("page123", "my-account-id", client)
         assert result is True
 
-    def test_api_error_is_fail_open(self) -> None:
-        """Restriction check errors → fail-open (assume allowed)."""
+    def test_api_error_is_unverified_not_allowed(self) -> None:
+        """Restriction check errors → None (could not tell), not True (confirmed allowed)."""
         client = MagicMock()
         client.get_page_restrictions.side_effect = Exception("network error")
         result = _user_can_update("page123", "my-account-id", client)
-        assert result is True
+        assert result is None
 
     def test_classify_fires_read_only_layer(self) -> None:
         """classify_page returns READ_ONLY when user cannot update."""
@@ -344,6 +348,74 @@ class TestPageRestrictions:
         assert result.is_managed
         assert result.reason == ManagedReason.READ_ONLY
         assert result.publisher_name is None
+
+    def test_classify_fails_open_and_reports_unverified_on_api_error(self) -> None:
+        """An API error surfaces as 'unverified', not as a silent 'you may push'."""
+        client = MagicMock()
+        client.get_current_user.return_value = {"accountId": "my-account-id"}
+        client.get_page_restrictions.side_effect = Exception("network error")
+        config = _make_config()  # no publishers / spaces / subtrees
+        page = _make_page()
+        result = classify_page(
+            page, config, client, current_account_id="my-account-id", check_restrictions=True
+        )
+        # Fails open: the push is not blocked...
+        assert not result.is_managed
+        assert result.reason is None
+        # ...but the gap is distinguishable from a genuine "unrestricted" pass.
+        assert result.restriction_check_unverified is True
+
+    def test_classify_logs_warning_on_restriction_api_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The restriction-check failure is logged at warning level with the cause."""
+        client = MagicMock()
+        client.get_current_user.return_value = {"accountId": "my-account-id"}
+        client.get_page_restrictions.side_effect = Exception("boom")
+        config = _make_config()
+        page = _make_page(page_id="page-999")
+        with caplog.at_level(logging.WARNING):
+            classify_page(
+                page, config, client, current_account_id="my-account-id", check_restrictions=True
+            )
+        assert any(
+            "page-999" in record.message and "boom" in record.message for record in caplog.records
+        )
+
+    def test_classify_unrestricted_page_not_flagged_unverified(self) -> None:
+        """A genuinely unrestricted page still passes, with no unverified flag."""
+        result = classify_page(
+            _make_page(),
+            _make_config(),
+            _mock_client_no_restrictions(),
+            current_account_id="my-account-id",
+            check_restrictions=True,
+        )
+        assert not result.is_managed
+        assert result.restriction_check_unverified is False
+
+    def test_classify_restricted_page_still_refused_when_check_succeeds(self) -> None:
+        """A genuinely restricted page is still refused when the API call succeeds."""
+        client = MagicMock()
+        client.get_current_user.return_value = {"accountId": "my-account-id"}
+        client.get_page_restrictions.return_value = {
+            "update": {
+                "restrictions": {
+                    "user": {"results": [{"accountId": "bot-account"}]},
+                    "group": {"results": []},
+                }
+            }
+        }
+        result = classify_page(
+            _make_page(),
+            _make_config(),
+            client,
+            current_account_id="my-account-id",
+            check_restrictions=True,
+        )
+        assert result.is_managed
+        assert result.reason == ManagedReason.READ_ONLY
+        assert result.restriction_check_unverified is False
 
     def test_check_restrictions_false_skips_layer_5(self) -> None:
         """check_restrictions=False skips the restriction API call."""

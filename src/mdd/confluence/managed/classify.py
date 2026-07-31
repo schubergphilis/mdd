@@ -6,12 +6,16 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from mdd.utils.logging import get_logger
+
 from ._api_coerce import dict_field, iter_dicts
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .config import ManagedConfig, PublisherEntry
+
+log = get_logger(__name__)
 
 
 class ManagedReason(StrEnum):
@@ -31,6 +35,13 @@ class ManagedClassification:
     publisher_name: str | None = None  # None for READ_ONLY
     source_url: str | None = None
     message: str | None = None  # rendered with substitutions
+    # True when layer 5 (page restrictions) could not be evaluated — the API
+    # call raised — and the cascade fell through to "not managed" as a
+    # result. Distinguishes "confirmed pushable" from "pushable because the
+    # check that would say otherwise didn't run." Always False when
+    # ``is_managed`` is True: an earlier layer's match, or a confirmed
+    # restriction, already answers the question.
+    restriction_check_unverified: bool = False
 
 
 @dataclass
@@ -75,16 +86,18 @@ def _hit_read_only() -> ManagedClassification:
     )
 
 
-def _not_managed() -> ManagedClassification:
-    return ManagedClassification(is_managed=False)
+def _not_managed(*, restriction_check_unverified: bool = False) -> ManagedClassification:
+    return ManagedClassification(
+        is_managed=False, restriction_check_unverified=restriction_check_unverified
+    )
 
 
 def _user_can_update(
     page_id: str,
     current_account_id: str,
     client: Any,  # ConfluenceClient — avoid circular import
-) -> bool:
-    """Return True if the current user is allowed to update *page_id*.
+) -> bool | None:
+    """Return whether the current user is allowed to update *page_id*.
 
     Calls ``GET /wiki/rest/api/content/{id}/restriction``.  If the "update"
     restriction type has an empty ``restrictions`` block, the page is
@@ -93,13 +106,18 @@ def _user_can_update(
     If the list is non-empty, returns True only if *current_account_id* is in
     the user list or is a member of one of the groups.
 
-    On any API error, returns True (fail-open for the restriction check; other
-    cascade layers are stronger).
+    Returns None, rather than raising or guessing, when the API call itself
+    fails — a transient error, an auth problem, or a response shape this
+    client doesn't understand. Callers treat None as fail-open (other
+    cascade layers are local comparisons and don't have this failure mode),
+    but unlike a real answer it is logged so an outage doesn't masquerade as
+    a clean permission check.
     """
     try:
         data = client.get_page_restrictions(page_id)
-    except Exception:
-        return True  # can't tell — assume allowed
+    except Exception as exc:
+        log.warning("could not check page restrictions for page %s: %s", page_id, exc)
+        return None  # can't tell — caller fails open, but now knows it happened
 
     # Shape: {"update": {"restrictions": {"user": {"results": [...]}, "group": {...}}}}
     restrictions = dict_field(dict_field(data, "update"), "restrictions")
@@ -173,6 +191,13 @@ def classify_page(
     4. body_marker_patterns → BODY_MARKER
     5. page_restrictions → READ_ONLY  (only when *check_restrictions* is True)
 
+    Layers 1-4 are local comparisons against *config* and cannot fail short
+    of a config-loading bug, so a match is a guarantee. Layer 5 calls the
+    Confluence API and can fail (network, auth, unexpected response shape);
+    when it does, this returns "not managed" with
+    ``restriction_check_unverified=True`` rather than guessing — see
+    :func:`_user_can_update`.
+
     Args:
         page:               Minimal page data required for classification.
         config:             Merged ManagedConfig (from :func:`load_managed_config`).
@@ -190,7 +215,11 @@ def classify_page(
 
     if check_restrictions:
         account_id = _resolve_account_id(client, current_account_id)
-        if account_id and not _user_can_update(page.page_id, account_id, client):
-            return _hit_read_only()
+        if account_id:
+            can_update = _user_can_update(page.page_id, account_id, client)
+            if can_update is None:
+                return _not_managed(restriction_check_unverified=True)
+            if not can_update:
+                return _hit_read_only()
 
     return _not_managed()

@@ -52,6 +52,8 @@ def _record_office_managed_skip(
     """If page is managed elsewhere, record and return True (sync should skip)."""
     page_info = build_page_info_from_page_data(page_data, body_xhtml)
     cl = classify_page(page_info, managed_config, client)
+    if cl.restriction_check_unverified:
+        summary.restriction_check_unverified += 1
     if not cl.is_managed:
         return False
     warn_managed(page_id, cl, context="office-publish")
