@@ -253,13 +253,17 @@ verbatim.
   the div when present.
 - `ConfluenceLink` / `ConfluenceImage` / `InlineMacro` emit the
   synthetic URI / marker shapes documented above.
-- `ConfluenceMacro` (the generic carrier) emits
-  ```` ```confluence-xml ```` fence around the macro's serialised
-  storage XHTML. Round-trip through the markdown leg is lossless
-  because the fence content is verbatim.
+- `ConfluenceMacro` (the generic carrier) emits a
+  `:::confluence-macro {name="..." key="value" ...}` fenced div, using
+  the same nesting-depth-aware colon-count scheme as `Callout` / `Layout`
+  (see "Depth-aware fence counts" above). The macro's parameters (plus
+  `name`) go in the info string; the body is nested block content when
+  `rich_body` is set, or emitted as verbatim lines otherwise.
 - `RawBlock(format="markdown", ...)` emits its content verbatim.
-- `RawBlock(format="confluence-storage", ...)` emits the
-  ` ```confluence-xml ` fence as above.
+- `RawBlock(format="confluence-storage", ...)` — and any other
+  `RawBlock` format the writer does not otherwise recognise — emits a
+  ` ```confluence-xml ` fence around the raw content. Round-trip through
+  the markdown leg is lossless because the fence content is verbatim.
 - `RawBlock(format="html", ...)` emits the raw HTML verbatim
   (CommonMark-compatible).
 - `attributes` are **not** emitted into markdown. They are
