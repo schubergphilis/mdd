@@ -26,6 +26,25 @@ import { fileURLToPath } from 'node:url';
 // page content will ever contain, so splitting on it is exact.
 export const PAGE_SEPARATOR = '\n\n<!-- mdd-llms-txt-page-separator -->\n\n';
 
+// `astro:build:done`'s `pages` list carries only `pathname` - no title, no
+// content-collection frontmatter (checked against `astro:content`'s virtual
+// module, which is only resolvable while Vite's module runner is live; it is
+// already closed by the time this hook fires). So the title has to come from
+// the built HTML, and stripping its markup back out has to be a fixpoint: a
+// single `.replace(/<[^>]+>/g, '')` pass only removes what already looks like
+// a whole tag, and removing one match can turn the text around it into
+// something that looks like a tag too, which a single pass would then leave
+// behind. A heading with inline markup - a `<code>` span, an icon wrapper -
+// is exactly what this runs over, so loop until the string stops changing.
+function stripTagsToFixpoint(html) {
+	let text = html;
+	for (let previous = null; previous !== text; ) {
+		previous = text;
+		text = text.replace(/<[^>]+>/g, '');
+	}
+	return text;
+}
+
 export default function excludeDesignRecordFromLlmsFull() {
 	return {
 		name: 'exclude-design-record-from-llms-full',
@@ -38,7 +57,7 @@ export default function excludeDesignRecordFromLlmsFull() {
 					const htmlPath = `${root}${pathname}index.html`;
 					if (!existsSync(htmlPath)) continue;
 					const match = /<h1[^>]*>(.*?)<\/h1>/s.exec(readFileSync(htmlPath, 'utf8'));
-					if (match) excludedTitles.add(match[1].replace(/<[^>]+>/g, '').trim());
+					if (match) excludedTitles.add(stripTagsToFixpoint(match[1]).trim());
 				}
 
 				// `llms-small.txt` is already correctly filtered by the plugin's
