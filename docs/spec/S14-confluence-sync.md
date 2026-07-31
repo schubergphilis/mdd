@@ -144,7 +144,9 @@ established by the previous one:
 - **4b. Filename collisions** — after renames are computed, siblings
   sharing a sanitized basename get `(page-id)` appended to both.
 - **4c. Archive / unarchive** — set `confluence.status: ARCHIVED` (or
-  back to `CURRENT`) and update the export header. No path changes.
+  back to `CURRENT`) in frontmatter. No path changes, and the export
+  header is left as-is — see the implementation notes in
+  [S27](S27-confluence-page-rename-move-archive.md) for why.
 - **4d. New pages from local-authored `.md` files** — same logic as
   `mdd confluence create-page <file>` ([S09](S09-confluence-command.md)). Default parent is
   inferred from the file's location in the mirror tree: walk up,
@@ -156,7 +158,12 @@ established by the previous one:
   whose remote `version_number` advanced. Re-render storage → markdown,
   refresh metadata in frontmatter, run attachment sync.
 - **4f. Content edits — pushes** — same logic as
-  `mdd confluence update-page <file>` ([S09](S09-confluence-command.md)). This is the
+  `mdd confluence update-page <file>` ([S09](S09-confluence-command.md)), including
+  the body-safety guards (empty body, or a body under 10% of the remote
+  length) — see S09 "Body-safety guards". Sync has no `--allow-empty` /
+  `--allow-shrink` flags of its own, so a page that trips either guard
+  fails to push during sync just as it would from `update-page` with
+  neither flag set; the run summary records it as a failure. This is the
   bidirectional half: sync is symmetric.
 - **4g. Deletions** — `git rm` the page and its attachments dir.
   `--no-delete` skips this step. Cross-space moves go through this
@@ -257,6 +264,7 @@ clarifications:
 - [000-specs](000-specs.md) — shared conventions
 - [007-data-protection](S07-data-protection.md) — confidentiality blacklist gate applied on `--push`
 - [009-confluence-command](S09-confluence-command.md) — HTTP client, URL parsing, filename sanitization, frontmatter schema, attachment sync, body conversion, and per-verb primitives reused
+- [027-confluence-page-rename-move-archive](S27-confluence-page-rename-move-archive.md) — the imperative rename / move / archive / unarchive subcommands, and why archive/unarchive leave the export header alone
 
 ## Out of scope
 
