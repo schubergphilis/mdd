@@ -170,23 +170,15 @@ runs. Folders become directories only; only `type: "page"` nodes get a
 `.md` file.
 
 **Markdown ↔ storage XHTML.** Storage format is XHTML with `<ac:*>` and
-`<ri:*>` namespaced elements. Standard HTML elements convert via
-`markdownify`-style rules. Unknown namespaced nodes (structured macros,
-links, references) serialize to **fenced HTML blocks** tagged
-`{=confluence}` so they survive Markdown round-trip:
-
-````
-```{=confluence}
-<ac:structured-macro ac:name="info">...</ac:structured-macro>
-```
-````
-
-Inline confluence elements (mentions, status badges) become inline
-`<span data-confluence="...">` HTML. `<ac:image>` references rewrite to
-`![X](<page-name>-attachments/X)` on export, and the reverse on import.
-The opaque-fenced-block strategy is the same round-trip approach used
-by tools like `md2cf`, applied here to start from existing content
-rather than green-field markdown.
+`<ri:*>` namespaced elements. Conversion goes through the document IR
+([S28](S28-document-ir-foundation.md)): storage XHTML parses into IR
+nodes ([S29](S29-confluence-ir-conversion.md)) and the IR renders to
+markdown ([S30](S30-markdown-ir-conversion.md)), and back. Structured
+macros without a dedicated IR node fall through to the generic
+`ConfluenceMacro` carrier, which the markdown writer emits as a
+`:::confluence-macro {...}` fenced div — see S30 for the exact shape.
+`<ac:image>` references rewrite to `![X](<page-name>-attachments/X)` on
+export, and the reverse on import.
 
 **Diff strategy for `update page`.** Re-render local md → storage XHTML,
 fetch current Confluence storage, normalize whitespace, unified diff to
@@ -351,6 +343,9 @@ confluence:
 ## Related upstream specs
 
 - [007-data-protection](S07-data-protection.md) — op:// secret references, token rules, and the Confluence blacklist
+- [028-document-ir-foundation](S28-document-ir-foundation.md) — the document IR that mediates markdown ↔ storage XHTML
+- [029-confluence-ir-conversion](S29-confluence-ir-conversion.md) — storage XHTML ↔ IR conversion
+- [030-markdown-ir-conversion](S30-markdown-ir-conversion.md) — IR ↔ markdown conversion, including the `ConfluenceMacro` fenced-div shape
 
 ## Out of scope
 
