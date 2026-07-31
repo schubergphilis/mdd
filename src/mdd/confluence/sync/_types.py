@@ -69,6 +69,12 @@ class SyncSummary:
     office_cache_hits: int = 0
     # managed-elsewhere skips: {publisher_name: count}
     managed_skips: dict[str, int] = field(default_factory=dict)
+    # Pages pushed even though the page-restrictions check (managed-elsewhere
+    # cascade layer 5) couldn't complete — a Confluence API error, not a
+    # confirmed "unrestricted" result. The check fails open so the push went
+    # ahead; this counter is how an operator sees, after the fact, that N
+    # pages were pushed without that check having actually run.
+    restriction_check_unverified: int = 0
     # Pages dropped by the ``.mddignore`` matcher before download.
     # ``skipped_ignored_paths`` records POSIX-style rel-paths (directories
     # carry a trailing ``/`` so dry-run output distinguishes prunes from
@@ -127,6 +133,14 @@ class SyncSummary:
             for publisher, count in self.managed_skips.items()
         ]
 
+    def _restriction_unverified_lines(self) -> list[str]:
+        if not self.restriction_check_unverified:
+            return []
+        return [
+            f"  - {self.restriction_check_unverified} pages pushed without confirming "
+            "update permission (Confluence restriction check failed)"
+        ]
+
     def format_commit_message(self, space_key: str, *, message_override: str | None = None) -> str:
         lines: list[str] = [
             message_override or f"chore(mirror): sync from Confluence space {space_key}",
@@ -141,6 +155,7 @@ class SyncSummary:
                 [f"1 conflict (local + remote both edited): {p}" for p in self.conflicts],
             ),
             ("Skipped (managed elsewhere):", self._managed_skip_lines()),
+            ("Restriction check unverified:", self._restriction_unverified_lines()),
             ("Cross-space moves detected:", [f"- {note}" for note in self.cross_space]),
         ]
         for header, body in sections:

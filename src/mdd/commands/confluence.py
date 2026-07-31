@@ -317,6 +317,12 @@ def _print_sync_summary(summary: SyncSummary) -> None:
             "Conflicts (skipped): %d — resolve manually with 'mdd confluence update-page'",
             len(summary.conflicts),
         )
+    if summary.restriction_check_unverified:
+        log.warning(
+            "Restriction check unverified: %d — pushed without confirming update "
+            "permission (Confluence restriction API call failed; see warnings above)",
+            summary.restriction_check_unverified,
+        )
     if summary.failures:
         log.error("Failures: %d", len(summary.failures))
         for f in summary.failures:

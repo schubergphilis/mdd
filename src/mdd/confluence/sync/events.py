@@ -101,6 +101,8 @@ def make_managed_helpers(
         body_storage = extract_storage_body(page_data)
         page_info = build_page_info_from_page_data(page_data, body_storage)
         cl = classify_page(page_info, get_managed_cfg(), client)
+        if cl.restriction_check_unverified:
+            summary.restriction_check_unverified += 1
         if not cl.is_managed:
             return False
         warn_managed(page_id, cl)
