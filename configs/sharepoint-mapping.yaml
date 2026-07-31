@@ -6,7 +6,6 @@
 #   sites:
 #     "HR Documentation":
 #       repo: HR-Documentation                # GitLab repo name
-#       gitlab_group: mdd/sharepoint          # optional; default mdd/sharepoint
 #     "AI / ML Team":
 #       repo: AI-ML-Team
 #

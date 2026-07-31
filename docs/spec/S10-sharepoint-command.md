@@ -125,7 +125,6 @@ Site→repo mapping (committed to git):
 sites:
   "HR Documentation":
     repo: HR-Documentation
-    gitlab_group: mdd/sharepoint          # optional; default mdd/sharepoint
   "AI":
     repo: AI
   "Academy Coordination":
