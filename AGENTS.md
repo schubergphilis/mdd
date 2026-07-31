@@ -6,6 +6,8 @@
 
 Use `mise tasks` to discover build functionality. Remember to use it.
 
+`mise run check-mdd-commands` checks every `mdd …` string in prose against the real argparse tree. A distribution that composes this CLI runs the same gate over its own prose from a sibling checkout: `--repo-root PATH` selects the tree to scan (default: cwd), `--dispatcher MODULE:CALLABLE` the parser factory to check against (default: `mdd.cli:build_dispatcher`).
+
 Big features need a spec in `docs/spec/`, see [`000-specs.md`](docs/spec/000-specs.md).
 
 Research notes live in `docs/research/`, see [`000-research.md`](docs/research/000-research.md). They are working documents; specs are the durable record and must not link out to them.

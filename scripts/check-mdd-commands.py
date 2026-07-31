@@ -41,12 +41,48 @@ names from before a later rename, so holding that prose to "resolves against
 today's CLI" would falsify the historical record rather than correct it.
 Pass ``--all`` to additionally scan ``docs/spec`` and ``docs/research`` and
 print every hit found there; that run is advisory and always exits 0.
+
+Reuse by a composing distribution
+---------------------------------
+
+A distribution that builds a superset CLI on top of this one — its own
+subcommands injected through ``extra_commands``, its own backend, the same
+``mdd`` command name — documents those extra subcommands in its own prose, and
+wants the same gate over it. Two flags make that work; it runs this script
+straight out of a sibling checkout of this repository, as it does the other
+shared dev scripts here.
+
+``--repo-root PATH``
+    The tree to scan. Defaults to the current working directory, so the
+    ordinary invocation from a repository root needs no flag. Paths in the
+    violation output stay relative to this root, so ``file:line:`` prefixes
+    remain clickable from that repository. Directories in the scanned set that
+    do not exist are skipped silently — a consuming repository is not expected
+    to have all of ``docs/guide``, ``docs/articles`` and ``docs/reference``.
+    Finding no prose files at all is an error, not a vacuous pass.
+
+``--dispatcher MODULE:CALLABLE``
+    The parser factory to introspect, defaulting to
+    ``mdd.cli:build_dispatcher``. A composing distribution points this at its
+    own factory; without it the check knows only this distribution's command
+    tree and would report every one of the consumer's own subcommands as
+    invalid. The callable must take no arguments and return an
+    ``argparse.ArgumentParser``. Note what this flag is: an import and call of
+    code named on the command line. That is deliberate and it is the only way
+    to keep introspecting a real parser rather than scraping ``--help`` text,
+    but it means the value must come from the repository being checked — this
+    is a development gate a repository runs over itself, not a tool to point at
+    input you do not trust.
+
+Exit codes: 0 — clean (or an advisory ``--all`` run); 1 — violations found;
+2 — usage error (bad ``--dispatcher``, or a root with no prose in it).
 """
 
 from __future__ import annotations
 
 import argparse
 import difflib
+import importlib
 import itertools
 import re
 import sys
@@ -54,12 +90,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mdd.cli import build_dispatcher
-
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DISPATCHER = "mdd.cli:build_dispatcher"
 
 PROSE_FILES = ("README.md", "docs/README.md", "CONTRIBUTING.md", "AGENTS.md", "SECURITY.md")
 PROSE_DIRS = ("docs/guide", "docs/articles", "docs/reference")
@@ -81,6 +115,35 @@ BRACKET_PAIRS = (("<", ">"), ("[", "]"), ("{", "}"))
 # ---------------------------------------------------------------------------
 
 
+class DispatcherError(Exception):
+    """A ``--dispatcher`` value that could not be turned into a parser."""
+
+
+def load_dispatcher(spec: str) -> argparse.ArgumentParser:
+    """Import ``MODULE:CALLABLE`` and call it to get the parser to introspect.
+
+    The callable takes no arguments and returns an ``argparse.ArgumentParser``.
+    This imports and executes the named code: the value is expected to name the
+    parser factory of the repository being checked.
+    """
+    module_name, sep, attr = spec.partition(":")
+    if not module_name or not sep or not attr:
+        raise DispatcherError(f"expected MODULE:CALLABLE, got {spec!r}")
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:
+        raise DispatcherError(f"cannot import module {module_name!r}: {exc}") from exc
+    factory: object = getattr(module, attr, None)
+    if factory is None:
+        raise DispatcherError(f"module {module_name!r} has no attribute {attr!r}")
+    if not callable(factory):
+        raise DispatcherError(f"{spec} is not callable")
+    parser: object = factory()
+    if not isinstance(parser, argparse.ArgumentParser):
+        raise DispatcherError(f"{spec}() returned {type(parser).__name__}, not an ArgumentParser")
+    return parser
+
+
 @dataclass(frozen=True)
 class CommandNode:
     """The valid subcommands and long options at one point in the mdd command tree."""
@@ -89,10 +152,10 @@ class CommandNode:
     options: frozenset[str]
 
 
-def build_command_tree() -> dict[tuple[str, ...], CommandNode]:
-    """Introspect ``mdd``'s argparse tree into a path -> (subcommands, options) map."""
+def build_command_tree(dispatcher: argparse.ArgumentParser) -> dict[tuple[str, ...], CommandNode]:
+    """Introspect *dispatcher*'s argparse tree into a path -> (subcommands, options) map."""
     tree: dict[tuple[str, ...], CommandNode] = {}
-    _walk_parser(build_dispatcher(), (), tree)
+    _walk_parser(dispatcher, (), tree)
     return tree
 
 
@@ -395,32 +458,36 @@ def _print_advisory_report(violations: list[Violation], root: Path) -> None:
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Verify every `mdd ...` string in prose against the real CLI."
+    )
     _ = parser.add_argument(
         "--all",
         action="store_true",
         help="Also scan docs/spec and docs/research; advisory only, always exits 0",
     )
+    _ = parser.add_argument(
+        "--repo-root",
+        type=Path,
+        metavar="PATH",
+        help="Tree to scan, and the root output paths are relative to (default: cwd)",
+    )
+    _ = parser.add_argument(
+        "--dispatcher",
+        default=DEFAULT_DISPATCHER,
+        metavar="MODULE:CALLABLE",
+        help=(
+            "No-argument factory returning the argparse parser to check against "
+            f"(default: {DEFAULT_DISPATCHER}). Imports and calls the named code, so "
+            "it must name the parser factory of the repository being checked."
+        ),
+    )
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    args = _parse_args(argv)
-    tree = build_command_tree()
-    files = discover_files(REPO_ROOT, include_advisory=args.all)
-    invocations = [inv for file in files for inv in scan_file(file)]
-    violations = [v for inv in invocations if (v := _violation_for(inv, tree)) is not None]
-
-    if args.all:
-        _print_advisory_report(violations, REPO_ROOT)
-        print(
-            f"\ncheck-mdd-commands --all: {len(violations)} advisory hit(s) "
-            f"across {len(files)} file(s) (not enforced)"
-        )
-        return 0
-
+def _report(violations: list[Violation], invocations_seen: int, files_seen: int, root: Path) -> int:
     for violation in violations:
-        print(_format_violation(violation, REPO_ROOT))
+        print(_format_violation(violation, root))
     if violations:
         print(
             f"check-mdd-commands: {len(violations)} invalid `mdd ...` string(s) found",
@@ -428,10 +495,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
     print(
-        f"check-mdd-commands: {len(invocations)} `mdd ...` string(s) checked "
-        f"across {len(files)} file(s), all resolve"
+        f"check-mdd-commands: {invocations_seen} `mdd ...` string(s) checked "
+        f"across {files_seen} file(s), all resolve"
     )
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    root: Path = (args.repo_root if args.repo_root is not None else Path.cwd()).resolve()
+    try:
+        tree = build_command_tree(load_dispatcher(args.dispatcher))
+    except DispatcherError as exc:
+        print(f"check-mdd-commands: --dispatcher: {exc}", file=sys.stderr)
+        return 2
+
+    files = discover_files(root, include_advisory=args.all)
+    if not files:
+        print(
+            f"check-mdd-commands: no prose files found under {root} — "
+            "run from a repository root, or pass --repo-root PATH",
+            file=sys.stderr,
+        )
+        return 2
+    invocations = [inv for file in files for inv in scan_file(file)]
+    violations = [v for inv in invocations if (v := _violation_for(inv, tree)) is not None]
+
+    if args.all:
+        _print_advisory_report(violations, root)
+        print(
+            f"\ncheck-mdd-commands --all: {len(violations)} advisory hit(s) "
+            f"across {len(files)} file(s) (not enforced)"
+        )
+        return 0
+    return _report(violations, len(invocations), len(files), root)
 
 
 if __name__ == "__main__":
