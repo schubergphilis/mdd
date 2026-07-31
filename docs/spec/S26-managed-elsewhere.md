@@ -38,8 +38,39 @@ layers don't run.
 
 If none match, the page is normally pushable.
 
+**Guarantees vs. advisory: layer 5 can fail, layers 1-4 cannot**
+
+Layers 1-4 are local comparisons against `ManagedConfig`, already loaded
+into the process before the cascade runs. Barring a config-loading bug,
+they always evaluate, so a match is a guarantee: once a space, subtree,
+account ID, or body pattern is configured, the matching page is
+unconditionally blocked from push, every time.
+
+Layer 5 is different — it is a network call
+(`GET /content/{id}/restriction`), and network calls fail: a transient
+Confluence error, an auth problem, a response shape the client doesn't
+recognize. This check is therefore advisory, not a guarantee: **it fails
+open**. If the call raises, `mdd` cannot tell whether the page is
+restricted, and rather than block every push during a Confluence outage
+or credential hiccup, it treats the page as pushable. The alternative —
+failing closed — would mean a degraded Confluence API blocks all
+publishing everywhere, which is a worse outcome than an occasional
+unverified restriction check.
+
+Failing open silently would be worse still, because restrictions are
+precisely the mechanism protecting pages somebody actively does not want
+overwritten. So when layer 5's API call fails, `mdd` logs a warning
+naming the page and the underlying exception, and — on `mdd confluence
+sync` — the run summary counts how many pages were pushed with the check
+unverified (see **Run summary additions** below). The check still fails
+open; the gap is now visible after the fact instead of indistinguishable
+from a clean pass.
+
 **Strictly fail-closed: no override mechanism**
 
+This is about what happens once a layer *has* matched — it is
+unrelated to layer 5's fail-open behaviour above, which is about
+what happens when the restriction check itself cannot run at all.
 A detected managed page **cannot be pushed via `mdd`**. There is
 no `--force-managed` flag, no `mdd.managed_override: true`
 frontmatter escape, no per-page bypass. The intended workflow is:
@@ -123,11 +154,20 @@ Skipped (managed elsewhere):
   - 4 pages from technical-documentation
   - 2 pages read-only restricted
 
+Restriction check unverified:
+  - 3 pages pushed without confirming update permission (Confluence restriction check failed)
+
 Mirror -> Confluence:
   (no actions; all candidates were managed-elsewhere)
 ```
 
-When the section is empty (no managed skips), it's omitted.
+When a section is empty (no managed skips, no unverified restriction
+checks), it's omitted. The "Restriction check unverified" count is
+distinct from "Skipped (managed elsewhere)": a skip means layer 5 ran
+and found a restriction; an unverified count means layer 5's API call
+failed and the page was pushed anyway, per the fail-open behaviour
+above. The same count is also logged as a warning by `mdd confluence
+sync` at the time it happens, not only in the eventual summary.
 
 **`mdd confluence whoami` helper**
 - `GET /wiki/api/v2/users/current` returns the authenticated
@@ -161,6 +201,20 @@ the same `classify_page` function is called from every push site
 (`update page`, sync apply, office publishing, `ai rewrite/index
 --apply`). Each push site either errors out (single-page
 operations) or skips and records a summary entry (bulk sync).
+
+**Layer 5 fails open, visibly.** Layers 1-4 are guarantees because
+they never call out of the process; layer 5 calls Confluence and
+can fail, and failing closed there would mean a degraded
+Confluence API blocks all publishing, everywhere, which is worse
+than the gap it is meant to close. So layer 5 fails open — but the
+earlier design left that silent: an API error and a confirmed
+"unrestricted" result produced the identical `is_managed=False`.
+Since restrictions are the mechanism protecting pages someone
+actively does not want overwritten, that silence was the design's
+weakest point. `classify_page` now distinguishes the two outcomes
+and both the warning log and the sync run summary make the gap
+visible after the fact, without changing the underlying fail-open
+choice.
 
 **Pull-side stamping** runs on every exported page so readers see
 the "managed by X" header in the mirror itself, not only when
