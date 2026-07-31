@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from mdd.confluence.apply import (
     ApplyError,
+    find_repo_root,
     git_commit,
 )
 from mdd.confluence.apply import (
@@ -119,7 +120,15 @@ def _validate_block(fm: dict[str, Any], md_path: Path) -> ConfluenceBlock | None
 
 
 def _load_local(md_path: Path) -> _PageState:
-    """Read ``md_path``'s frontmatter and return a validated :class:`_PageState`."""
+    """Read ``md_path``'s frontmatter and return a validated :class:`_PageState`.
+
+    ``md_path`` is resolved to an absolute path first. A relative path
+    (the common case for a repo-relative CLI argument) is otherwise
+    vulnerable to ``git mv``'s own cwd-prefixing of relative pathspecs:
+    run from a subdirectory, a relative ``mv`` argument gets that
+    subdirectory prefixed onto it a second time.
+    """
+    md_path = md_path.resolve()
     try:
         fm, _body = read_frontmatter(md_path)
     except OSError as exc:
@@ -185,6 +194,27 @@ def _resolve_parent(parent_ref: str, *, config_host: str | None) -> str:
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
+
+
+def _resolve_repo_dir(md_path: Path) -> Path:
+    """Discover the git work tree root that owns ``md_path``.
+
+    ``md_path.parent`` is only the mirror root for a page with no
+    parent; for anything nested one or more levels down, git operations
+    run with that directory as cwd (``git mv``, ``git add -A``, the
+    ancestor-chain path resolution for ``move-page``) silently scope
+    themselves to that subdirectory instead of the whole mirror. This
+    walks up via git itself (``git rev-parse --show-toplevel``) instead
+    of assuming a fixed depth.
+
+    Called before any Confluence mutation, so a discovery failure here
+    is a clean abort — nothing has happened yet.
+    """
+    try:
+        return find_repo_root(md_path.parent)
+    except ApplyError as exc:
+        log.error("%s", exc)
+        raise _MutateAbort(1) from exc
 
 
 def _check_dirty(repo_dir: Path) -> None:
@@ -505,10 +535,11 @@ def _fetch_page(client: ConfluenceClient, page_id: str) -> dict[str, Any]:
 def _preflight(
     client: ConfluenceClient,
     page_state: _PageState,
+    repo_dir: Path,
     opts: MutateOptions,
 ) -> dict[str, Any]:
     """Run the shared pre-flight gauntlet and return the remote page payload."""
-    _check_dirty(page_state.md_path.parent)
+    _check_dirty(repo_dir)
     page_data = _fetch_page(client, page_state.page_id)
     managed_cfg = opts.managed_config if opts.managed_config is not None else load_managed_config()
     _check_managed(page_data, client, managed_cfg)
@@ -545,8 +576,9 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
     """
     try:
         page_state = _load_local(md_path)
+        repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
-            page_data = _preflight(client, page_state, opts)
+            page_data = _preflight(client, page_state, repo_dir, opts)
             preview = (
                 f'Rename: "{page_state.title}" -> "{new_title}"\n'
                 f"        space {page_state.space_key}, page {page_state.page_id}"
@@ -567,7 +599,7 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
                     status=_remote_status(page_data),
                 ),
             )
-            return _finish_rename(page_state, new_title, result, opts)
+            return _finish_rename(page_state, new_title, result, repo_dir, opts)
     except _MutateAbort as abort:
         return abort.rc
 
@@ -576,12 +608,13 @@ def _finish_rename(
     page_state: _PageState,
     new_title: str,
     api_result: dict[str, Any],
+    repo_dir: Path,
     opts: MutateOptions,
 ) -> int:
     """Apply the local refresh + commit half of ``rename_page``."""
     event = _build_event(EventKind.RENAME, page_state, new_title=new_title)
     try:
-        new_path = _apply_rename_or_move(event, page_state, page_state.md_path.parent)
+        new_path = _apply_rename_or_move(event, page_state, repo_dir)
         # No `title` in extra_updates: the body-H1 rewrite in
         # `apply_renames_moves` is the single source of truth for the
         # title-on-disk.  `confluence.title:` in
@@ -593,7 +626,7 @@ def _finish_rename(
         log.error("%s", _recovery_hint(exc))
         return 1
     subject = _render_subject("rename", page_state.title, new_title, override=opts.message)
-    _commit(page_state.md_path.parent, subject, no_commit=opts.no_commit)
+    _commit(repo_dir, subject, no_commit=opts.no_commit)
     return 0
 
 
@@ -606,10 +639,11 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
     """Move the Confluence page backing ``md_path`` to a new parent."""
     try:
         page_state = _load_local(md_path)
+        repo_dir = _resolve_repo_dir(page_state.md_path)
         config_host = urlparse(opts.config.url).hostname or None
         new_parent_id = _resolve_parent(parent_ref, config_host=config_host)
         with _make_client(opts) as client:
-            page_data = _preflight(client, page_state, opts)
+            page_data = _preflight(client, page_state, repo_dir, opts)
             parent_data = _fetch_page(client, new_parent_id)
             _check_same_space(page_state, parent_data)
             preview = (
@@ -632,9 +666,18 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
                     status=_remote_status(page_data),
                 ),
             )
-            return _finish_move(page_state, new_parent_id, result, parent_data, client, opts)
+            move_result = _MoveResult(api_result=result, parent_data=parent_data)
+            return _finish_move(page_state, new_parent_id, move_result, client, repo_dir, opts)
     except _MutateAbort as abort:
         return abort.rc
+
+
+@dataclass(frozen=True)
+class _MoveResult:
+    """Confluence API responses ``_finish_move`` needs, bundled to stay under the arg ceiling."""
+
+    api_result: dict[str, Any]
+    parent_data: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -723,9 +766,9 @@ def _build_move_commit_body(
 def _finish_move(
     page_state: _PageState,
     new_parent_id: str,
-    api_result: dict[str, Any],
-    parent_data: dict[str, Any],
+    move_result: _MoveResult,
     client: ConfluenceClient,
+    repo_dir: Path,
     opts: MutateOptions,
 ) -> int:
     """Apply the local refresh + commit half of ``move_page``.
@@ -737,16 +780,20 @@ def _finish_move(
     now-present parent directory and refreshes its frontmatter.
     Materialised paths are listed in the commit body.
 
+    ``repo_dir`` (the git work tree root, not just the moved file's own
+    parent) doubles as the mirror root for the ancestor walk: every
+    same-space ancestor's expected mirror dir is a descendant of (or
+    equal to) the actual mirror root, which is what the walk needs to
+    land materialised ancestors and the moved file in the right place.
+
     Partial materialisation on failure is acceptable: the Confluence
     move is the source of truth and is not rolled back; ``sync-space``
     reconciles half-built state.  The user sees the standard recovery
     hint and the command exits 1.
     """
-    repo_dir = page_state.md_path.parent
+    api_result, parent_data = move_result.api_result, move_result.parent_data
     try:
-        chain = ancestor_chain_for_move(
-            client, new_parent_id, page_state.space_id, _move_output_root(page_state.md_path)
-        )
+        chain = ancestor_chain_for_move(client, new_parent_id, page_state.space_id, repo_dir)
         materialised = _materialise_chain(chain, client, repo_dir)
         new_parent_dir = chain[-1].expected_dir
         event = _build_event(EventKind.MOVE, page_state, new_parent_id=new_parent_id)
@@ -769,18 +816,6 @@ def _finish_move(
     message = f"{subject}\n{body}" if body else subject
     _commit(repo_dir, message, no_commit=opts.no_commit)
     return 0
-
-
-def _move_output_root(md_path: Path) -> Path:
-    """Return the mirror root for ancestor-walk path resolution.
-
-    For the imperative ``move-page`` path the mirror root is the
-    directory containing the moved file — we don't have a full
-    :class:`MirrorState`.  This is sufficient for same-space moves
-    because every same-space ancestor's expected mirror dir is a
-    descendant of (or equal to) this root.
-    """
-    return md_path.parent
 
 
 # ---------------------------------------------------------------------------
@@ -820,15 +855,16 @@ def _archive_preview(page_state: _PageState, action: str) -> str:
 def _archive_dispatch(md_path: Path, *, action: str, opts: MutateOptions) -> int:
     try:
         page_state = _load_local(md_path)
+        repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
-            _ = _preflight(client, page_state, opts)
+            _ = _preflight(client, page_state, repo_dir, opts)
             if not _prompt(_archive_preview(page_state, action), yes=opts.yes):
                 return 0
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")
                 return 0
             result = _call_archive_api(client, page_state.page_id, action, message=opts.message)
-            return _finish_archive(page_state, action, result, opts)
+            return _finish_archive(page_state, action, result, repo_dir, opts)
     except _MutateAbort as abort:
         return abort.rc
 
@@ -837,6 +873,7 @@ def _finish_archive(
     page_state: _PageState,
     action: str,
     api_result: dict[str, Any],
+    repo_dir: Path,
     opts: MutateOptions,
 ) -> int:
     kind = EventKind.ARCHIVE if action == "archive" else EventKind.UNARCHIVE
@@ -856,5 +893,5 @@ def _finish_archive(
         log.error("%s", _recovery_hint(exc))
         return 1
     subject = _render_subject(action, page_state.title, None, override=opts.message)
-    _commit(page_state.md_path.parent, subject, no_commit=opts.no_commit)
+    _commit(repo_dir, subject, no_commit=opts.no_commit)
     return 0
