@@ -26,17 +26,29 @@ from mdd.confluence.url import URLMismatchError
 from mdd.confluence.url import parse as parse_url
 from mdd.confluence.whoami import cmd_whoami
 from mdd.mirror.hints import clone_hint
+from mdd.utils.blacklist import BlacklistConfigError, BlacklistError
 from mdd.utils.config import ConfigError
 from mdd.utils.logging import get_logger
 from mdd.utils.mddignore import MddIgnore
 from mdd.utils.secrets import SecretError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from mdd.cli import CommonParents, SubParsers
     from mdd.confluence.config import ConfluenceConfig
     from mdd.confluence.sync import SyncSummary
 
 log = get_logger(__name__)
+
+
+def _handle_blacklist_error(exc: BlacklistError | BlacklistConfigError) -> int:
+    """Log a data-protection refusal and return exit code 1."""
+    if isinstance(exc, BlacklistConfigError):
+        log.error("blacklist config: %s", exc)
+    else:
+        log.error("blacklist: %s", exc)
+    return 1
 
 
 def _load_config_or_exit(config_path: Path | None) -> ConfluenceConfig | int:
@@ -204,6 +216,8 @@ def _run_export_page(ns: argparse.Namespace) -> int:
         except ConfluenceError as exc:
             log.error("Confluence API: %s", exc)
             return 1
+        except (BlacklistError, BlacklistConfigError) as exc:
+            return _handle_blacklist_error(exc)
 
     log.info("Exported: %s", out_path)
     return 0
@@ -368,6 +382,8 @@ def _do_sync_space(
             log.error("%s", exc)
         except ConfluenceError as exc:
             log.error("Confluence API: %s", exc)
+        except (BlacklistError, BlacklistConfigError) as exc:
+            return _handle_blacklist_error(exc)
         return 1
 
 
@@ -444,13 +460,27 @@ def _load_md_path_and_config(args: _MutateArgs) -> tuple[Path, ConfluenceConfig]
     return args.md_path, config
 
 
+def _run_mutate(action: Callable[[], int]) -> int:
+    """Run one mutate action, turning a data-protection refusal into exit 1.
+
+    The mutate commands can pull ancestor pages out of Confluence to
+    materialise a move target, so they reach the export gate.
+    """
+    try:
+        return action()
+    except (BlacklistError, BlacklistConfigError) as exc:
+        return _handle_blacklist_error(exc)
+
+
 def _run_rename_page(ns: argparse.Namespace) -> int:
     args = cast("_RenamePageArgs", ns)
     resolved = _load_md_path_and_config(args)
     if isinstance(resolved, int):
         return resolved
     md_path, config = resolved
-    return rename_page(md_path, args.new_title, opts=_build_mutate_opts(args, config))
+    return _run_mutate(
+        lambda: rename_page(md_path, args.new_title, opts=_build_mutate_opts(args, config))
+    )
 
 
 def _run_move_page(ns: argparse.Namespace) -> int:
@@ -459,7 +489,9 @@ def _run_move_page(ns: argparse.Namespace) -> int:
     if isinstance(resolved, int):
         return resolved
     md_path, config = resolved
-    return move_page(md_path, args.parent, opts=_build_mutate_opts(args, config))
+    return _run_mutate(
+        lambda: move_page(md_path, args.parent, opts=_build_mutate_opts(args, config))
+    )
 
 
 def _run_archive_page(ns: argparse.Namespace) -> int:
@@ -468,7 +500,7 @@ def _run_archive_page(ns: argparse.Namespace) -> int:
     if isinstance(resolved, int):
         return resolved
     md_path, config = resolved
-    return archive_page(md_path, opts=_build_mutate_opts(args, config))
+    return _run_mutate(lambda: archive_page(md_path, opts=_build_mutate_opts(args, config)))
 
 
 def _run_unarchive_page(ns: argparse.Namespace) -> int:
@@ -477,7 +509,7 @@ def _run_unarchive_page(ns: argparse.Namespace) -> int:
     if isinstance(resolved, int):
         return resolved
     md_path, config = resolved
-    return unarchive_page(md_path, opts=_build_mutate_opts(args, config))
+    return _run_mutate(lambda: unarchive_page(md_path, opts=_build_mutate_opts(args, config)))
 
 
 # ---------------------------------------------------------------------------

@@ -113,8 +113,39 @@ def _load_blacklist(blacklist_file: Path | None) -> dict[str, list[str]]:
     return out
 
 
+_UNKNOWN_SOURCE = "the data-protection config"
+
+
+def _pattern_source(section: str, key: str, pattern: str, blacklist_file: Path | None) -> str:
+    """Return the path of the first loaded file that declares *pattern*.
+
+    The blacklist is additive across several files, so a refusal has to say
+    which one to edit. This only runs on the refusal path, so re-reading the
+    files is cheap; a best-effort answer is enough and any load failure falls
+    back to a generic phrase.
+    """
+    try:
+        paths = find_blacklist_files(blacklist_file)
+    except ConfigError:
+        return _UNKNOWN_SOURCE
+    for path in paths:
+        try:
+            values = _section_list(load_yaml(path), section, key)
+        except ConfigError, BlacklistConfigError:
+            continue
+        if values is not None and pattern in values:
+            return str(path)
+    return _UNKNOWN_SOURCE
+
+
 def check_confluence(space_key: str, *, blacklist_file: Path | None = None) -> None:
     """Raise BlacklistError if *space_key* is on the Confluence blacklist.
+
+    An empty *space_key* means the caller could not identify the space the
+    content came from. That is refused whenever any space is blacklisted at
+    all — an unidentifiable space could be a protected one, and the gate must
+    not be the thing that lets it through. With an empty blacklist there is
+    nothing to protect, so it is allowed.
 
     Raises BlacklistConfigError if no loaded file declares a
     ``confluence.blacklisted_spaces`` section.
@@ -124,12 +155,24 @@ def check_confluence(space_key: str, *, blacklist_file: Path | None = None) -> N
         raise BlacklistConfigError(
             "no loaded blacklist file declares confluence.blacklisted_spaces"
         )
-    matched = _matches(space_key, merged["confluence_spaces"])
+    patterns = merged["confluence_spaces"]
+    if not space_key:
+        if not patterns:
+            return
+        raise BlacklistError(
+            "Could not determine which Confluence space this content belongs to, "
+            f"and {len(patterns)} space pattern(s) are blacklisted. Refused, because "
+            "a space that cannot be identified cannot be checked against the "
+            "blacklist. Re-run against a page whose response carries a space key."
+        )
+    matched = _matches(space_key, patterns)
     if matched is not None:
         raise BlacklistError(
             f"Confluence space '{space_key}' matches blacklist pattern '{matched}'. "
-            "Push refused; to publish this space, remove the pattern from the "
-            "data-protection config that declares it."
+            "Refused by the data-protection blacklist declared in "
+            f"{_pattern_source('confluence', 'blacklisted_spaces', matched, blacklist_file)}. "
+            "Nothing was written or pushed. To publish this space, remove the "
+            "pattern from that file."
         )
 
 
@@ -146,8 +189,10 @@ def check_sharepoint(folder_name: str, *, blacklist_file: Path | None = None) ->
     if matched is not None:
         raise BlacklistError(
             f"SharePoint site '{folder_name}' matches blacklist pattern '{matched}'. "
-            "Push refused; to publish this site, remove the pattern from the "
-            "data-protection config that declares it."
+            "Refused by the data-protection blacklist declared in "
+            f"{_pattern_source('sharepoint', 'blacklisted_sites', matched, blacklist_file)}. "
+            "Nothing was written or pushed. To publish this site, remove the "
+            "pattern from that file."
         )
 
 

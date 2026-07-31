@@ -1,7 +1,8 @@
 # Confidentiality blacklist. Spec S07 (data protection) is the canonical
-# reference. Any push from a Confluence space or SharePoint site listed
-# here is refused by the `--push` paths in `mdd confluence` /
-# `mdd sharepoint` and by the mirror backend's push guard.
+# reference. A Confluence space or SharePoint site listed here is refused
+# at the entry point of every `mdd confluence` / `mdd sharepoint` sync and
+# export — before anything is written, not just before a push — and by a
+# mirror backend's own push guard where a deployment supplies one.
 #
 # Rules:
 # - Match is case-insensitive.

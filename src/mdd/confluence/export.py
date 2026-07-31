@@ -28,6 +28,7 @@ from mdd.confluence.managed import (
 )
 from mdd.confluence.paths import disambiguate, sanitize
 from mdd.markdown.ir import render_markdown
+from mdd.utils.blacklist import check_confluence
 from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -426,9 +427,24 @@ def export_page(  # noqa: PLR0913
 
     Returns:
         Path to the written Markdown file.
+
+    Raises:
+        BlacklistError: If the page's space is on the confidentiality
+            blacklist, or the space cannot be identified while any space is
+            blacklisted.
+        BlacklistConfigError: If no data-protection config declares the
+            Confluence section.
     """
     if page_data is None:
         page_data = client.get_page(page_id)
+
+    meta = _extract_page_meta(page_data)
+
+    # Confidentiality gate before anything is written to disk. Placed here
+    # rather than in the callers so every export path is covered: the
+    # export-page command, sync's page pulls, and the ancestor materialisation
+    # that move-page performs.
+    check_confluence(meta.space_key)
 
     ctx = _ExportContext(
         client=client,
@@ -442,7 +458,6 @@ def export_page(  # noqa: PLR0913
         skip_attachments=skip_attachments,
     )
 
-    meta = _extract_page_meta(page_data)
     body_storage = _extract_body_storage(page_data)
     updated_by = _resolve_display_name(client, meta.updater_id)
 

@@ -12,6 +12,7 @@ from mdd.utils.blacklist import (
     BlacklistError,
     SourceSystem,
     _matches,  # pyright: ignore[reportPrivateUsage]
+    _pattern_source,  # pyright: ignore[reportPrivateUsage]
     check_confluence,
     check_sharepoint,
     detect_source_system,
@@ -130,6 +131,85 @@ class TestCheckConfluence:
         with pytest.raises(BlacklistError, match="Legal"):
             check_confluence("LegalAdvice", blacklist_file=blacklist_file)
 
+    def test_refusal_names_the_declaring_file(self, blacklist_file: Path) -> None:
+        """The operator has to know which of the merged files to edit."""
+        with pytest.raises(BlacklistError, match=str(blacklist_file)):
+            check_confluence("HRPRIV", blacklist_file=blacklist_file)
+
+    def test_no_blacklist_file_anywhere_raises_config_error(self) -> None:
+        """Fail closed: an absent data-protection config is not an allow-all."""
+        with pytest.raises(BlacklistConfigError, match="No data-protection blacklist found"):
+            check_confluence("ENGINEERING")
+
+
+class TestPatternSource:
+    """Naming the declaring file is best-effort and must never mask the refusal."""
+
+    def test_names_the_file_that_declares_the_pattern(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_file = tmp_path / "repo.yaml"
+        repo_file.write_text("confluence:\n  blacklisted_spaces:\n    - REPOONLY\n")
+        explicit = tmp_path / "extra.yaml"
+        explicit.write_text("confluence:\n  blacklisted_spaces:\n    - EXTRAONLY\n")
+        monkeypatch.setattr("mdd.utils.config._repo_blacklist_path", lambda: repo_file)
+        assert _pattern_source("confluence", "blacklisted_spaces", "REPOONLY", explicit) == str(
+            repo_file
+        )
+        assert _pattern_source("confluence", "blacklisted_spaces", "EXTRAONLY", explicit) == str(
+            explicit
+        )
+
+    def test_no_file_found_falls_back_to_generic_phrase(self) -> None:
+        assert (
+            _pattern_source("confluence", "blacklisted_spaces", "HRPRIV", None)
+            == "the data-protection config"
+        )
+
+    def test_unparseable_file_is_skipped(self, tmp_path: Path) -> None:
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("confluence: [this is not a mapping\n")
+        assert (
+            _pattern_source("confluence", "blacklisted_spaces", "HRPRIV", broken)
+            == "the data-protection config"
+        )
+
+    def test_malformed_section_is_skipped(self, tmp_path: Path) -> None:
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("confluence: a string, not a mapping\n")
+        assert (
+            _pattern_source("confluence", "blacklisted_spaces", "HRPRIV", bad)
+            == "the data-protection config"
+        )
+
+    def test_pattern_absent_from_every_file_falls_back(self, blacklist_file: Path) -> None:
+        assert (
+            _pattern_source("confluence", "blacklisted_spaces", "NOTTHERE", blacklist_file)
+            == "the data-protection config"
+        )
+
+
+class TestCheckConfluenceUnknownSpace:
+    """An empty space key means the caller could not identify the space."""
+
+    def test_unknown_space_refused_when_any_space_is_blacklisted(
+        self, blacklist_file: Path
+    ) -> None:
+        with pytest.raises(BlacklistError, match="Could not determine which Confluence space"):
+            check_confluence("", blacklist_file=blacklist_file)
+
+    def test_unknown_space_allowed_when_blacklist_is_empty(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text("confluence:\n  blacklisted_spaces: []\n")
+        # Nothing is protected, so nothing needs identifying.
+        check_confluence("", blacklist_file=f)
+
+    def test_unknown_space_still_needs_a_declared_section(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text("sharepoint:\n  blacklisted_sites: []\n")
+        with pytest.raises(BlacklistConfigError, match="confluence"):
+            check_confluence("", blacklist_file=f)
+
 
 # ---------------------------------------------------------------------------
 # check_sharepoint
@@ -197,6 +277,10 @@ class TestCheckSharepoint:
     def test_prefix_match_raises_blacklist_error(self, blacklist_file: Path) -> None:
         with pytest.raises(BlacklistError, match="Appraisal"):
             check_sharepoint("Appraisals - Bob", blacklist_file=blacklist_file)
+
+    def test_refusal_names_the_declaring_file(self, blacklist_file: Path) -> None:
+        with pytest.raises(BlacklistError, match=str(blacklist_file)):
+            check_sharepoint("Council", blacklist_file=blacklist_file)
 
 
 # ---------------------------------------------------------------------------
