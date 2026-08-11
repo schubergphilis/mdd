@@ -75,6 +75,24 @@ ignore = [
 
 **Why:** the project handles Confluence and Markdown content, which legitimately contains em-dashes, curly quotes, NBSP, and other non-ASCII characters. Flagging these in strings/docstrings/comments produces ~26 false positives with no real signal.
 
+### Markdown is out of scope
+
+Ruff's default `include` carries `*.md`, so from 0.16 onwards `ruff check` and
+`ruff format` reach into the Python code blocks inside our Markdown. The project
+MUST restate the default `include` without `*.md`:
+
+```toml
+[tool.ruff]
+include = ["*.py", "*.pyi", "*.pyw", "*.ipynb", "**/pyproject.toml", "**/ruff.toml", "**/.ruff.toml"]
+```
+
+**Why:** the Python blocks in `docs/` are illustrative prose. They use aligned
+trailing comments to annotate fields, and they elide bodies rather than compile.
+Under `docs/spec/` a reformat also rewrites the very config being specified. The
+blocks under `tests/corpus/` are fixtures whose exact bytes are the assertion, so
+reformatting them changes what the round-trip suites test. Ruff 0.16.1 wanted to
+rewrite nine such files; none of the rewrites were an improvement to the prose.
+
 ### Grandfathering convention
 
 Existing structural violations (C90/PLR09xx) MUST be silenced with a **targeted `# noqa: <code>`** comment on the offending `def` line — never with `--ignore` in config and never with a blank `# noqa`. Example:

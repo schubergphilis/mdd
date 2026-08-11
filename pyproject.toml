@@ -9,13 +9,13 @@ description = "Markdown and Quarto document tooling"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "docling>=2.114.0",
+    "docling>=2.118.0",
     "httpx>=0.28.1",
     "linkify-it-py>=2.1.0",
     "lxml>=6.1.1",
     "markdown-it-py>=4.2.0",
     "mdit-py-plugins>=0.6.1",
-    "openai>=2.47.0",
+    "openai>=2.53.0",
     "pillow>=12.3.0",
     "pydantic>=2.13.4",
     "rank-bm25>=0.2.2",
@@ -78,6 +78,12 @@ extend-exclude = [
     "test-confluence",                  # legacy sibling clone — corpus is now vendored under tests/corpus/
     "tests/corpus/confluence/scripts",  # vendored operational scripts from the test-confluence repo
 ]
+# Ruff's default `include` carries `*.md`, so it lints and formats the Python
+# code blocks inside our Markdown. Those blocks are illustrative prose — spec
+# snippets with aligned comments and deliberately incomplete bodies, plus test
+# fixtures whose exact bytes are the assertion. Restate the default without
+# `*.md` so prose stays prose.
+include = ["*.py", "*.pyi", "*.pyw", "*.ipynb", "**/pyproject.toml", "**/ruff.toml", "**/.ruff.toml"]
 
 [tool.ruff.lint]
 select = [
@@ -140,7 +146,7 @@ exclude = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.15.22",
+    "ruff>=0.16.1",
     "basedpyright>=1.39.9",
     "lxml-stubs>=0.5.1",
     "complexipy>=6.2.0",
