@@ -15,6 +15,13 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    ignore:
+      # `astro check` goes through @astrojs/language-server, which needs the
+      # programmatic TypeScript API. TypeScript's native compiler (7.0+) does
+      # not ship that API yet, so the site stays on 6.x until it does.
+      # Track https://github.com/withastro/roadmap/discussions/1321
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
