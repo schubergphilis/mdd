@@ -23,11 +23,12 @@ jobs:
 
       - name: Install local tools
         # Required by unit tests that exercise real tool integrations
-        # (quarto, librsvg, ripgrep). Integration tests with external
+        # (quarto, librsvg). ripgrep comes from mise.lock instead, so every
+        # checkout gets the same version. Integration tests with external
         # services and Office-bound tests do not run in CI.
         run: |
           sudo apt-get update
-          sudo apt-get install -y librsvg2-bin ripgrep
+          sudo apt-get install -y librsvg2-bin
           # Quarto via official .deb (apt repo lags behind)
           QUARTO_VER=1.9.37
           curl -fsSL -o /tmp/quarto.deb \

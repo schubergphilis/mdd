@@ -4,9 +4,19 @@
 # dispatches to `uv`. `pyproject.toml`'s `requires-python` remains
 # authoritative — mise reads it.
 
+[settings]
+# Resolve [tools] through mise.lock, so every checkout and CI run installs the
+# same exact tool versions rather than whatever is newest in the range.
+lockfile = true
+# Supply-chain cooldown: never install a release younger than this.
+minimum_release_age = "7d"
+
 [tools]
 python = "3.14"
 uv = "0.12"
+# `mdd search` shells out to ripgrep, and the search tests exercise it, so it
+# is a real dependency rather than an optional nicety.
+ripgrep = "14"
 # Documentation site only. `mise run ci` never touches these, so a contributor
 # working on Python pays nothing for them beyond `mise install`.
 bun = "1.3"
