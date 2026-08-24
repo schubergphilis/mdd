@@ -158,14 +158,51 @@ def test_invalid_config_is_rejected(tmp_path: Path, body: str, message: str) -> 
         _ = prose_config.load(write_config(tmp_path, body))
 
 
-def test_every_documented_rule_id_resolves_to_a_real_rule() -> None:
+def _config_rule_ids(text: str) -> set[str]:
+    """Every rule id named under a `rules:` block in *text*."""
+    found: set[str] = set()
+    in_rules = False
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].rstrip()
+        if not line.strip():
+            continue
+        if line.strip() == "rules:":
+            in_rules = True
+            continue
+        if in_rules and line.strip().endswith(":") and ":" in line:
+            in_rules = False
+        if in_rules and ":" in line:
+            found.add(line.strip().split(":", 1)[0])
+    return found
+
+
+def test_every_rule_named_in_a_config_resolves_to_a_real_rule() -> None:
+    """Declared-but-nonexistent rule ids are what rots first in a configurable linter.
+
+    The earlier version of this test iterated ``RULES`` and asserted each member
+    was in ``RULES`` — a tautology that could not fail. This walks the direction
+    that matters: config → registry.
+    """
     sample = Path("configs/prose.yaml")
-    if not sample.is_file():
-        pytest.skip("no bundled configs/prose.yaml in this checkout")
-    text = sample.read_text(encoding="utf-8")
-    for rule in RULES:
-        if f"{rule}:" in text:
-            assert rule in RULES
+    assert sample.is_file(), "the bundled configs/prose.yaml is the dogfooding config"
+    named = _config_rule_ids(sample.read_text(encoding="utf-8"))
+    unknown = named - set(RULES)
+    assert not unknown, f"config names rules that do not exist: {sorted(unknown)}"
+
+
+def test_every_registered_rule_has_a_check_that_can_configure_it() -> None:
+    """The other direction: a rule nobody can reach from a config is dead weight."""
+    from mdd.prose.rules import CHECK_NAMES, CROSS_CUTTING
+
+    for rule in RULES.values():
+        assert rule.check in (*CHECK_NAMES, CROSS_CUTTING), rule
+
+
+def test_a_config_naming_an_unknown_rule_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="not a known rule id"):
+        _ = prose_config.load(
+            write_config(tmp_path, "prose:\n  lint:\n    rules:\n      no-such-rule: error\n")
+        )
 
 
 def test_unknown_rule_resolves_to_error() -> None:

@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from mdd.prose.classify import MD_SPACE
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -66,12 +68,12 @@ def split_units(text: str, masked: Sequence[bool], start: int, end: int) -> list
             and (char in _BOUNDARY_MARKS or _spaced_dash(text, index))
             and _followed_by_space(text, index, end)
         ):
-            unit = text[cursor : index + 1].strip()
+            unit = text[cursor : index + 1].strip(MD_SPACE)
             if unit:
                 units.append(unit)
             cursor = index + 1
         index += 1
-    tail = text[cursor:end].strip()
+    tail = text[cursor:end].strip(MD_SPACE)
     if tail:
         units.append(tail)
     return units
@@ -93,6 +95,12 @@ _BLOCK_STARTER = re.compile(
     r"|\[[^\]]*\]:"
     r"|\$\$"
     r"|<[A-Za-z!/?]"
+    r"|:{3,}"
+    # A generated line starting with one of these classifies as a
+    # `managed-region`, which silently exempts it and every following quoted
+    # line from all checks. Reflow must not be able to manufacture one.
+    r"|\*\*(?:Confluence|SharePoint) export\*\*"
+    r"|\[!\w+\]"
 )
 
 

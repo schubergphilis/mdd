@@ -181,6 +181,22 @@ def _scan_math(text: str, i: int, out: list[Span]) -> int:
     return end + 1
 
 
+def _scan_backticks(text: str, i: int, out: list[Span]) -> int:
+    """Mask a code span opening at *i*, or skip its whole run; return the next offset.
+
+    Skipping the *whole* run matters: restarting one character in let a shorter
+    sub-run close against the opening backtick of the next genuine code span,
+    leaving that span unmasked and open to a rewrite.
+    """
+    end = _scan_code_span(text, i)
+    if end != i:
+        out.append(Span(i, end, SpanClass.INLINE_CODE))
+        return end
+    while i < len(text) and text[i] == "`":
+        i += 1
+    return i
+
+
 def scan(text: str, *, start: int = 0) -> InlineScan:
     """Mask every inline construct in ``text[start:]`` and collect link targets.
 
@@ -196,12 +212,7 @@ def scan(text: str, *, start: int = 0) -> InlineScan:
             masks.append(Span(i, i + 2, SpanClass.ESCAPE))
             i += 2
         elif char == "`":
-            end = _scan_code_span(text, i)
-            if end == i:
-                i += 1
-            else:
-                masks.append(Span(i, end, SpanClass.INLINE_CODE))
-                i = end
+            i = _scan_backticks(text, i, masks)
         elif char == "[" or (char == "!" and text.startswith("[", i + 1)):
             i = _scan_bracketed(text, i, masks, links)
         elif char == "<":
