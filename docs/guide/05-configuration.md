@@ -20,6 +20,7 @@ directory relative to your **current working directory**, then
 | `external-publishers.yaml` | pages owned by other automation | bundled, then `~/.config/mdd/`, then `./configs/external-publishers.local.yaml` |
 | `sharepoint-mapping.yaml` | site name to repository name | `--mapping`, then `./configs/`, then `~/.config/mdd/` |
 | `config.yaml` | extra search roots under a `docs:` key | `./configs/`, then `~/.config/mdd/` |
+| `prose.yaml` | which prose checks run, and their severities | `--config`, then `./configs/`, then `~/.config/mdd/` |
 
 The cwd-relative `./configs/` entry is more load-bearing than it looks. It
 means the directory you run from decides which tenant you talk to. The test
@@ -109,6 +110,54 @@ each one so you can decide whether to pin it.
 
 For `mdd search` to see SharePoint mirrors, give them an `output_dir` under
 `sharepoint.sites` in `configs/sharepoint.yaml`.
+
+## Prose checks
+
+`prose.yaml` states a repository's whole house style in one file a reviewer can
+read, so unlike `data-protection.yaml` it does **not** merge across locations:
+the first file found wins. It contains no secrets and belongs in the corpus
+repository, next to the content it governs.
+
+```yaml
+# configs/prose.yaml
+prose:
+  checks:
+    reflow: error          # off by default; opting in is a corpus-wide diff
+    lint: error
+    anchors: error
+    freshness: warning
+
+  reflow:
+    width: 100             # a soft target, not a hard limit
+    min-line: 32
+    abbreviations: [Sect.]        # merged into the built-in set, not substituted
+    single-letter-words: [I, A]   # letters that really do end a sentence
+
+  lint:
+    quote-punctuation: inside     # inside | outside | off
+    allow-hard-break: false
+    literal-quote-patterns:
+      - '^-{1,2}[a-z]'            # CLI flags: never move a mark into one
+
+  freshness:
+    field: last-verified
+    max-age-days: 180
+    rules:
+      missing-review-date: warning
+```
+
+With no file at all, `lint` and `anchors` run at their built-in severities and
+`reflow` and `freshness` do nothing — the first produces a corpus-wide diff and
+the second needs project-supplied data to mean anything.
+
+Two keys can set a severity, and the order is fixed. `checks.<name>: off` means
+the check does not run at all, and nothing under `<name>.rules` can re-enable
+it. Otherwise `checks.<name>` sets the default for every rule in that check, and
+a rule named under `<name>.rules` overrides that. Specific beats general.
+
+Severity and gating are separate decisions: everything at `warning` or above is
+always printed, and `--min-severity` (default `error`) decides what makes the
+exit code non-zero.
 
 ## The AI gateway
 

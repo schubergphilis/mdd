@@ -1,0 +1,3 @@
+# The CRLF prose fixture asserts that the reflow preserves a file's line-ending
+# convention. Its exact bytes are the assertion, so git must not normalise them.
+tests/corpus/prose/crlf/* -text

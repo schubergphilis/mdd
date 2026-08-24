@@ -9,7 +9,7 @@
 `mdd sharepoint sync` is the bidirectional successor to `mdd sharepoint export` ([S10](S10-sharepoint-command.md)). It keeps `.md`/`.qmd` and `.docx`/`.pptx` in step inside SharePoint sites mirrored via OneDrive, detecting divergence between the two sides without implementing office-format diff/merge. When both sides change since the last sync, sync surfaces the conflict by writing a `*.from-md.docx` candidate render and refusing to overwrite either side.
 
 `export site` is preserved as a deprecated alias that forwards to
-`sync site`.  ([S14](S14-confluence-sync.md) has since dropped the
+`sync site`. ([S14](S14-confluence-sync.md) has since dropped the
 analogous `export space` alias.) The snapshot/one-way-export flow is
 provided by `sync site --read-only`, matching the equivalent flag on
 `mdd confluence sync-space`.
@@ -174,7 +174,7 @@ is produced.
 **Markdown-only files.** A `.md` file with no `.docx` sibling is
 treated as a publish candidate: render via Quarto, write the
 `.docx`, write a fresh `sync` block with `update_office: true`.
-Matches the symmetric "untracked local-authored .md becomes a new
+Matches the symmetric "untracked local-authored `.md` becomes a new
 Confluence page" rule from [S14](S14-confluence-sync.md).
 
 **Office-only files.** `.docx`/`.pptx` files with no `.md` sibling

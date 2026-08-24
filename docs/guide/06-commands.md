@@ -80,6 +80,66 @@ model behind it.
 Use `--json` when a script or an agent is reading the output, and `--include`
 to search a directory that is not in your configuration.
 
+## Prose checks
+
+`mdd prose` is a group of deterministic checks over a Markdown corpus. No
+network call, no token, no model — the same bytes always produce the same
+answer, which is what makes it usable as a merge gate.
+
+`mdd prose check` is the entry point for CI. It runs every check your project
+has enabled in one pass over each file, prints one finding per line as
+`path:line:column: severity: rule: message`, and exits `1` if anything at or
+above `--min-severity` (default `error`) turned up. `--json` switches to
+line-delimited JSON for a script or an agent.
+
+There are four checks behind it.
+
+`mdd prose lint` finds mechanical slips a spell checker cannot see: runs of two
+or more spaces, a space before terminal punctuation, more than one consecutive
+blank line, trailing whitespace, an invisible space where a plain one was
+meant, and — off by default, because it is a house style — punctuation placed
+outside a closing quote. `--write` fixes the four unambiguous whitespace rules
+and reports the rest.
+
+`mdd prose anchors` checks that every internal `file.md#anchor` link resolves:
+the target file exists, and a heading in it slugs to the anchor under GitHub's
+rule. An unresolved anchor gets a `did you mean` hint. This is what makes it
+safe to split, merge or renumber files in a large corpus.
+
+`mdd prose freshness` checks that each file carries a `last-verified:` date in
+its frontmatter and that it is recent enough. `--as-of DATE` pins the clock so
+a test or a rebuilt CI job gets the same answer. It does nothing until you
+configure it, because a corpus mirrored from Confluence has no such field.
+
+`mdd prose reflow` is the one that matters most and the one you have to opt
+into. It rewrites prose to **semantic line breaks**: one sentence per line,
+with a still-overlong sentence broken at a top-level clause boundary. The point
+is the diff — edit four words in a paragraph and you get a one-line diff
+instead of a whole reflowed paragraph. Default mode is check-only; `--write`
+applies it.
+
+Turning `reflow` on in an existing repository produces one enormous diff:
+effectively every prose file changes. Do it as one commit that does nothing
+else, and record that commit in `.git-blame-ignore-revs` so `git blame` skips
+it. `mdd` does not write that file for you.
+
+Both writers refuse to touch a file whose frontmatter marks it as a Confluence
+or SharePoint mirror. Rewriting one invalidates the sync's change detection —
+silently, and in a way that does not look like a prose problem when it
+surfaces. `--allow-mirror` overrides the refusal if you know what you are
+doing. The usual advice is to `.mddignore` your mirrors and point `mdd prose`
+at authored content.
+
+Any finding can be silenced in place:
+
+```markdown
+<!-- mdd-prose-ignore: punctuation-outside-quote -->
+```
+
+That covers the next line only. A comma-separated list names several rules, the
+bare form covers every rule, and `<!-- mdd-prose-ignore-file: reflow -->`
+covers the whole file from anywhere in it.
+
 ## AI assistance
 
 `mdd ai` needs an API token for a LiteLLM gateway. Nothing else in `mdd` calls

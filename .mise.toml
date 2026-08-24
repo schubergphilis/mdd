@@ -240,9 +240,16 @@ description = "Check every internal link in the built site resolves to a served 
 depends = ["docs-build"]
 run = "uv run python scripts/check-site-links.py"
 
+[tasks.docs-prose]
+description = "mdd prose over this repo's own Markdown. Dogfooding the deterministic checks."
+# Vale owns words; mdd prose owns mechanics, structure and layout. They run
+# side by side rather than one through the other. reflow stays off here — see
+# configs/prose.yaml.
+run = "uv run mdd prose check --ignore configs/prose-ignore docs README.md AGENTS.md CONTRIBUTING.md"
+
 [tasks.docs-check]
 description = "Full documentation gate — prose lint, astro check, site build, link check"
-depends = ["docs-vale", "docs-links"]
+depends = ["docs-vale", "docs-prose", "docs-links"]
 
 [tasks.docs-clean]
 description = "Remove site build artefacts and synced content"

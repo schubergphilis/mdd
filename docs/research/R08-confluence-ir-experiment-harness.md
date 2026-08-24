@@ -108,7 +108,7 @@ comparison in note 012 is grounded in numbers, not vibes."
 
 The harness has four parts:
 
-1. **Corpus loader** (`harness/corpus.py`).  Walks
+1. **Corpus loader** (`harness/corpus.py`). Walks
    `mdd/test-confluence/MDD/_snapshots/<page_id>/` and, alongside,
    reads the fixture markdown files for the `test_corpus.shapes`
    tags. Produces `Fixture` records: `(page_id, title, shapes,
@@ -116,7 +116,7 @@ The harness has four parts:
    metadata)`. Optionally re-fetches from live for
    integration-tier runs.
 
-2. **Pipeline protocol** (`harness/pipeline.py`).  A small Python
+2. **Pipeline protocol** (`harness/pipeline.py`). A small Python
    protocol that each spike implements:
 
    ```python
@@ -138,19 +138,19 @@ The harness has four parts:
    ```
 
    `StorageToMdResult` carries the markdown body plus optional
-   provenance/identity side-channels.  `MdToStorageResult` carries
-   the storage XHTML plus optional identity emissions.  The
+   provenance/identity side-channels. `MdToStorageResult` carries
+   the storage XHTML plus optional identity emissions. The
    protocol is deliberately narrow so the three spikes are
    independent.
 
-3. **Metric calculators** (`harness/metrics/`).  Pure functions
+3. **Metric calculators** (`harness/metrics/`). Pure functions
    that take a `Fixture` and a pipeline's results and return a
    `MetricResult`. Each metric is its own module so spikes can
    skip metrics that don't apply (e.g. a pipeline with no
    provenance support reports `None` for the provenance metric,
    not a failure).
 
-4. **Comparison reporter** (`harness/report.py`).  Aggregates
+4. **Comparison reporter** (`harness/report.py`). Aggregates
    `MetricResult` rows into a markdown report. One report per
    spike (research notes 009-011), one cross-pipeline comparison
    (note 012).
@@ -272,9 +272,9 @@ whitespace each time."
 
 ### M6 - Code surface
 
-Static, not per-fixture.  Lines of code in the pipeline
+Static, not per-fixture. Lines of code in the pipeline
 implementation (excluding test files, excluding upstream library
-code).  Reported per spike as a single number so the comparison
+code). Reported per spike as a single number so the comparison
 note can weigh maintainability honestly.
 
 ## Snapshot strategy (concretised from note 007)
@@ -315,7 +315,7 @@ The task (definition in `mise.toml`):
 4. Reports a `git diff --stat` summary so the user can see what
    changed.
 
-Refresh is **manual, not automatic**. CI never refreshes.  When
+Refresh is **manual, not automatic**. CI never refreshes. When
 the integration tier (below) detects drift, the failure is loud
 and the human decides whether to refresh or whether the drift is
 a real Confluence-side change worth investigating.
@@ -346,19 +346,19 @@ under `scripts/ir_experiment/pipelines/`:
 
 - `pipelines/status_quo.py` — wraps the existing
   `mdd.confluence.storage_to_md` and `mdd.confluence.md_to_storage`
-  modules.  `supports_provenance = False`,
-  `supports_identity = False`.  Establishes the baseline; note 009
+  modules. `supports_provenance = False`,
+  `supports_identity = False`. Establishes the baseline; note 009
   is its report.
 - `pipelines/pandoc_lua.py` — invokes Pandoc CLI with the
   custom Lua writer (`pipelines/confluence_storage.lua`).
   Provenance via element IDs emitted as `data-mdd-id` attributes
   (open question: see #73's prep work on entity handling —
   similar pre-processing may be needed for the pandoc input
-  side).  Identity via the same channel.  Note 010 is its report.
+  side). Identity via the same channel. Note 010 is its report.
 - `pipelines/docling.py` — uses `DoclingDocument` directly,
-  in-process.  Provenance via `self_ref`.  Identity via `prov`
+  in-process. Provenance via `self_ref`. Identity via `prov`
   fields (open question: do they actually round-trip when used
-  for logical rather than layout-derived provenance?).  Note 011
+  for logical rather than layout-derived provenance?). Note 011
   is its report.
 
 Each spike runs the same metric battery against the same corpus.

@@ -14,15 +14,15 @@ source-of-truth for the published page.
 
 ## Requirements
 
-**Export.** One `.md` per Confluence page.  `export page` writes a single
+**Export.** One `.md` per Confluence page. `export page` writes a single
 page; whole-space exports are covered by [S14](S14-confluence-sync.md)
 `sync space ... --read-only` (the dedicated one-shot `export space`
-command has been removed).  Each file is self-describing for round-trip:
+command has been removed). Each file is self-describing for round-trip:
 YAML frontmatter (schema below) plus a visible "Confluence export"
 callout at the top of the body with a clickable link back to source.
 Page attachments and embedded images download to
 `<page-name>-attachments/` beside the `.md`, with the manifest recorded
-in frontmatter.  `--no-attachments` skips all attachment downloads (text
+in frontmatter. `--no-attachments` skips all attachment downloads (text
 only) — useful for fast previews and for unblocking exports when a
 specific attachment fails repeatedly.
 
@@ -117,7 +117,7 @@ pages but appear as parents; the tree builder resolves them via
 `GET /folders/{id}` and includes them as directory-only nodes.
 Attachment listing uses v2
 (`/wiki/api/v2/pages/{id}/attachments`); v1 carried a
-`Warning: 299 - Deprecated API` header.  Attachment **upload** still
+`Warning: 299 - Deprecated API` header. Attachment **upload** still
 uses the v1 multipart endpoint because v2 has no equivalent.
 
 **HTTP client.** Direct `httpx` calls with a thin retry wrapper —
@@ -125,7 +125,7 @@ avoiding the heavier `atlassian-python-api` dependency for control over
 v2 endpoints. Auth is HTTP Basic with `(username, resolved_token)`,
 where the token is resolved on demand via
 `mdd.utils.secrets.resolve_secret()` ([S07](S07-data-protection.md))
-and lives only in process memory.  Retry policy: exponential backoff
+and lives only in process memory. Retry policy: exponential backoff
 (1s, 2s, 4s, 8s; max 5 attempts) on 429, 503, 5xx, `ConnectError`, and
 all `httpx.TimeoutException` subclasses (Read/Connect/Write/Pool);
 no retry on other 4xx; `X-Atlassian-Token: no-check` set to bypass CSRF.
@@ -136,25 +136,25 @@ production.
 
 **Query-param conventions (v2 API).** v2 query parameters are
 **kebab-case**: `space-id`, `body-format`, `include-labels`,
-`include-version`.  The camel-case form (`spaceId`) is silently ignored
+`include-version`. The camel-case form (`spaceId`) is silently ignored
 by Atlassian rather than rejected, which produces the wrong result
-(typically an unfiltered tenant-wide listing).  Body JSON in `POST` /
+(typically an unfiltered tenant-wide listing). Body JSON in `POST` /
 `PUT` payloads still uses camel-case (`spaceId`, `parentId`).
 
 **Pagination loops.** Every paginated fetch is bounded by a
 `MAX_PAGINATION_ITERATIONS` constant (9 today, deliberately tight)
 and raises `ConfluenceError` on overshoot rather than looping
-indefinitely.  Follow-up pages pass `params=None` (not `params={}`) to
+indefinitely. Follow-up pages pass `params=None` (not `params={}`) to
 `httpx.Client.request` — an empty dict would *replace* the URL's query
 string, stripping the cursor embedded in `_links.next`.
 
 **Attachment downloads.** The v2 attachment listing returns a
 `downloadLink` pointing at the legacy UI binary endpoint
-`/wiki/download/attachments/<id>/<name>?...`.  That path is gated to
+`/wiki/download/attachments/<id>/<name>?...`. That path is gated to
 OAuth-only on some Atlassian tenants (Atlassian's 19-Nov-2025
 changelog explicitly removed several `/download/attachments/`
 internal API paths), returning
-`401 WWW-Authenticate: OAuth realm=...` to Basic-auth callers.  The
+`401 WWW-Authenticate: OAuth realm=...` to Basic-auth callers. The
 client therefore ignores `downloadLink` entirely and constructs the
 URL from `pageId` and `id` on the v2 attachment dict:
 
@@ -163,7 +163,7 @@ URL from `pageId` and `id` on the v2 attachment dict:
 ```
 
 This REST endpoint accepts Basic auth + API token even on OAuth-gated
-tenants.  It 302-redirects to a CDN URL carrying a short-lived signed
+tenants. It 302-redirects to a CDN URL carrying a short-lived signed
 JWT in the query string; httpx follows the redirect with the
 Authorization header stripped automatically on the cross-origin hop.
 Both `pageId` and `id` are top-level fields on every v2 listing
@@ -172,11 +172,11 @@ result and are validated as alphanumeric before path interpolation
 
 **Request tracing.** The `ConfluenceClient` installs request/response
 event hooks on the underlying `httpx.Client` that log every call at the
-custom TRACE level (5) from `mdd.utils.logging`.  CLI flags `-v`,
+custom TRACE level (5) from `mdd.utils.logging`. CLI flags `-v`,
 `-vv`, `-vvv` / `--trace`, and `--trace-bodies` raise the verbosity;
 `--trace-bodies` additionally dumps request/response headers (with
 `Authorization` / `Cookie` masked as `<scheme> <sha256:xxxxxxxx>`) and
-body payloads truncated to 4 KiB.  Useful for diagnosing tenant-policy
+body payloads truncated to 4 KiB. Useful for diagnosing tenant-policy
 oddities and redirect chains.
 
 **Filename sanitization.** Page title → filename: replace
@@ -218,7 +218,7 @@ mdd confluence update-page  <markdown-file> [--config <file>] [--dry-run]
 ```
 
 (Whole-space exports use ``mdd confluence sync-space`` — see
-[S14](S14-confluence-sync.md).  The dedicated ``export space`` command
+[S14](S14-confluence-sync.md). The dedicated ``export space`` command
 has been removed; ``sync space ... --read-only`` is the snapshot
 equivalent and adds rename / move / delete detection over the previous
 behaviour.)

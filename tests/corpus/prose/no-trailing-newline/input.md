@@ -1,0 +1,1 @@
+A document with no trailing newline. It still reflows, and the missing newline stays missing.

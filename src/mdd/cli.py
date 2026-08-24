@@ -21,6 +21,7 @@ from mdd.commands import (
     pdf,
     pdf_docx,
     pdf_pptx,
+    prose,
     search,
     sharepoint,
     skills,
@@ -64,6 +65,7 @@ _REGISTERED_MODULES = (
     search,
     skills,
     ai,
+    prose,
     sharepoint,
     confluence,
 )

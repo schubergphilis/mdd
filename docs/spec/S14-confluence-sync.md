@@ -27,7 +27,7 @@ reconciliation algorithm below flows directly from those two facts.
 
 ## Requirements
 
-- Provide `mdd confluence sync-space <space-key>` as the single verb for whole-space reconciliation.  (The dedicated `mdd confluence export space` command has been removed; `sync space --read-only` is the snapshot equivalent and adds rename/move/delete detection.)
+- Provide `mdd confluence sync-space <space-key>` as the single verb for whole-space reconciliation. (The dedicated `mdd confluence export space` command has been removed; `sync space --read-only` is the snapshot equivalent and adds rename/move/delete detection.)
 - Sync must be bidirectional by default: pull Confluence-side changes into the mirror and push local-authored changes back to Confluence.
 - Provide `--read-only` to suppress every mirror → Confluence write step (no `create page`, no content push, no Office publishing), for snapshot-style runs.
 - Every page must be keyed by its stable Confluence `page_id`; paths and titles are mutable.
@@ -229,8 +229,8 @@ the previous push must have succeeded.
 - **Manually-managed files are sacred.** A `.md` without `confluence.page_id` and without local-authored-publishable shape is never deleted, moved, or rewritten.
 - **`--head`.** Caps the desired-state map (default 10) for testing.
 - **`--dry-run`.** Computes the full plan and prints the would-be summary without touching files, the working tree, or Confluence. Exit 0.
-- **`--read-only`.** Suppresses every mirror → Confluence write step: step 4d (create page from local-authored file), step 4f (LOCAL_PUSH content push via `update page`), and step 4i (Office publishing).  Local mirror updates from the remote, the dirty-tree check, and the commit all still run, so the user gets a clean snapshot in a single git commit with no risk of writing back to Confluence.  Composes with `--dry-run` (which is the *stronger* read-only mode — it produces no commit either).
-- **`--no-attachments`.** Skips both body-image downloads and the per-page attachment sync.  Frontmatter ends up with an empty `attachments:` list.  Useful for fast text-only previews and for unblocking exports when a specific attachment fails repeatedly.
+- **`--read-only`.** Suppresses every mirror → Confluence write step: step 4d (create page from local-authored file), step 4f (LOCAL_PUSH content push via `update page`), and step 4i (Office publishing). Local mirror updates from the remote, the dirty-tree check, and the commit all still run, so the user gets a clean snapshot in a single git commit with no risk of writing back to Confluence. Composes with `--dry-run` (which is the *stronger* read-only mode — it produces no commit either).
+- **`--no-attachments`.** Skips both body-image downloads and the per-page attachment sync. Frontmatter ends up with an empty `attachments:` list. Useful for fast text-only previews and for unblocking exports when a specific attachment fails repeatedly.
 - **Atomicity.** Each `git mv` / `git rm` is atomic. On a hard crash mid-sync, the next run rebuilds state from the working tree and reconciles again — idempotent by construction. The runtime `git` binary becomes a new external dependency for sync.
 
 ## Conflicts

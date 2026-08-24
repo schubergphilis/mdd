@@ -2,7 +2,7 @@
 
 **Purpose:** `mdd prose` is a group of deterministic, model-free checks and fixers over a Markdown corpus — semantic-line-break reflow, mechanical prose lint, heading-anchor validation, and a freshness gate — so a corpus can be gated in CI reproducibly and prose diffs stay reviewable.
 
-**Status:** Draft
+**Status:** Implemented (2026-08-24)
 
 ## Introduction
 
