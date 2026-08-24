@@ -62,12 +62,30 @@ def mirror_finding(path: Path, check: str, reason: str, config: ProseConfig) -> 
     )
 
 
+def write_failure(path: Path, check: str, reason: str, config: ProseConfig) -> Finding:
+    """The finding a refused or failed write reports."""
+    return Finding(
+        path=path,
+        line=0,
+        column=0,
+        check=check,
+        rule="write-failed",
+        message=f"could not write the file: {reason}",
+        severity=config.severity("write-failed"),
+    )
+
+
 def atomic_write(path: Path, text: str) -> None:
     """Write *text* to *path* via a temp file, ``fsync`` and rename.
 
     Line endings are written through unchanged: the caller has already decided
     what they should be.
     """
+    if path.is_symlink():
+        # os.replace would clobber the link with a regular file, silently
+        # detaching it from its target. Refusing is the reversible choice.
+        msg = f"refusing to rewrite {path}: it is a symlink"
+        raise OSError(msg)
     tmp_path = path.with_suffix(path.suffix + ".mdd-prose.tmp")
     try:
         with tmp_path.open("w", encoding="utf-8", newline="") as fh:

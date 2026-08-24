@@ -222,6 +222,36 @@ def test_golden_corpus_is_idempotent_and_equivalent() -> None:
         assert equivalent(source, once), case.name
 
 
+def _sweep(paths: list[Path], label: str) -> int:
+    """Assert idempotence and equivalence over every classifiable file in *paths*."""
+    seen = 0
+    for doc in paths:
+        source = doc.read_text(encoding="utf-8")
+        parsed = classify(source)
+        if not isinstance(parsed, Classified):
+            continue
+        seen += 1
+        once = reflow_text(parsed, ReflowConfig()).text
+        again = classify(once)
+        assert isinstance(again, Classified), f"{label}: {doc} did not re-classify"
+        assert reflow_text(again, ReflowConfig()).text == once, f"{label}: {doc} not idempotent"
+        assert equivalent(source, once), f"{label}: {doc} not equivalent"
+    return seen
+
+
+def test_ir_corpus_reflows_idempotently_and_equivalently() -> None:
+    """The S32 corpus is the most hostile Markdown in the repository.
+
+    The spec names it as the reflow's adversary for exactly this reason. An
+    earlier version of this test used ``docs/`` instead, which is tidy prose and
+    hid a whole class of defect — fenced divs, among others.
+    """
+    corpus = Path(__file__).resolve().parents[1] / "corpus" / "confluence"
+    docs = sorted(corpus.rglob("*.md"))
+    assert docs, "expected the vendored IR corpus to be present"
+    assert _sweep(docs, "ir-corpus") > 0
+
+
 def test_repository_docs_reflow_idempotently_and_equivalently() -> None:
     docs = sorted((Path(__file__).resolve().parents[2] / "docs").rglob("*.md"))
     assert docs, "expected the repository's own docs corpus to be present"

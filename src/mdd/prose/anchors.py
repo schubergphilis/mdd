@@ -43,7 +43,10 @@ def slug(heading_text: str) -> str:
     text = _LINK_TEXT.sub(r"\1", heading_text)
     text = _REF_LINK.sub(r"\1", text)
     text = _SLUG_DROP.sub("", text.lower())
-    return text.strip().replace(" ", "-")
+    # No strip: GitHub replaces *each* remaining space with a hyphen, including
+    # one left behind by a removed leading or trailing character, so
+    # `## Ship it 🚀` anchors as `ship-it-`. Stripping rejected working links.
+    return text.replace(" ", "-")
 
 
 def heading_text(line: Line) -> str:
@@ -133,6 +136,16 @@ def _is_external(target: str) -> bool:
     return bool(urlsplit(target).scheme) or target.startswith("//")
 
 
+def _is_root_absolute(target: str) -> bool:
+    """True for a ``/``-rooted target, which is relative to a publish root we do not know.
+
+    Resolving one with ``path.parent / target`` silently discards the left side
+    and reads from the filesystem root, so the answer depended on the host
+    rather than on the corpus.
+    """
+    return target.startswith("/")
+
+
 def internal_links(classified: Classified) -> tuple[InternalLink, ...]:
     """Return every internal link in *classified*, external schemes excluded."""
     out: list[InternalLink] = []
@@ -141,7 +154,7 @@ def internal_links(classified: Classified) -> tuple[InternalLink, ...]:
             continue
         for ref in line.links:
             raw = ref.target
-            if not raw or _is_external(raw):
+            if not raw or _is_external(raw) or _is_root_absolute(raw):
                 continue
             path_part, _, fragment = raw.partition("#")
             out.append(

@@ -43,6 +43,7 @@ _RULES: tuple[Rule, ...] = (
     Rule(CROSS_CUTTING, "unknown-suppression", Severity.WARNING),
     Rule(CROSS_CUTTING, "unused-suppression", Severity.OFF),
     Rule(CROSS_CUTTING, "mirrored-file", Severity.ERROR),
+    Rule(CROSS_CUTTING, "write-failed", Severity.ERROR),
     Rule("reflow", "reflow", Severity.ERROR, fixable=True),
     Rule("reflow", "not-equivalent", Severity.ERROR),
     Rule("lint", "multiple-spaces", Severity.ERROR, fixable=True),

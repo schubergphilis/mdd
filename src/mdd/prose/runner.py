@@ -20,7 +20,7 @@ from mdd.prose.classify import ClassifyError, classify, join_lines
 from mdd.prose.reflow import apply as reflow_apply
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING, Severity
-from mdd.prose.write import atomic_write, mirror_finding, mirror_reason
+from mdd.prose.write import atomic_write, mirror_finding, mirror_reason, write_failure
 from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -64,8 +64,12 @@ class RunResult:
 
 
 def _read(path: Path, result: RunResult) -> str | None:
+    # newline="" disables universal-newline translation. Without it every CRLF
+    # file arrives as LF, and a writer then re-emits the whole file with the
+    # wrong line endings while reporting that it changed nothing.
     try:
-        return path.read_text(encoding="utf-8")
+        with path.open(encoding="utf-8", newline="") as handle:
+            return handle.read()
     except (OSError, UnicodeDecodeError) as exc:
         log.error("cannot read %s: %s", path, exc)
         result.failed = True
@@ -98,6 +102,20 @@ def _refuse_mirror(
     return None if reason is None else mirror_finding(path, check, reason, config)
 
 
+def _write(
+    path: Path, text: str, check: str, config: ProseConfig, result: RunResult
+) -> Finding | None:
+    """Write *text*, or report the failure. One bad file must not end the run."""
+    try:
+        atomic_write(path, text)
+    except OSError as exc:
+        log.error("cannot write %s: %s", path, exc)
+        result.failed = True
+        return write_failure(path, check, str(exc), config)
+    result.written += 1
+    return None
+
+
 def _run_reflow(
     unit: _Unit,
     config: ProseConfig,
@@ -127,8 +145,9 @@ def _run_reflow(
                 severity=config.severity("not-equivalent"),
             ),
         ]
-    atomic_write(path, rewrite.text)
-    result.written += 1
+    failure = _write(path, rewrite.text, "reflow", config, result)
+    if failure is not None:
+        return [*findings, failure]
     return [f for f in findings if not f.fixable]
 
 
@@ -137,9 +156,10 @@ def _run_lint(
     config: ProseConfig,
     options: RunOptions,
     result: RunResult,
+    suppressions: suppress.Suppressions,
 ) -> list[Finding]:
     path, text, classified = unit.path, unit.text, unit.classified
-    outcome = lint_check.run(path, classified, config)
+    outcome = lint_check.run(path, classified, config, suppressions.suppresses)
     findings = list(outcome.findings)
     if not options.write or outcome.fixed is None:
         return findings
@@ -151,8 +171,9 @@ def _run_lint(
         outcome.fixed.newline,
         final_newline=outcome.fixed.final_newline,
     )
-    atomic_write(path, fixed_text)
-    result.written += 1
+    failure = _write(path, fixed_text, "lint", config, result)
+    if failure is not None:
+        return [*findings, failure]
     return [f for f in findings if not f.fixable]
 
 
@@ -162,12 +183,13 @@ def _check_file(
     options: RunOptions,
     result: RunResult,
     index: anchors_check.AnchorIndex,
+    suppressions: suppress.Suppressions,
 ) -> list[Finding]:
     findings: list[Finding] = []
     if "reflow" in options.checks:
         findings.extend(_run_reflow(unit, config, options, result))
     if "lint" in options.checks:
-        findings.extend(_run_lint(unit, config, options, result))
+        findings.extend(_run_lint(unit, config, options, result, suppressions))
     if "anchors" in options.checks:
         findings.extend(anchors_check.run(unit.path, unit.classified, config, index))
     if "freshness" in options.checks:
@@ -207,7 +229,7 @@ def run(
             continue
         suppressions = suppress.collect(classified.lines)
         unit = _Unit(path=path, text=text, classified=classified)
-        findings = _check_file(unit, config, options, result, index)
+        findings = _check_file(unit, config, options, result, index, suppressions)
         result.findings.extend(_filter(findings, suppressions))
         result.findings.extend(suppress.audit(path, suppressions, config))
     return result

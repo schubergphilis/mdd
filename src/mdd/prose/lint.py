@@ -17,7 +17,7 @@ from mdd.prose.report import Finding, make_excerpt
 from mdd.prose.rules import LINT_FIXABLE, RULES, Severity
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
     from pathlib import Path
 
     from mdd.prose.classify import Classified, Line
@@ -90,7 +90,10 @@ def _is_sentence_punctuation(text: str, index: int) -> bool:
     if text.startswith(("...", "…"), index):
         return False
     following = text[index + 1 : index + 2]
-    return not following.isalnum()
+    # Whitelist, not blacklist. Real sentence punctuation is followed by
+    # whitespace, end of line, or a closing bracket/quote. Rejecting only
+    # alphanumerics still ate the space in `directory ./configs` and `up .. one`.
+    return following == "" or following in " \t)]}>\"'”’»"
 
 
 def _space_before_punctuation(line: Line) -> Iterable[Edit]:
@@ -118,6 +121,13 @@ def _trailing_whitespace(line: Line, config: LintConfig) -> Iterable[Edit]:
         return
     run = match.group(0)
     if config.allow_hard_break and run == _HARD_BREAK:
+        return
+    # Masks are computed over the block's *rstripped* content, so they never
+    # reach a trailing run even when an inline construct straddles the soft
+    # break and the run is inside it. Treat a construct that reaches the end of
+    # the visible content as possibly owning what follows, and skip. Losing a
+    # finding is the acceptable direction; rewriting a code span is not.
+    if any(span.end >= match.start() for span in line.masks):
         return
     yield Edit(
         rule="trailing-whitespace",
@@ -252,12 +262,52 @@ def _finding(path: Path, line: Line, edit: Edit, config: ProseConfig) -> Finding
     )
 
 
+#: Which rule wins when two edits cover the same span. `space-before-punctuation`
+#: deletes the whole run and `multiple-spaces` only collapses it, so letting the
+#: latter win leaves `two ,` — still a finding, so the file would not be clean on
+#: a rerun, breaking the idempotence property `--write` is required to have.
+_EDIT_PRECEDENCE: tuple[str, ...] = (
+    "trailing-whitespace",
+    "space-before-punctuation",
+    "multiple-spaces",
+)
+
+
+def _edit_priority(edit: Edit) -> tuple[int, int, int]:
+    rank = (
+        _EDIT_PRECEDENCE.index(edit.rule)
+        if edit.rule in _EDIT_PRECEDENCE
+        else len(_EDIT_PRECEDENCE)
+    )
+    return (rank, edit.start, -edit.end)
+
+
 def apply_edits(text: str, edits: Sequence[Edit]) -> str:
-    """Apply *edits* to *text*, rightmost first so earlier offsets stay valid."""
+    """Apply *edits* to *text*, rightmost first so earlier offsets stay valid.
+
+    Overlapping edits are dropped rather than applied. Two rules can match the
+    same whitespace run — ``multiple-spaces`` and ``space-before-punctuation``
+    both match the run in ``two  ,`` — and applying both left the second one's
+    end offset stale by a character, so it deleted the punctuation mark itself.
+    """
     out = text
-    for edit in sorted(edits, key=lambda e: e.start, reverse=True):
+    applied: list[Edit] = []
+    for edit in sorted(edits, key=_edit_priority):
+        if any(edit.start < done.end and done.start < edit.end for done in applied):
+            continue
+        applied.append(edit)
+    for edit in sorted(applied, key=lambda e: e.start, reverse=True):
         out = out[: edit.start] + edit.replacement + out[edit.end :]
     return out
+
+
+#: Answers "is this rule suppressed at this line?". Injected so the fixer and
+#: the reporter consult one source of truth.
+type RuleFilter = Callable[[int, str], bool]
+
+
+def _never_suppressed(_line: int, _rule: str) -> bool:
+    return False
 
 
 @dataclass(frozen=True)
@@ -268,11 +318,21 @@ class LintResult:
     fixed: Classified | None
 
 
-def _fixable_edits(edits: Sequence[Edit], config: ProseConfig) -> list[Edit]:
+def _fixable_edits(
+    edits: Sequence[Edit], config: ProseConfig, line: int, suppressed: RuleFilter
+) -> list[Edit]:
+    """The subset of *edits* `--write` may apply.
+
+    A suppressed rule is excluded here, not merely dropped from the report. An
+    author who writes `<!-- mdd-prose-ignore: trailing-whitespace -->` has opted
+    out of the change, not just out of being told about it.
+    """
     return [
         edit
         for edit in edits
-        if edit.rule in LINT_FIXABLE and config.severity(edit.rule) is not Severity.OFF
+        if edit.rule in LINT_FIXABLE
+        and config.severity(edit.rule) is not Severity.OFF
+        and not suppressed(line, edit.rule)
     ]
 
 
@@ -280,7 +340,31 @@ def _drop_blank_lines(lines: list[Line], drop: set[int]) -> list[Line]:
     return [line for line in lines if line.number not in drop]
 
 
-def run(path: Path, classified: Classified, config: ProseConfig) -> LintResult:
+def _lint_one_line(
+    path: Path,
+    line: Line,
+    config: ProseConfig,
+    suppressed: RuleFilter,
+    findings: list[Finding],
+) -> Line | None:
+    """Append *line*'s findings and return its fixed form, or ``None`` if unchanged."""
+    edits = [
+        e for e in _line_edits(line, config.lint) if config.severity(e.rule) is not Severity.OFF
+    ]
+    findings.extend(_finding(path, line, edit, config) for edit in edits)
+    fixes = _fixable_edits(edits, config, line.number, suppressed)
+    if not fixes:
+        return None
+    new_text = apply_edits(line.text, fixes)
+    return replace(line, text=new_text) if new_text != line.text else None
+
+
+def run(
+    path: Path,
+    classified: Classified,
+    config: ProseConfig,
+    suppressed: RuleFilter = _never_suppressed,
+) -> LintResult:
     """Lint *classified*, returning findings and — for ``--write`` — the fixed file."""
     findings: list[Finding] = []
     lines = list(classified.lines)
@@ -290,20 +374,14 @@ def run(path: Path, classified: Classified, config: ProseConfig) -> LintResult:
     if config.severity("blank-run") is not Severity.OFF:
         for blank_line, edit in _blank_run(classified.lines):
             findings.append(_finding(path, blank_line, edit, config))
-            dropped.add(blank_line.number)
-            changed = True
+            if not suppressed(blank_line.number, edit.rule):
+                dropped.add(blank_line.number)
+                changed = True
 
     for index, line in enumerate(lines):
-        edits = [
-            e for e in _line_edits(line, config.lint) if config.severity(e.rule) is not Severity.OFF
-        ]
-        findings.extend(_finding(path, line, edit, config) for edit in edits)
-        fixes = _fixable_edits(edits, config)
-        if not fixes:
-            continue
-        new_text = apply_edits(line.text, fixes)
-        if new_text != line.text:
-            lines[index] = replace(line, text=new_text)
+        fixed = _lint_one_line(path, line, config, suppressed, findings)
+        if fixed is not None:
+            lines[index] = fixed
             changed = True
 
     fixed = replace(classified, lines=tuple(_drop_blank_lines(lines, dropped))) if changed else None
