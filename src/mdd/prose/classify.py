@@ -233,6 +233,17 @@ def _quote_depth(quote: str) -> int:
     return quote.count(">")
 
 
+def _opens_fence(rest: str, fence: re.Match[str]) -> bool:
+    """True when a fence-shaped line really opens a fenced block.
+
+    CommonMark 4.5: the info string of a backtick fence may not contain a
+    backtick. Without that condition a paragraph beginning ``` ```a `b` ``` ```
+    opened a block, and everything up to the next fence-shaped line — including
+    a genuine code block — became prose the fixers would rewrite.
+    """
+    return fence.group(1)[0] != "`" or "`" not in rest[fence.end() :]
+
+
 def _closes_fence(rest: str, quote: str, state: _State) -> bool:
     """True when this line closes the open fence.
 
@@ -249,13 +260,13 @@ def _closes_fence(rest: str, quote: str, state: _State) -> bool:
         return False
     if _indent_columns(rest) > state.fence_indent + 3:
         return False
-    return not rest[closer.end() :].strip()
+    return not rest[closer.end() :].strip(MD_SPACE)
 
 
 def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
     """Classify *raw* against an open multi-line construct, or return ``None``."""
     if state.in_frontmatter:
-        state.in_frontmatter = rest.strip() not in ("---", "...")
+        state.in_frontmatter = rest.strip(MD_SPACE) not in ("---", "...")
         return Line(number, raw, LineClass.FRONTMATTER)
     if state.fence is not None:
         if _closes_fence(rest, quote, state):
@@ -270,11 +281,14 @@ def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -
 def _continuation_tail(number: int, raw: str, rest: str, state: _State) -> Line | None:
     """The second half of :func:`_continuation`: math blocks and HTML blocks."""
     if state.in_math:
-        state.in_math = _MATH_FENCE.match(rest) is None
+        # Symmetric with the opener: a `$$` carrying anything else, including a
+        # no-break space, does not close the block. Closing early hands the rest
+        # of the maths to the fixers as prose.
+        state.in_math = rest.strip(MD_SPACE) != "$$"
         return Line(number, raw, LineClass.MATH)
     if not state.in_html_block:
         return None
-    if rest.strip():
+    if rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.HTML_BLOCK)
     state.in_html_block = False
     return Line(number, raw, LineClass.BLANK)
@@ -283,7 +297,7 @@ def _continuation_tail(number: int, raw: str, rest: str, state: _State) -> Line 
 def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
     """Classify *raw* as the opening line of a multi-line construct, or ``None``."""
     fence = _FENCE.match(rest)
-    if fence is not None:
+    if fence is not None and _opens_fence(rest, fence):
         state.fence = fence.group(1)
         state.fence_quote_depth = _quote_depth(quote)
         state.fence_indent = _indent_columns(rest)
@@ -296,7 +310,7 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
             state.open_at = number
         return Line(number, raw, LineClass.HTML_COMMENT)
     if _MATH_FENCE.match(rest):
-        if rest.strip() == "$$":
+        if rest.strip(MD_SPACE) == "$$":
             state.in_math = True
             state.open_at = number
         return Line(number, raw, LineClass.MATH)
@@ -315,14 +329,26 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
     return None
 
 
+def _close_list(rest: str, state: _State) -> None:
+    """Close the open list item when *rest* starts a block flush against the margin.
+
+    Called for every fresh line, not only the ones that end up as prose. A
+    heading, a fence or a thematic break at column zero ends the list just as a
+    paragraph does, and leaving the content column set after one raised the
+    indented-code floor so a genuine four-space code block read as prose — and
+    the fixers then rewrote its interior.
+    """
+    if rest.strip(MD_SPACE) and _indent_columns(rest) == 0:
+        state.list_content_col = None
+
+
 def _track_list(rest: str, state: _State) -> None:
     """Update the innermost open list item's content column."""
     marker = _LIST.match(rest) or _LIST_BARE.match(rest)
     if marker is not None:
         state.list_content_col = len(marker.group(0))
         return
-    if rest.strip() and _indent_columns(rest) == 0:
-        state.list_content_col = None
+    _close_list(rest, state)
 
 
 def _is_indented_code(rest: str, state: _State) -> bool:
@@ -358,12 +384,14 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
         return Line(number, raw, LineClass.INDENTED_CODE)
     opened = _open_block(number, raw, quote, rest, state)
     if opened is not None:
+        _close_list(rest, state)
         return opened
     single = _single_line_class(rest, state)
     if single is not None:
+        _close_list(rest, state)
         return Line(number, raw, single)
     _track_list(rest, state)
-    if not rest.strip():
+    if not rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.BLOCK_QUOTE if quote else LineClass.BLANK)
     return _prose_line(number, raw, quote, rest)
 
@@ -374,7 +402,7 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
     out: list[Line] = []
     for index, raw in enumerate(raw_lines):
         number = index + 1
-        if number == 1 and raw.rstrip() == "---":
+        if number == 1 and raw.rstrip(MD_SPACE) == "---":
             state.in_frontmatter = True
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
@@ -409,17 +437,19 @@ def _reclaim_code_blanks(lines: list[Line]) -> None:
     ``blank-run`` must not delete it. Decided in a post-pass because it needs to
     know whether the code block resumes, which the forward scan cannot.
     """
+    #: One forward pass. Re-scanning the whole file from each blank line was
+    #: quadratic: 32k lines of ordinary prose spent 0.6s here alone.
+    run: list[int] = []
+    in_code = False
     for index, line in enumerate(lines):
-        if line.cls is not LineClass.BLANK:
+        if line.cls is LineClass.BLANK:
+            run.append(index)
             continue
-        before = next(
-            (prev for prev in reversed(lines[:index]) if prev.cls is not LineClass.BLANK), None
-        )
-        if before is None or before.cls is not LineClass.INDENTED_CODE:
-            continue
-        after = next((nxt for nxt in lines[index + 1 :] if nxt.cls is not LineClass.BLANK), None)
-        if after is not None and after.cls is LineClass.INDENTED_CODE:
-            lines[index] = replace(line, cls=LineClass.INDENTED_CODE)
+        if in_code and line.cls is LineClass.INDENTED_CODE:
+            for blank in run:
+                lines[blank] = replace(lines[blank], cls=LineClass.INDENTED_CODE)
+        run.clear()
+        in_code = line.cls is LineClass.INDENTED_CODE
 
 
 def _apply_setext(lines: list[Line]) -> None:
@@ -481,7 +511,7 @@ def _apply_managed(lines: list[Line]) -> None:
         quote, rest = _strip_quote(line.text)
         if not quote:
             continue
-        content = rest.strip()
+        content = rest.strip(MD_SPACE)
         if _ALERT_MARKER.match(content):
             _mark_managed(lines, index)
             continue
