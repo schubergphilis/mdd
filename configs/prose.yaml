@@ -1,0 +1,18 @@
+# Prose checks for this repository's own hand-written Markdown.
+#
+# `reflow` stays off: turning it on here would rewrite every prose file in
+# docs/ in one commit. That is the documented adoption path, not a side effect
+# of adding the checks.
+prose:
+  checks:
+    lint: error
+    anchors: error
+
+  lint:
+    quote-punctuation: off
+    allow-hard-break: true
+    literal-quote-patterns:
+      - '^-{1,2}[a-z]'
+
+  anchors:
+    slug-style: github
