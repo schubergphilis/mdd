@@ -8,6 +8,7 @@ against that are worth reading together.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -304,3 +305,105 @@ def test_reflow_does_not_write_an_ignored_file(tmp_path: Path) -> None:
     _ = (tmp_path / "docs" / ".mddignore").write_text("a.md\n", encoding="utf-8")
     assert cli_main(["prose", "reflow", "--write", str(tmp_path / "docs")]) == 0
     assert read_file(target) == source
+
+
+# --- second review round: block state that outlived its block ------------
+
+
+@pytest.mark.parametrize(
+    "closer",
+    ["# Heading", "```\nfenced\n```", "---", "***"],
+    ids=["heading", "fence", "setext-rule", "thematic-break"],
+)
+def test_a_list_stops_raising_the_indented_code_floor(closer: str) -> None:
+    """The list's content column outlived the list, so real code read as prose.
+
+    Only a paragraph cleared it: a heading, a fence or a thematic break returned
+    before the tracker ran. The floor stayed at four-plus-the-marker, a genuine
+    four-space code block fell under it, and `lint --write` rewrote its interior.
+    """
+    source = f"- item\n\n{closer}\n\n    def f():\n        return  1\n\ntail\n"
+    assert "indented-code" in classes(source)
+
+
+def test_a_four_space_block_after_a_list_keeps_its_double_spaces(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    source = "- item\n\n# H\n\n    def f():\n        return  1\n\ntail\n"
+    write_file(target, source)
+    assert lint_write(target) == 0
+    assert read_file(target) == source
+
+
+def test_a_backtick_fence_may_not_carry_a_backtick_in_its_info_string() -> None:
+    """CommonMark 4.7. Opening a block here made a real code block read as prose."""
+    source = "```x`y\n\nprose  here\n\n```\ncode  here\n```\n"
+    assert classes(source)[0] == "prose"
+
+
+def test_a_tilde_fence_may_carry_a_backtick_in_its_info_string() -> None:
+    source = "~~~x`y\ncode\n~~~\n"
+    assert classes(source) == ["fenced-code", "fenced-code", "fenced-code"]
+
+
+@pytest.mark.parametrize(
+    ("source", "reason"),
+    [
+        (f"```\ncode\n```{NBSP}\nafter\n", "fenced code block never closes"),
+        (f"---\ntitle: t\n---{NBSP}\nbody\n", "frontmatter block never closes"),
+        (f"$$\nx\n$${NBSP}\nafter\n", "math block never closes"),
+    ],
+    ids=["fence", "frontmatter", "math"],
+)
+def test_a_no_break_space_does_not_close_a_block(source: str, reason: str) -> None:
+    """`str.strip()` ate U+00A0, so a line that is not a closer closed the block.
+
+    The block ended early and its remaining content — real code, real maths —
+    became prose the fixers would rewrite. Failing closed is the safe direction.
+    """
+    result = classify(source)
+    assert isinstance(result, ClassifyError)
+    assert result.reason == reason
+
+
+def test_a_no_break_space_line_is_not_a_blank_line(tmp_path: Path) -> None:
+    """It was classified BLANK, so `blank-run` deleted a line holding content."""
+    target = tmp_path / "a.md"
+    source = f"Intro.\n\n{NBSP}\n\nTail.\n"
+    write_file(target, source)
+    _ = lint_write(target)
+    assert NBSP in read_file(target)
+
+
+def _timed(source: str) -> float:
+    start = time.perf_counter()
+    _ = classify(source)
+    return time.perf_counter() - start
+
+
+def test_reclaiming_code_blanks_is_linear() -> None:
+    """The reclaim pass re-scanned the whole file from every blank line.
+
+    Quadratic: a file of ordinary prose spent longer in this pass than in the
+    rest of the classifier put together. Quadrupling the input should roughly
+    quadruple the time; the old pass took nine times as long. The bound is loose
+    because a shared runner is noisy, and best-of-three damps the rest.
+    """
+
+    def best(count: int) -> float:
+        source = "para\n\n" * count
+        return min(_timed(source) for _ in range(3))
+
+    assert best(8_000) * 6.5 > best(32_000)
+
+
+def test_a_blank_between_two_indented_code_lines_is_still_reclaimed() -> None:
+    source = "para\n\n    code\n\n    more code\n\ntail\n"
+    assert classes(source) == [
+        "prose",
+        "blank",
+        "indented-code",
+        "indented-code",
+        "indented-code",
+        "blank",
+        "prose",
+    ]
