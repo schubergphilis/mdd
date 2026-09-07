@@ -1,7 +1,9 @@
 """Recursive block / inline walkers used by every normalisation pass.
 
 These helpers are package-private: each pass imports them from
-``._map``; nothing outside ``mdd.ir.normalize`` reaches in.
+``._map``. The one exception is ``transform_text_blocks``, re-exported from
+the package so external inline transforms share this walk; nothing else
+outside ``mdd.ir.normalize`` reaches in.
 """
 
 from __future__ import annotations

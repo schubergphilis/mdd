@@ -195,6 +195,14 @@ update, a leading H1 equal to the resolved title is stripped from the body
 so the page does not show its title twice; an H1 that says something else
 stays.
 
+Relative links to other Markdown files — `[setup](../ops/setup.md#tokens)`
+— become Confluence page links on push. The target file's title is derived
+with the same rule as above, and a `#fragment` becomes the link's anchor.
+A link whose target file does not exist is left as written and logged as a
+warning; absolute URLs and `confluence-page:` links are never touched. Pass
+`--no-resolve-links` to `create-page` or `update-page` to keep every link
+exactly as written. The source file is never modified either way.
+
 Full bidirectional sync is last:
 
 ```bash

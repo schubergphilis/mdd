@@ -29,6 +29,7 @@ from mdd.confluence.managed import (
     classify_page,
     load_managed_config,
 )
+from mdd.confluence.page_links import resolve_page_links
 from mdd.confluence.title import resolve_page_title
 from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.ir import reattach
@@ -313,8 +314,17 @@ def _check_body_safety(
         raise _UpdateAbort(1)
 
 
-def _render_body_xhtml(md_path: Path, body_stripped: str, remote_storage: str) -> str:
+def _render_body_xhtml(
+    md_path: Path,
+    body_stripped: str,
+    remote_storage: str,
+    *,
+    resolve_links: bool = True,
+) -> str:
     """Render the local markdown to storage XHTML, grafting remote identity attrs.
+
+    With *resolve_links*, relative ``.md`` links become Confluence page links
+    before the graft; the source file is the base for relative paths.
 
     ``reattach`` grafts identity attributes (``local-id``, ``macro-id``,
     ``schema-version``, ``ac:breakout-*`` …) from the remote storage IR onto
@@ -328,6 +338,8 @@ def _render_body_xhtml(md_path: Path, body_stripped: str, remote_storage: str) -
     try:
         ir_remote = parse_confluence_storage(remote_storage, mode="preserving")
         ir_local = parse_markdown(body_stripped)
+        if resolve_links:
+            ir_local = resolve_page_links(ir_local, md_path, body_md=body_stripped)
         ir_grafted = reattach(ir_local, ir_remote)
         body_xhtml = render_confluence_storage(ir_grafted, mode="preserving")
     except (ValueError, KeyError) as exc:
@@ -401,6 +413,7 @@ def _push_page(  # noqa: PLR0913
     dry_run: bool,
     allow_empty: bool,
     allow_shrink: bool,
+    resolve_links: bool = True,
 ) -> int:
     """Run the post-fetch lifecycle: safety checks, render, diff, PUT, frontmatter."""
     remote_version = _get_remote_version(page_data)
@@ -429,7 +442,9 @@ def _push_page(  # noqa: PLR0913
         log.error("attachment sync: %s", exc)
         return 1
 
-    body_xhtml = _render_body_xhtml(md_path, body_stripped, remote_storage)
+    body_xhtml = _render_body_xhtml(
+        md_path, body_stripped, remote_storage, resolve_links=resolve_links
+    )
     diff = _print_diff_or_noop(body_xhtml, remote_storage)
     if not diff or dry_run:
         return 0
@@ -462,6 +477,7 @@ def update_page(  # noqa: PLR0913
     allow_empty: bool = False,
     allow_shrink: bool = False,
     managed_config: ManagedConfig | None = None,
+    resolve_links: bool = True,
 ) -> int:
     """Update a Confluence page from a local Markdown file.
 
@@ -475,6 +491,8 @@ def update_page(  # noqa: PLR0913
         allow_shrink:   Allow the local body to be less than 10 % of the remote body.
         managed_config: Pre-loaded ManagedConfig for managed-elsewhere detection.
                         When None, loaded lazily on first page-fetch.
+        resolve_links:  Rewrite relative ``.md`` links to Confluence page links
+                        before rendering.
 
     Returns:
         0 on success or no-op; 1 on error, conflict, or managed-page refusal.
@@ -500,6 +518,7 @@ def update_page(  # noqa: PLR0913
                 dry_run=dry_run,
                 allow_empty=allow_empty,
                 allow_shrink=allow_shrink,
+                resolve_links=resolve_links,
             )
     except _UpdateAbort as abort:
         return abort.rc

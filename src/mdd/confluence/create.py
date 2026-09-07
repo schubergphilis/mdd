@@ -39,6 +39,7 @@ from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import get_mirror_url, insert_mdd_footer, strip_export_header
 from mdd.confluence.ir import render_confluence_storage
 from mdd.confluence.models import ConfluenceBlock, ConfluenceV2PageMinimal
+from mdd.confluence.page_links import resolve_page_links
 from mdd.confluence.title import resolve_page_title
 from mdd.confluence.url import parse as parse_url
 from mdd.markdown.ir import parse_markdown
@@ -117,11 +118,12 @@ class _CreateAbort(Exception):
 
 @dataclass(frozen=True)
 class _CliFlags:
-    """The three optional CLI flags that can override frontmatter values."""
+    """The optional CLI flags that override frontmatter values or tune rendering."""
 
     space_key: str | None
     parent: str | None
     title: str | None
+    resolve_links: bool = True
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,7 @@ class _CreateInputs:
     space_key: str
     title: str
     parent_id: str | None
+    resolve_links: bool = True
 
 
 def _resolve_space_key(cli_space: str | None, block: ConfluenceBlock | None) -> str:
@@ -183,13 +186,14 @@ def _resolve_inputs(
     config: ConfluenceConfig,
     flags: _CliFlags,
 ) -> _CreateInputs:
-    """Validate idempotency and gather the three CLI-vs-frontmatter inputs."""
+    """Validate idempotency and gather the CLI-vs-frontmatter inputs."""
     block = _conf_block_from_fm(frontmatter)
     _validate_idempotency(md_path, block)
     return _CreateInputs(
         space_key=_resolve_space_key(flags.space_key, block),
         title=resolve_page_title(frontmatter, body_md, md_path, cli_title=flags.title),
         parent_id=_resolve_parent_id(flags.parent, block, config),
+        resolve_links=flags.resolve_links,
     )
 
 
@@ -282,10 +286,23 @@ def _sync_attachments(
         raise _CreateAbort(1) from exc
 
 
-def _render_create_xhtml(body_stripped: str, md_path: Path, page_id: str) -> str:
-    """Render the local markdown to storage XHTML and append the MDD footer."""
+def _render_create_xhtml(
+    body_stripped: str,
+    md_path: Path,
+    page_id: str,
+    *,
+    resolve_links: bool = True,
+) -> str:
+    """Render the local markdown to storage XHTML and append the MDD footer.
+
+    With *resolve_links*, relative ``.md`` links become Confluence page links
+    before rendering; the source file is the base for relative paths.
+    """
     try:
-        body_xhtml = render_confluence_storage(parse_markdown(body_stripped))
+        doc = parse_markdown(body_stripped)
+        if resolve_links:
+            doc = resolve_page_links(doc, md_path, body_md=body_stripped)
+        body_xhtml = render_confluence_storage(doc)
     except (ValueError, KeyError) as exc:
         _abort_with_recovery_hint(f"markdown conversion: {exc}", page_id)
         raise _CreateAbort(1) from exc
@@ -398,7 +415,9 @@ def _run_create(  # noqa: PLR0913 — keyword-only orchestration call, all args 
         ],
     )
 
-    body_xhtml = _render_create_xhtml(body_stripped, md_path, page_id)
+    body_xhtml = _render_create_xhtml(
+        body_stripped, md_path, page_id, resolve_links=inputs.resolve_links
+    )
     final_page = _put_final_create(client, page_id, inputs.title, body_xhtml, message)
 
     exported_at = datetime.now(UTC).isoformat()
@@ -420,7 +439,7 @@ def _run_create(  # noqa: PLR0913 — keyword-only orchestration call, all args 
     return page_url
 
 
-def create_page(
+def create_page(  # noqa: PLR0913 — keyword-only public entry point, one flag per CLI option
     md_path: Path,
     config: ConfluenceConfig,
     *,
@@ -428,6 +447,7 @@ def create_page(
     parent: str | None = None,
     title: str | None = None,
     message: str = "Created via mdd",
+    resolve_links: bool = True,
 ) -> int:
     """Create a new Confluence page from a local Markdown file.
 
@@ -443,6 +463,8 @@ def create_page(
                    frontmatter, then the first H1 in the body, then the
                    file stem.
         message:   Version comment stored in Confluence page history.
+        resolve_links: Rewrite relative ``.md`` links to Confluence page
+                   links before rendering.
 
     Returns:
         0 on success, 1 on error.
@@ -459,7 +481,7 @@ def create_page(
             frontmatter,
             body_md,
             config,
-            _CliFlags(space_key=space_key, parent=parent, title=title),
+            _CliFlags(space_key=space_key, parent=parent, title=title, resolve_links=resolve_links),
         )
     except _CreateAbort as abort:
         return abort.rc
