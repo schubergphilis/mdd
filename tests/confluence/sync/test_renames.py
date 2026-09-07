@@ -125,7 +125,7 @@ def test_apply_renames_moves_drives_single_event(tmp_path: Path) -> None:
     assert summary.renamed == 1
     assert summary.failures == []
     assert mirror.tracked["12345"].path == new_path
-    # The body H1 must reflect the new title — `_extract_title` reads
+    # The body H1 must reflect the new title — `resolve_page_title` reads
     # the first ATX H1, so leaving it stale would resurrect the old
     # title on the next `update-page`.
     assert "# New Title\n" in new_path.read_text(encoding="utf-8")

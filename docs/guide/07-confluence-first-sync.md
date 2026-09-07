@@ -187,6 +187,14 @@ mdd confluence archive-page "Old Page.md" --dry-run
 whose frontmatter has no `page_id`, and it creates the page and writes the
 full metadata back into your file.
 
+The page title is `--title` if you pass one, otherwise a top-level `title:`
+in the frontmatter, otherwise the first H1, otherwise the file name. That
+order holds for `update-page` too, which is what lets a documentation
+repository with `title:` frontmatter publish under its declared titles. On
+update, a leading H1 equal to the resolved title is stripped from the body
+so the page does not show its title twice; an H1 that says something else
+stays.
+
 Full bidirectional sync is last:
 
 ```bash

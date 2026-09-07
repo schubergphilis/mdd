@@ -21,7 +21,6 @@ the page_id written after step 1, so the update path will finish the job.
 from __future__ import annotations
 
 import contextlib
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -40,6 +39,7 @@ from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import get_mirror_url, insert_mdd_footer, strip_export_header
 from mdd.confluence.ir import render_confluence_storage
 from mdd.confluence.models import ConfluenceBlock, ConfluenceV2PageMinimal
+from mdd.confluence.title import resolve_page_title
 from mdd.confluence.url import parse as parse_url
 from mdd.markdown.ir import parse_markdown
 from mdd.utils.logging import get_logger
@@ -54,14 +54,6 @@ log = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-_H1_RE = re.compile(r"^#\s+(.+)", re.MULTILINE)
-
-
-def _extract_h1(body_md: str) -> str | None:
-    """Return the text of the first ATX H1 heading found in body_md, or None."""
-    m = _H1_RE.search(body_md)
-    return m.group(1).strip() if m else None
 
 
 def _conf_block_from_fm(fm: dict[str, Any]) -> ConfluenceBlock | None:
@@ -153,13 +145,6 @@ def _resolve_space_key(cli_space: str | None, block: ConfluenceBlock | None) -> 
     raise _CreateAbort(1)
 
 
-def _resolve_title(cli_title: str | None, body_md: str, md_path: Path) -> str:
-    """Return ``--title`` flag, the first H1 in the body, or the filename stem."""
-    if cli_title:
-        return cli_title
-    return _extract_h1(body_md) or md_path.stem
-
-
 def _resolve_parent_id(
     parent: str | None,
     block: ConfluenceBlock | None,
@@ -203,7 +188,7 @@ def _resolve_inputs(
     _validate_idempotency(md_path, block)
     return _CreateInputs(
         space_key=_resolve_space_key(flags.space_key, block),
-        title=_resolve_title(flags.title, body_md, md_path),
+        title=resolve_page_title(frontmatter, body_md, md_path, cli_title=flags.title),
         parent_id=_resolve_parent_id(flags.parent, block, config),
     )
 
@@ -454,8 +439,9 @@ def create_page(
         parent:    Parent page — numeric ID or Confluence page URL.
                    Falls back to ``confluence.parent_id`` in frontmatter,
                    then defaults to ``None`` (space root).
-        title:     Page title.  Falls back to ``confluence.title`` in
-                   frontmatter, then the first H1 in the body, then errors.
+        title:     Page title.  Falls back to the top-level ``title`` in
+                   frontmatter, then the first H1 in the body, then the
+                   file stem.
         message:   Version comment stored in Confluence page history.
 
     Returns:

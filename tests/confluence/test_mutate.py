@@ -522,7 +522,7 @@ class TestIssue130RenameRefresh:
         new_path = repo / "New Title.md"
         assert new_path.exists()
         body = _read_body(new_path)
-        # F1: body H1 reflects the new title — `_extract_title` reads
+        # F1: body H1 reflects the new title — `resolve_page_title` reads
         # the first ATX H1, so leaving it stale would resurrect the old
         # title on the next `update-page`.
         assert "# New Title" in body

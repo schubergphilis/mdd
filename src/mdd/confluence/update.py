@@ -29,6 +29,7 @@ from mdd.confluence.managed import (
     classify_page,
     load_managed_config,
 )
+from mdd.confluence.title import resolve_page_title
 from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.ir import reattach
 from mdd.markdown.ir import parse_markdown
@@ -40,14 +41,6 @@ if TYPE_CHECKING:
     from mdd.confluence.config import ConfluenceConfig
 
 log = get_logger(__name__)
-
-
-def _extract_title(body_md: str, md_path: Path) -> str:
-    """First ATX H1 in the body; fall back to the markdown filename stem."""
-    for line in body_md.splitlines():
-        if line.startswith("# "):
-            return line[2:].strip()
-    return md_path.stem
 
 
 def _get_page_id(fm: dict[str, Any]) -> str | None:
@@ -240,7 +233,7 @@ def _build_local_spec(md_path: Path, frontmatter: dict[str, Any], body_md: str) 
     return _LocalSpec(
         page_id=page_id,
         local_version=local_version,
-        title=_extract_title(body_md, md_path),
+        title=resolve_page_title(frontmatter, body_md, md_path),
         attachment_manifest=_get_attachments(frontmatter),
     )
 

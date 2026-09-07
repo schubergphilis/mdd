@@ -278,3 +278,39 @@ class TestExtractPageMeta:
         page: dict[str, Any] = {"version": {"authorId": ""}}
         meta = _extract_page_meta(page, exported_at="ts")
         assert meta["version_author_id"] is None
+
+
+class TestFrontmatterTitle:
+    """A top-level ``title:`` in frontmatter names the page when ``--title`` is absent."""
+
+    def _create(self, md: Path, *, title: str | None = None) -> MagicMock:
+        client = _make_client()
+        with (
+            patch("mdd.confluence.create.ConfluenceClient", return_value=client),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
+        ):
+            assert create_page(md, _make_config(), space_key="SCRATCH", title=title) == 0
+        return client
+
+    def test_frontmatter_title_beats_h1(self, tmp_path: Path) -> None:
+        md = _md_with_body(tmp_path, "---\ntitle: From Frontmatter\n---\n# H1 Title\n\nBody.\n")
+        client = self._create(md)
+        assert client.post_page.call_args.kwargs["title"] == "From Frontmatter (creating…)"
+        assert client.put_page.call_args.args[1] == "From Frontmatter"
+
+    def test_cli_title_beats_frontmatter_title(self, tmp_path: Path) -> None:
+        md = _md_with_body(tmp_path, "---\ntitle: From Frontmatter\n---\n# H1 Title\n")
+        client = self._create(md, title="From Flag")
+        assert client.put_page.call_args.args[1] == "From Flag"
+
+    def test_blank_frontmatter_title_falls_back_to_h1(self, tmp_path: Path) -> None:
+        md = _md_with_body(tmp_path, "---\ntitle: ''\n---\n# H1 Title\n")
+        client = self._create(md)
+        assert client.put_page.call_args.args[1] == "H1 Title"
+
+    def test_confluence_block_title_is_not_a_page_title(self, tmp_path: Path) -> None:
+        # ``confluence.title`` is the stale mirror field export writes; only
+        # the top-level key is authored intent.
+        md = _md_with_body(tmp_path, "---\nconfluence:\n  title: Stale\n---\n# H1 Title\n")
+        client = self._create(md)
+        assert client.put_page.call_args.args[1] == "H1 Title"
