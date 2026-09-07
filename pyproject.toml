@@ -36,6 +36,12 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: Markdown",
 ]
 
+[project.optional-dependencies]
+# In-process mermaid rendering for `mdd confluence create-page` / `update-page`.
+# Optional because it ships a JavaScript engine (~5 MB); the same feature can
+# instead shell out to mermaid-cli via the `mermaid.renderer` config knob.
+mermaid = ["mermaidx>=0.9.5"]
+
 [project.scripts]
 mdd = "mdd.cli:main"
 

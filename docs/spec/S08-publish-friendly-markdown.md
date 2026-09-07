@@ -96,29 +96,40 @@ For each fence:
   to `<stem>-attachments/mermaid-<sha>.svg` next to the source file. The
   content-addressed name is the cache: an existing file is reused without
   invoking the renderer, and two identical fences share one file.
-- Rendering is an external command configured in the same config family
-  as `svg:` (`configs/mdd.yaml`, then `~/.config/mdd/config.yaml`):
+- Rendering is configured in the same config family as `svg:`
+  (`configs/mdd.yaml`, then `~/.config/mdd/config.yaml`):
 
   ```yaml
   mermaid:
-    renderer: mmdc
+    renderer: mermaidx      # default: in-process; or an executable such as mmdc
     args: ["-i", "{input}", "-o", "{output}", "-b", "transparent"]
   ```
 
-  The fence content is written to a temporary `.mmd` input file,
-  `{input}` / `{output}` are substituted, and the command runs with
-  `subprocess.run`. The output is moved into the attachments directory
-  only after a successful exit, so a failed render never poisons the
-  cache.
+  `renderer: mermaidx` (the default) renders **in-process** with the
+  optional `mermaidx` package, installed through the `mdd[mermaid]` extra.
+  It runs the real mermaid.js in an embedded JavaScript engine, so there is
+  no Node and no browser to provision and the output is the same on every
+  machine. Any other value names an **external command** looked up on
+  `PATH` (`mmdc` from `@mermaid-js/mermaid-cli`): the fence content is
+  written to a temporary `.mmd` input file, `{input}` / `{output}` in
+  `args` are substituted, and the command runs with `subprocess.run`.
+  Either way the SVG is produced in a temporary directory and moved into
+  the attachments directory only after success, so a failed render never
+  poisons the cache.
 - On success the fence is replaced in the body by
   `![Mermaid diagram](<stem>-attachments/mermaid-<sha>.svg)`. The existing
   SVG publish path ([SVG rasterization](S24-svg-rasterization.md);
   `attachments/svg_publish.py`) then rasterizes the SVG to PNG and uploads
   both, exactly as for a hand-placed SVG.
-- If the renderer executable is not on `PATH`, one warning per page is
-  logged — `mermaid renderer 'mmdc' not found; N diagram(s) left as code
-  blocks; install @mermaid-js/mermaid-cli or set mermaid.renderer` — and
-  every fence stays a code block.
+- If the renderer is unavailable — `mermaidx` not installed, or the
+  external executable not on `PATH` — one warning per page is logged and
+  every fence stays a code block. The in-process message is `mermaid
+  renderer 'mermaidx' is not installed; N diagram(s) left as code blocks;
+  install with `uv add mdd[mermaid]` (or `pip install mermaidx`) or set
+  mermaid.renderer to an external command`; the external-command message
+  names the executable and points at `@mermaid-js/mermaid-cli`.
+- If `mermaidx` raises on a diagram (a syntax error, typically), that
+  fence stays a code block and a warning names the diagram and the error.
 - If the renderer exits non-zero or produces no output, that fence stays a
   code block and a warning names the fence and the renderer's stderr.
 
@@ -154,8 +165,16 @@ renderer is not run on export or sync pull.
   place. A mermaid fence has no file; the hash of its content *is* the
   identity, so the output filename doubles as the cache key and stale
   renders simply stop being referenced.
+- **In-process by default, subprocess as an option.** `mermaidx` is a
+  ~5 MB Python package with a JavaScript engine and no system
+  dependencies, which makes a CI publish step deterministic — the same
+  mermaid.js version renders everywhere, nothing to `npm install`, no
+  headless Chromium. It is an optional extra rather than a hard dependency
+  because that footprint is a choice a user should make. The external
+  command path is kept for teams that already ship mermaid-cli, or want a
+  renderer this project has not wrapped.
 - **Missing renderer degrades, missing SVG renderer does not.** An absent
-  `mmdc` leaves readable (if unrendered) code blocks on the page, so it
+  renderer leaves readable (if unrendered) code blocks on the page, so it
   warns and continues. That differs from the SVG rasterizer, which exits
   hard: an unrendered SVG image is a broken image, an unrendered mermaid
   fence is still the diagram source.
@@ -170,8 +189,12 @@ renderer is not run on export or sync pull.
   warning's line number is best effort: the decoded href is searched for
   in the body text; when it is not found the line is omitted.
 - `src/mdd/confluence/mermaid.py` — `render_mermaid_fences(body_md,
-  md_path, config=…)`; `MermaidConfig` / `MermaidWrapper` live next to
-  `SvgConfig` in `mdd.converters.models`. The fence scanner follows
+  md_path, config=…)`; `MermaidConfig` / `MermaidWrapper` and the
+  `MERMAIDX_RENDERER` sentinel live next to `SvgConfig` in
+  `mdd.converters.models`. `import mermaidx` is deferred into the renderer
+  so the module loads without the extra; availability (importable, or on
+  `PATH`) is checked once per page. The `mermaid` extra is declared in
+  `pyproject.toml` (`mermaidx>=0.9.5`). The fence scanner follows
   CommonMark: backtick or tilde fences of three or more characters, up to
   three spaces of indent, closed by a fence of the same character at least
   as long; an unterminated fence is left alone.
@@ -187,8 +210,11 @@ renderer is not run on export or sync pull.
 - The `--no-resolve-links` flag is `dest="resolve_links",
   action="store_false"` on both parsers and threads through
   `create_page(resolve_links=…)` / `update_page(resolve_links=…)`.
-- Tests mock `shutil.which` and `subprocess.run`; the fake renderer writes
-  a minimal `<svg/>` to the `{output}` path. No test needs `mmdc`.
+- Tests inject a fake `mermaidx` module into `sys.modules` for the
+  in-process path (and `None` to simulate it being absent), and mock
+  `shutil.which` / `subprocess.run` for the external-command path, whose
+  fake renderer writes a minimal `<svg/>` to the `{output}` path. No test
+  needs `mermaidx` or `mmdc`.
 
 ## Related upstream specs
 
@@ -203,8 +229,14 @@ renderer is not run on export or sync pull.
 1. Should `sync-space` push expose its own `--no-resolve-links`, or is the
    `update_page` default enough? Today it always resolves.
 2. A `mermaid.renderer` that is an HTTP service (Kroki) instead of a local
-   binary would avoid the Node dependency; the `args` template shape does
-   not fit that. Worth a second renderer kind if the demand shows up.
+   package or binary; the `args` template shape does not fit that. Worth a
+   second renderer kind if the demand shows up.
+4. `mermaid-rs` (a Rust port with Python bindings) was evaluated as the
+   in-process default and rejected: on a 55-line flowchart with subgraphs
+   and HTML entities it emitted invalid XML — unescaped quotes inside a
+   `font-family` attribute and double-escaped entities — which the SVG
+   rasterizer then refuses. Revisit when it emits valid SVG; it would drop
+   the JavaScript engine from the extra.
 3. Should a link to a `.md` file that exists but is not (yet) published be
    resolved anyway? Today it is — the page title is derived from the file,
    and Confluence renders a link to a non-existent page as a create link.

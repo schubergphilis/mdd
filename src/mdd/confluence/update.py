@@ -29,6 +29,7 @@ from mdd.confluence.managed import (
     classify_page,
     load_managed_config,
 )
+from mdd.confluence.mermaid import render_mermaid_fences
 from mdd.confluence.page_links import resolve_page_links
 from mdd.confluence.title import resolve_page_title
 from mdd.confluence.version import VersionDriftError, check_version_drift
@@ -428,6 +429,9 @@ def _push_page(  # noqa: PLR0913
         allow_empty=allow_empty,
         allow_shrink=allow_shrink,
     )
+    # After the safety guard, which must judge the author's body, and before
+    # attachment sync, which uploads and rasterizes the rendered SVGs.
+    body_stripped = render_mermaid_fences(body_stripped, md_path)
 
     try:
         updated_manifest, body_stripped = sync_attachments_for_update(

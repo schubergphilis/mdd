@@ -64,6 +64,7 @@ command that needs it says so when it is missing.
 | [ripgrep](https://ripgrep.org) (`rg`) | `mdd search` |
 | [librsvg](https://gitlab.gnome.org/GNOME/librsvg) (`rsvg-convert`) | Rasterizing `.svg` files into `.svg.png` siblings during a sync |
 | [1Password CLI](https://www.1password.dev/cli) (`op`) | Resolving `op://` references in configuration |
+| [`mermaidx`](https://pypi.org/project/mermaidx/) (`uv tool install "mdd[mermaid] @ git+https://github.com/schubergphilis/mdd"`) | Rendering ```` ```mermaid ```` fences to SVG when publishing to Confluence |
 
 Two notes on the first two rows.
 

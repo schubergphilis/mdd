@@ -203,6 +203,15 @@ warning; absolute URLs and `confluence-page:` links are never touched. Pass
 `--no-resolve-links` to `create-page` or `update-page` to keep every link
 exactly as written. The source file is never modified either way.
 
+Fenced ```` ```mermaid ```` blocks are rendered to SVG and published as
+images — the SVG is rasterized to PNG and both are attached, the same as a
+hand-placed SVG. Rendering is in-process when `mdd` is installed with the
+`mermaid` extra (`uv tool install "mdd[mermaid] @ git+https://github.com/schubergphilis/mdd"`);
+a `mermaid:` block in `configs/mdd.yaml` can name an external renderer such
+as `mmdc` instead; see [configuration](05-configuration.md). Without either
+the fences stay code blocks and the push warns once. Rendered files are
+cached under `<name>-attachments/` by content hash.
+
 Full bidirectional sync is last:
 
 ```bash
