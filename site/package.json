@@ -9,7 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.41.7",
+    "@astrojs/starlight": "^0.41.10",
     "@fontsource/merriweather": "^5.3.0",
     "@fontsource/merriweather-sans": "^5.3.0",
     "astro": "^7.2.1",
