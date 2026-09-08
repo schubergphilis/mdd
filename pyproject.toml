@@ -171,3 +171,10 @@ filterwarnings = [
 
 [tool.uv]
 exclude-newer = "1 week"
+# transformers 5.8.1 carries CVE-2026-9856; the fix is 5.10.0, which the
+# darwin-only `transformers<5.9` pins in docling-core and docling-ibm-models
+# blocked until docling-core 2.95.0 and docling-ibm-models 4.0.2 (2026-09-03/04).
+# Lift the cutoff for those two until the "1 week" window covers them; drop after 2026-09-11.
+[tool.uv.exclude-newer-package]
+docling-core = "2026-09-05T00:00:00Z"
+docling-ibm-models = "2026-09-05T00:00:00Z"
