@@ -55,7 +55,7 @@ This spec defines a single shared source-side filter — `.mddignore` — usable
 - `.mddignore` MUST match `git`'s `.gitignore` behaviour for pre-existing content: **it only blocks new pulls.** Files that are already present in the destination working tree are left alone, even if a newly-added pattern would match them.
 - The matcher MUST NOT delete or rename existing files on the basis of a newly-matched pattern during a normal sync.
 - The matcher MUST NOT warn or log about pre-existing matches during a normal sync. (A user adding `*/Archive/*` to `.mddignore` after a 12 GB sync should not be flooded with thousands of "would-skip" notices for content that is already on disk.)
-- Cleaning up already-synced content that newly matches an ignore pattern is the user's responsibility by default. The opt-in [`--prune-ignored`](#opt-in-cleanup-prune-ignored) flag automates it per-invocation.
+- Cleaning up already-synced content that newly matches an ignore pattern is the user's responsibility by default. The opt-in [`--prune-ignored`](#opt-in-cleanup---prune-ignored) flag automates it per-invocation.
 
 ### Opt-in cleanup: `--prune-ignored`
 

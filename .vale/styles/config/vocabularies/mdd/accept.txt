@@ -42,3 +42,7 @@ auditable
 reframed
 else's
 [Pp]andoc
+[Rr]eflow(ed|s|ing)?
+severities
+slugs?
+slugging

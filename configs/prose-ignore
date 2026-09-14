@@ -1,0 +1,6 @@
+# Extra ignore patterns for `mdd prose`, unioned with any .mddignore at the
+# walk root. Paths are relative to whichever path the command was pointed at.
+#
+# The spec template is a scaffold: its links are placeholders that resolve only
+# once a real spec is written from it.
+spec/spec-template.md
