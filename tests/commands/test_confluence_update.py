@@ -432,3 +432,25 @@ class TestUpdatePage409Conflict:
         # Must mention "Conflict" and the guidance to re-export
         assert "Conflict" in err or "conflict" in err
         assert "re-export" in err.lower() or "Re-export" in err
+
+
+class TestNoResolveLinksFlag:
+    def test_default_resolves_links(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "page.md"
+        _write_md_file(md_path, _make_frontmatter(), "# P\n")
+        with (
+            patch("mdd.commands.confluence.update_page", return_value=0) as update,
+            patch("mdd.commands.confluence.load_config", return_value=_make_config()),
+        ):
+            assert cmd_confluence(["update-page", str(md_path)]) == 0
+        assert update.call_args.kwargs["resolve_links"] is True
+
+    def test_flag_turns_resolution_off(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "page.md"
+        _write_md_file(md_path, _make_frontmatter(), "# P\n")
+        with (
+            patch("mdd.commands.confluence.update_page", return_value=0) as update,
+            patch("mdd.commands.confluence.load_config", return_value=_make_config()),
+        ):
+            assert cmd_confluence(["update-page", str(md_path), "--no-resolve-links"]) == 0
+        assert update.call_args.kwargs["resolve_links"] is False

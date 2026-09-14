@@ -752,3 +752,26 @@ class TestCreatePageCLI:
         with pytest.raises(SystemExit) as exc_info:
             cmd_confluence(["create"])
         assert exc_info.value.code == 2
+
+
+class TestNoResolveLinksFlag:
+    def test_default_resolves_links(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "page.md"
+        _write_md(md_path, None, "# P\n")
+        with (
+            patch("mdd.commands.confluence.create_page", return_value=0) as create,
+            patch("mdd.commands.confluence.load_config", return_value=_make_config()),
+        ):
+            assert cmd_confluence(["create-page", str(md_path), "--space", "S"]) == 0
+        assert create.call_args.kwargs["resolve_links"] is True
+
+    def test_flag_turns_resolution_off(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "page.md"
+        _write_md(md_path, None, "# P\n")
+        with (
+            patch("mdd.commands.confluence.create_page", return_value=0) as create,
+            patch("mdd.commands.confluence.load_config", return_value=_make_config()),
+        ):
+            rc = cmd_confluence(["create-page", str(md_path), "--space", "S", "--no-resolve-links"])
+        assert rc == 0
+        assert create.call_args.kwargs["resolve_links"] is False

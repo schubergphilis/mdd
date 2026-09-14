@@ -84,6 +84,7 @@ class _UpdatePageArgs(argparse.Namespace):
     allow_empty: bool
     allow_shrink: bool
     dry_run: bool
+    resolve_links: bool
 
 
 class _CreatePageArgs(argparse.Namespace):
@@ -93,6 +94,7 @@ class _CreatePageArgs(argparse.Namespace):
     parent: str | None
     title: str | None
     message: str
+    resolve_links: bool
 
 
 class _SyncSpaceArgs(argparse.Namespace):
@@ -246,6 +248,7 @@ def _run_update_page(ns: argparse.Namespace) -> int:
         yes=args.yes,
         allow_empty=args.allow_empty,
         allow_shrink=args.allow_shrink,
+        resolve_links=args.resolve_links,
     )
 
 
@@ -271,6 +274,7 @@ def _run_create_page(ns: argparse.Namespace) -> int:
         parent=args.parent,
         title=args.title,
         message=args.message,
+        resolve_links=args.resolve_links,
     )
 
 
@@ -674,6 +678,12 @@ def register(
     _ = p_cp.add_argument(
         "--message", default="Created via mdd", metavar="MSG", help="Version message"
     )
+    _ = p_cp.add_argument(
+        "--no-resolve-links",
+        dest="resolve_links",
+        action="store_false",
+        help="Leave relative .md links as written instead of turning them into page links",
+    )
     p_cp.set_defaults(func=_run_create_page)
 
     p_up = sub.add_parser(
@@ -696,6 +706,12 @@ def register(
         "--allow-shrink",
         action="store_true",
         help="Allow pushing a body that is dramatically smaller than the live page",
+    )
+    _ = p_up.add_argument(
+        "--no-resolve-links",
+        dest="resolve_links",
+        action="store_false",
+        help="Leave relative .md links as written instead of turning them into page links",
     )
     p_up.set_defaults(func=_run_update_page)
 

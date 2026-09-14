@@ -168,3 +168,53 @@ class TestRoundTripReattach:
         # No diff means no PUT.
         assert rc == 0, "round-trip with no edits should be a no-op"
         client.put_page.assert_not_called()
+
+
+class TestFrontmatterTitle:
+    """Top-level ``title:`` drives the pushed title and the leading-H1 strip."""
+
+    def _push(self, md: Path) -> MagicMock:
+        client = _make_client()
+        with patch("mdd.confluence.update.ConfluenceClient", return_value=client):
+            assert update_page(md, _make_config(), yes=True) == 0
+        client.put_page.assert_called_once()
+        return client
+
+    def test_frontmatter_title_is_pushed(self, tmp_path: Path) -> None:
+        md = tmp_path / "page.md"
+        md.write_text(
+            "---\ntitle: Real Title\nconfluence:\n  page_id: '42'\n  version: 1\n---\n"
+            "# Real Title\n\nBody text.\n",
+            encoding="utf-8",
+        )
+        client = self._push(md)
+        args = client.put_page.call_args.args
+        assert args[1] == "Real Title"
+        # The H1 duplicates the page title, so it is stripped from the body.
+        assert "<h1>" not in args[2]
+
+    def test_h1_that_differs_from_frontmatter_title_is_kept(self, tmp_path: Path) -> None:
+        md = tmp_path / "page.md"
+        md.write_text(
+            "---\ntitle: Real Title\nconfluence:\n  page_id: '42'\n  version: 1\n---\n"
+            "# Section Heading\n\nBody text.\n",
+            encoding="utf-8",
+        )
+        client = self._push(md)
+        args = client.put_page.call_args.args
+        assert args[1] == "Real Title"
+        assert "<h1>Section Heading</h1>" in args[2]
+
+    def test_h1_used_when_no_frontmatter_title(self, tmp_path: Path) -> None:
+        md = tmp_path / "page.md"
+        md.write_text(_minimal_frontmatter() + "# From H1\n\nBody text.\n", encoding="utf-8")
+        client = self._push(md)
+        args = client.put_page.call_args.args
+        assert args[1] == "From H1"
+        assert "<h1>" not in args[2]
+
+    def test_stem_used_when_no_title_anywhere(self, tmp_path: Path) -> None:
+        md = tmp_path / "release-notes.md"
+        md.write_text(_minimal_frontmatter() + "Body text only.\n", encoding="utf-8")
+        client = self._push(md)
+        assert client.put_page.call_args.args[1] == "release-notes"

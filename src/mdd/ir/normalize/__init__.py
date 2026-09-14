@@ -10,13 +10,17 @@ The full pipeline is exposed as:
 - ``normalise(doc)`` — apply the full pipeline and return the result.
 
 Individual passes can be called in isolation for testing or for composing
-custom sub-pipelines.
+custom sub-pipelines. ``transform_text_blocks`` — the walk every inline pass
+is built on — is exported too, so a caller outside this package can apply
+its own ``Paragraph``/``Heading`` inline transform without re-implementing
+the descent through list items, table cells and layout cells.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._map import transform_text_blocks
 from .attrs import dedupe_attrs, sort_attrs
 from .callouts import attach_callout_kind
 from .entities import normalise_entities
@@ -40,6 +44,7 @@ __all__ = [
     "normalise_whitespace",
     "sort_attrs",
     "tighten_lists",
+    "transform_text_blocks",
 ]
 
 
