@@ -36,7 +36,7 @@ config
 lossy
 unmerged
 reimplemented
-Rasterizing
+[Rr]asteriz(e|ed|er|ing)
 [Mm]irror(ed|ing)?
 auditable
 reframed

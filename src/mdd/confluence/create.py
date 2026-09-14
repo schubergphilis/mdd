@@ -38,6 +38,7 @@ from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import get_mirror_url, insert_mdd_footer, strip_export_header
 from mdd.confluence.ir import render_confluence_storage
+from mdd.confluence.mermaid import render_mermaid_fences
 from mdd.confluence.models import ConfluenceBlock, ConfluenceV2PageMinimal
 from mdd.confluence.page_links import resolve_page_links
 from mdd.confluence.title import resolve_page_title
@@ -395,7 +396,9 @@ def _run_create(  # noqa: PLR0913 — keyword-only orchestration call, all args 
         url=stub_url,
     )
 
-    body_stripped = strip_export_header(body_md)
+    # Mermaid fences become SVG image references before attachment sync so
+    # the diagrams ride the same upload-and-rasterize path as any other SVG.
+    body_stripped = render_mermaid_fences(strip_export_header(body_md), md_path)
     updated_manifest, body_stripped = _sync_attachments(client, page_id, body_stripped, md_path)
 
     # Refresh partial frontmatter now that we have the attachment manifest.

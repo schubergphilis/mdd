@@ -135,6 +135,37 @@ piece of your deployment's operational knowledge `mdd` can repeat back to a
 confused user. The `models` block maps the three task names `mdd` resolves
 onto whatever your gateway serves.
 
+## Mermaid diagrams
+
+`mdd confluence create-page` and `mdd confluence update-page` render fenced
+```` ```mermaid ```` blocks to SVG before publishing, so the page shows the
+diagram rather than its source. By default rendering happens in-process
+with the optional `mermaidx` package, which runs the real mermaid.js in an
+embedded JavaScript engine: no Node, no browser, identical output on every
+machine. Install `mdd` with the extra to get it:
+
+```bash
+uv tool install "mdd[mermaid] @ git+https://github.com/schubergphilis/mdd"
+```
+
+If you would rather use a renderer you already have, name the executable
+in the same file as the `svg:` rasterizer block — `./configs/mdd.yaml`,
+then `~/.config/mdd/config.yaml`. `{input}` is a temporary `.mmd` file
+holding the fence content and `{output}` the target `.svg`:
+
+```yaml
+mermaid:
+  renderer: mermaidx      # the default; or e.g. mmdc from @mermaid-js/mermaid-cli
+  args: ["-i", "{input}", "-o", "{output}", "-b", "transparent"]   # external renderers only
+```
+
+Rendered diagrams land in the page's `<name>-attachments/` directory,
+named by a hash of their content, so an unchanged diagram is never
+rendered twice and the source file is never edited. If the renderer is not
+available — the extra not installed, or the executable not on your
+`PATH` — the push still goes ahead with the fences left as code blocks,
+and one warning tells you what to install.
+
 ## Secrets
 
 The rule is short: **no secret ever goes into a config file, into the
