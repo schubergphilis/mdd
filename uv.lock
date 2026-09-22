@@ -484,14 +484,14 @@ wheels = [
 
 [[package]]
 name = "docling"
-version = "2.126.0"
+version = "2.127.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docling-slim", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/8e/31ec8a0433c50826c597c0757268ea64ce6fb0b60466ee6ecd1e00c5ef4f/docling-2.126.0.tar.gz", hash = "sha256:8a7f0f7767eea5a4dcdd2adce08c236c4d58e95e5025cae6657c619ca29efbca", size = 9090, upload-time = "2026-09-04T15:57:25.402Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/4c/4d0c0fb578869b0dbe71bc81dd5eb44d888ee4cb49ebbb0b438f13c2a950/docling-2.127.0.tar.gz", hash = "sha256:b30995b6619e9ad343af43968124c1bf637b23ed56c9fb9ea81782be058da675", size = 9091, upload-time = "2026-09-14T08:59:25.135Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/e4/6192f2b02bea1cbfb1b4257a814a9a6909cb86a427299fa0706278414463/docling-2.126.0-py3-none-any.whl", hash = "sha256:ce4515a2817b46bf62c8f00ababd5fc51851e8e4f435206f56c88169c2eac6dd", size = 5228, upload-time = "2026-09-04T15:57:24.333Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/d1/2ccf40b58524e759c3ccabf736789864442b918b5b04331f8c6ade662b78/docling-2.127.0-py3-none-any.whl", hash = "sha256:53e97becc63a38fc4253d6d2a698844e32280d618098115f58901b751dd11337", size = 5227, upload-time = "2026-09-14T08:59:23.958Z" },
 ]
 
 [[package]]
@@ -568,21 +568,22 @@ wheels = [
 
 [[package]]
 name = "docling-slim"
-version = "2.126.0"
+version = "2.127.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
     { name = "docling-core" },
     { name = "filetype" },
+    { name = "langcodes" },
     { name = "pluggy" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "requests" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/6b/25bc667ab933ab52e211f8486f01996badef2797d39ece37e31776f3edf0/docling_slim-2.126.0.tar.gz", hash = "sha256:f965e5d6289e444015f452f051e1562eb1da637002d66b350a5bc308d198524a", size = 653931, upload-time = "2026-09-04T15:56:06.841Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/e1/cd31f78c82a3a7cfc52238c5ab7e03ab3e1fa3e834c77639f3093d308e1d/docling_slim-2.127.0.tar.gz", hash = "sha256:c1d7c793c8528eb97112274e6c5609c9a5afa7966ae4c3f29806b22f1f23925c", size = 679966, upload-time = "2026-09-14T08:58:05.681Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/b0/65bdbaba0056323f302236c89877e210d5e301a2e863e35ba661118aad90/docling_slim-2.126.0-py3-none-any.whl", hash = "sha256:4853c1efec9b038b2593bb2d45f8fdc0f466219b069e83de6893ac7c285a413e", size = 814745, upload-time = "2026-09-04T15:56:04.919Z" },
+    { url = "https://files.pythonhosted.org/packages/93/b9/ef355818fd08b01b50d22e01980321c2336d50384da97bed2a6353656835/docling_slim-2.127.0-py3-none-any.whl", hash = "sha256:aee124e7ada544d8f2776d2e39aaa14a6c38d8252ae8db530bda2b4afe0c0fa2", size = 844545, upload-time = "2026-09-14T08:58:03.684Z" },
 ]
 
 [package.optional-dependencies]
@@ -887,6 +888,15 @@ wheels = [
 ]
 
 [[package]]
+name = "langcodes"
+version = "3.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/75/f9edc5d72945019312f359e69ded9f82392a81d49c5051ed3209b100c0d2/langcodes-3.5.1.tar.gz", hash = "sha256:40bff315e01b01d11c2ae3928dd4f5cbd74dd38f9bd912c12b9a3606c143f731", size = 191084, upload-time = "2025-12-02T16:22:01.627Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/c1/d10b371bcba7abce05e2b33910e39c33cfa496a53f13640b7b8e10bb4d2b/langcodes-3.5.1-py3-none-any.whl", hash = "sha256:b6a9c25c603804e2d169165091d0cdb23934610524a21d226e4f463e8e958a72", size = 183050, upload-time = "2025-12-02T16:21:59.954Z" },
+]
+
+[[package]]
 name = "latex2mathml"
 version = "3.81.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1099,7 +1109,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "docling", specifier = ">=2.126.0" },
+    { name = "docling", specifier = ">=2.127.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "linkify-it-py", specifier = ">=2.2.0" },
     { name = "lxml", specifier = ">=6.1.3" },

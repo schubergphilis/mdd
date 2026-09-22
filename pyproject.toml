@@ -9,7 +9,7 @@ description = "Markdown and Quarto document tooling"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "docling>=2.126.0",
+    "docling>=2.127.0",
     "httpx>=0.28.1",
     "linkify-it-py>=2.2.0",
     "lxml>=6.1.3",
