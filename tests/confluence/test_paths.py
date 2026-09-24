@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from mdd.confluence.paths import disambiguate, sanitize
 
 if TYPE_CHECKING:
@@ -86,6 +88,33 @@ class TestSanitize:
     def test_leading_tilde_removed(self) -> None:
         result = sanitize("~/.bashrc")
         assert not result.startswith("~")
+
+    @pytest.mark.parametrize(
+        ("title", "expected"),
+        [
+            (".git", "git"),
+            ("-.git", "git"),
+            ("~/.git", "git"),
+            ("~/.bashrc", "bashrc"),
+            (".-.git", "git"),
+            ("- .git", "git"),
+            ("- Draft", "Draft"),
+            ("~ notes", "notes"),
+            ("-~x", "x"),
+            ("Q3 -", "Q3"),
+            ("a.-", "a"),
+            ("..", "untitled"),
+            ("-x", "x"),
+        ],
+    )
+    def test_ends_trimmed_after_dash_and_tilde_removal(self, title: str, expected: str) -> None:
+        # Removing a leading dash or tilde must not expose a dot or a space.
+        assert sanitize(title) == expected
+
+    @pytest.mark.parametrize("title", ["-.git", "~ foo", "Q3 -", "a.-", "-\x00.x", "- ~ .y"])
+    def test_sanitize_is_idempotent_at_the_ends(self, title: str) -> None:
+        once = sanitize(title)
+        assert sanitize(once) == once
 
     def test_backslash_traversal_neutralised(self) -> None:
         result = sanitize("..\\..\\windows\\system32")

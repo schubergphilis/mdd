@@ -199,7 +199,9 @@ oddities and redirect chains.
 `<>:"/\\|?*\n\t\r` with `-`, remove every other C0/C1 control
 character (NUL, ESC, DEL, …) and any lone surrogate code point, strip
 leading/trailing whitespace and dots, collapse runs of whitespace or
-`-`, truncate to 200 chars, fall back to `"untitled"` if empty. On collision (same sanitized title
+`-`, truncate to 200 chars, fall back to `"untitled"` if empty. The
+result never contains `..`, never starts with `.`, `-`, `~` or a space,
+and never ends with `.`, `-` or a space. On collision (same sanitized title
 at the same level), append the page ID: `Title (12345).md`. The
 attachments directory is keyed on the final `.md` stem, so the
 colliding page gets `Title (12345)-attachments/` rather than sharing
