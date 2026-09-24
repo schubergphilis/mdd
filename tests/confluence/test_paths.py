@@ -98,6 +98,48 @@ class TestSanitize:
         assert result
         assert result != ""
 
+    def test_nul_removed(self) -> None:
+        assert sanitize("a\x00b") == "ab"
+
+    def test_escape_sequence_removed(self) -> None:
+        # ESC is removed; the printable rest of the sequence stays.
+        assert sanitize("red\x1b[31m title") == "red[31m title"
+
+    def test_del_and_c1_controls_removed(self) -> None:
+        assert sanitize("a\x7fb\x85c\x9fd") == "abcd"
+
+    def test_other_c0_controls_removed(self) -> None:
+        title = "".join(chr(c) for c in range(0x20) if chr(c) not in "\n\t\r")
+        assert sanitize(f"a{title}b") == "ab"
+
+    def test_newline_tab_return_still_become_dashes(self) -> None:
+        assert sanitize("a\nb\tc\rd") == "a-b-c-d"
+
+    def test_lone_surrogates_removed(self) -> None:
+        result = sanitize("a\ud800b\udfffc")
+        assert result == "abc"
+        _ = result.encode("utf-8")  # a surrogate would make this raise
+
+    def test_control_only_title_falls_back_to_untitled(self) -> None:
+        assert sanitize("\x00\x1b\x7f\ud800") == "untitled"
+
+    def test_removed_control_cannot_form_dot_dot(self) -> None:
+        result = sanitize(".\x00./x")
+        assert ".." not in result
+
+    def test_no_control_or_surrogate_survives(self) -> None:
+        title = "".join(chr(c) for c in range(0xA0)) + "\ud800\udbff\udc00\udfff"
+        result = sanitize(f"x{title}y")
+        assert not any(ord(ch) < 0x20 or 0x7F <= ord(ch) <= 0x9F for ch in result)
+        assert not any(0xD800 <= ord(ch) <= 0xDFFF for ch in result)
+
+    def test_sanitize_is_idempotent_on_controls(self) -> None:
+        once = sanitize("-a\x00b\ud800\x1b.")
+        assert sanitize(once) == once
+
+    def test_printable_non_ascii_unchanged(self) -> None:
+        assert sanitize("Café — Überblick 日本") == "Café — Überblick 日本"
+
 
 class TestDisambiguate:
     def test_no_collision_unchanged(self, tmp_path: Path) -> None:
