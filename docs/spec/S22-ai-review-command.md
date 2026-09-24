@@ -165,7 +165,7 @@ Runs all three sub-modes, sharing the BM25 index across them
 - Cross-mirror review (e.g. duplicates spanning Confluence and
   SharePoint). Useful but adds complexity; deferred until intra-
   mirror review proves valuable.
-- Embedding-based similarity. Deferred per research note R03; revisit
+- Embedding-based similarity. Deferred; revisit
   if BM25 quality limits review usefulness.
 - Continuous review (cron job that re-runs on schedule). Spec is
   on-demand only; cron lives outside `mdd`.

@@ -48,7 +48,7 @@ Other libraries considered and rejected for this iteration:
 
 - **msgspec** — strictly stricter, faster, smaller, and has a built-in YAML decoder. The leading non-pydantic candidate. Rejected for v1 on three grounds: (1) it would be a new direct dep with no transitive presence in the lock file; (2) it has a much smaller user base, so the bus-factor and the per-contributor onboarding cost are both higher; (3) the rough edges in msgspec's defaults (strict-by-default type coercion is the wrong posture for hand-edited YAML, see below) cost as much to work around as pydantic's per-class config. A re-evaluation of this decision is tracked as a separate post-Sep-2026 follow-up, by which time msgspec's ecosystem maturity should be clearer and the pydantic adoption in this repo will have settled.
 - **`TypedDict` + `TypeIs` guards** (stdlib only, PEP 742) — gives static narrowing but **zero runtime validation**, so the silent-failure bug class above stays unchanged. The whole point of S40 is killing those bugs, not just satisfying pyright.
-- **Lightweight value-taking coercers** (the original P03 first-pass recommendation) — minimum-churn but again only rearranges the `Any`; the silent-failure behaviour stays.
+- **Lightweight value-taking coercers** (the original first-pass recommendation) — minimum-churn but again only rearranges the `Any`; the silent-failure behaviour stays.
 - **Code generation from JSON Schema** (`datamodel-code-generator`) — overkill for ~10 frontmatter shapes that are all owned in-house. The output target would have been pydantic models in any case.
 
 ### Strictness posture
@@ -243,7 +243,7 @@ class ConfluenceFrontmatter(FrontmatterModel):
 
 ### Migration mechanics for confluence
 
-The confluence migration MR (P07 wave 1) rewrites `confluence/state.py:_read_frontmatter` from:
+The confluence migration MR rewrites `confluence/state.py:_read_frontmatter` from:
 
 ```python
 parsed: Any = yaml.safe_load(yaml_block)
@@ -301,7 +301,7 @@ The migration MRs land under the existing CI: `mise run ci` (which runs `lint`, 
 
 - **Emit-only paths.** `src/mdd/convert/pdf.py:_build_frontmatter` and `src/mdd/convert/pptx.py` write YAML from a known `dict[str, object]`; they do not coerce. No `BaseModel` is introduced for emit-only code in v1.
 - **Confluence v2 API response models.** The full v2 API surface is much larger than what this spec covers; carving it up into pydantic models is a separate effort. Today's per-call-site `dict_field` / `str_field` access on API responses keeps working until that effort lands.
-- **argparse Namespace adapter.** Tracked separately as P03 session D / issue #126; that work may pick pydantic too (informed by this spec's outcome) or stay with vanilla argparse.
+- **argparse Namespace adapter.** Tracked separately; that work may pick pydantic too (informed by this spec's outcome) or stay with vanilla argparse.
 - **Replacing the existing `dataclass` models in `mdd.ir.nodes` or similar IR-layer types.** Those are not external-data shapes and have different design constraints.
 - **Migrating un-listed shapes** that occasionally surface (e.g. ad-hoc JSON dumps in tests). The v1 scope is the six models listed in [Concrete model coverage](#concrete-model-coverage-v1-scope). Other shapes migrate opportunistically when their domain is next touched.
 - **Switching to msgspec.** Filed as a separate post-Sep-2026 re-evaluation issue; not part of S40.
