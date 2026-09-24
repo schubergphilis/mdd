@@ -288,6 +288,15 @@ class TestManagedConfigLookups:
         config = self._make()
         assert config.publisher_for_space("ENG") is None
 
+    def test_publisher_for_space_ignores_key_case(self) -> None:
+        config = self._make()
+        pub = config.publisher_for_space("mcqf")
+        assert pub is not None
+        assert pub.name == "sphinx"
+
+    def test_publisher_for_space_empty_key_never_matches(self) -> None:
+        assert self._make().publisher_for_space("") is None
+
     def test_publisher_for_subtree_match(self) -> None:
         config = self._make()
         pub = config.publisher_for_subtree(["parent-id", "root-id"])

@@ -111,6 +111,38 @@ class TestGetPageAncestors:
         with pytest.raises(ConfluenceError, match="not a valid"):
             client.get_page_ancestors("../../admin")
 
+    def test_full_response_fetches_the_ancestors_above_it(self) -> None:
+        client = _make_client()
+        near = [{"id": str(1000 + i)} for i in range(250)]
+        far = [{"id": "1"}, {"id": "2"}]
+        responses = [_mock_response(200, {"results": near}), _mock_response(200, {"results": far})]
+        with patch.object(httpx.Client, "request", side_effect=responses) as req:
+            result = client.get_page_ancestors("400")
+        assert [a["id"] for a in result] == ["1", "2", *(a["id"] for a in near)]
+        assert "/wiki/api/v2/pages/400/ancestors" in req.call_args_list[0][0][1]
+        assert "/wiki/api/v2/pages/1000/ancestors" in req.call_args_list[1][0][1]
+        assert req.call_args_list[0][1]["params"] == {"limit": 250}
+
+    def test_full_response_without_a_usable_top_id_raises(self) -> None:
+        client = _make_client()
+        batch = [{"title": "no id"}] * 250
+        resp = _mock_response(200, {"results": batch})
+        with (
+            patch.object(httpx.Client, "request", return_value=resp),
+            pytest.raises(ConfluenceError, match="could not follow the ancestor chain"),
+        ):
+            client.get_page_ancestors("400")
+
+    def test_repeating_chain_raises(self) -> None:
+        client = _make_client()
+        batch = [{"id": "400"}] * 250
+        resp = _mock_response(200, {"results": batch})
+        with (
+            patch.object(httpx.Client, "request", return_value=resp),
+            pytest.raises(ConfluenceError, match="could not follow the ancestor chain"),
+        ):
+            client.get_page_ancestors("400")
+
 
 class TestGetUser:
     def test_fetches_and_caches(self) -> None:

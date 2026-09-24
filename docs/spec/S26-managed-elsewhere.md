@@ -22,7 +22,7 @@ match at any layer classifies the page as managed-elsewhere; later
 layers don't run.
 
 1. **`managed_spaces`**: page's `space_key` is in the configured
-   list → match.
+   list (compared case-insensitively) → match.
 2. **`managed_subtrees`**: page's ancestor chain contains a
    configured `root_page_id` → match.
 3. **Publisher account ID**: page's `version.authorId` is in any
@@ -48,7 +48,9 @@ The classifier therefore reads:
   alphanumeric before it goes into the path. The lookup only runs when
   `managed_spaces` is configured and the payload does not name the key.
 - **Ancestor chain (layer 2):** `GET /wiki/api/v2/pages/{id}/ancestors`,
-  with the payload's `parentId` kept as the direct parent. The call only
+  with the payload's `parentId` kept as the direct parent. A response
+  holds at most 250 of the nearest ancestors; a full one is followed by
+  asking for the ancestors of its topmost entry. The call only
   runs when `managed_subtrees` is configured and the direct parent is not
   itself a configured root; with no subtrees configured there is no
   extra call.

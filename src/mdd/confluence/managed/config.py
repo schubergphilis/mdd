@@ -51,8 +51,12 @@ class ManagedConfig(FrontmatterModel):
         return None
 
     def publisher_for_space(self, space_key: str) -> PublisherEntry | None:
+        """Return the publisher managing *space_key*; keys match case-insensitively."""
+        if not space_key:
+            return None
+        wanted = space_key.casefold()
         for s in self.managed_spaces:
-            if s.space_key == space_key:
+            if s.space_key.casefold() == wanted:
                 return self.publisher_by_name(s.publisher_name)
         return None
 
