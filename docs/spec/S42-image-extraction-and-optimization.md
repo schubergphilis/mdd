@@ -25,9 +25,13 @@ through the existing dropped-image summary, never committed to disk under an
 image extension. WMF/EMF, which Pillow does not read, are the one exception:
 they are accepted for rasterization only when the container declared them as
 WMF/EMF **and** the bytes carry a metafile signature (placeable WMF
-`D7 CD C6 9A`, standard WMF header `01 00 09 00`/`02 00 09 00`, or `" EMF"` at
+`D7 CD C6 9A`, standard WMF header `01 00 09 00`/`02 00 09 00`, or the EMF
+`EMR_HEADER` record type `01 00 00 00` at offset 0 together with `" EMF"` at
 byte offset 40). Bytes that fail that check never reach the external
-rasterizer.
+rasterizer. A multi-picture JPEG (MPO) is identified as JPEG. A header whose
+declared pixel count exceeds Pillow's decompression-bomb limit
+(`Image.MAX_IMAGE_PIXELS`, left at its default) is treated as unidentified and
+dropped rather than raised.
 
 The pipeline already applied a per-format policy that had never been captured
 in a spec (it shipped incrementally under a plan):
