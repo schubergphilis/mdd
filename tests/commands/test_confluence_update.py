@@ -304,6 +304,78 @@ class TestUpdatePageDeclined:
         msgs = " ".join(r.getMessage() for r in caplog.records)
         assert "Only attachments changed" in msgs
 
+    def test_attachment_only_change_records_manifest_and_keeps_version(
+        self, tmp_path: Path
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        _write_local_image(md_path)
+        body = f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n\n![d](diagram.png)\n"
+        _write_md_file(md_path, fm, body)
+
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+            patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, mock_config, yes=True)
+
+        assert result == 0
+        mock_client.put_page.assert_not_called()
+        from mdd.confluence.frontmatter import read as read_fm
+
+        new_fm, new_body = read_fm(md_path)
+        conf: dict[str, Any] = new_fm["confluence"]
+        attachments: list[dict[str, Any]] = conf["attachments"]
+        assert [a["filename"] for a in attachments] == ["diagram.png"]
+        assert attachments[0]["version"] == 1
+        assert attachments[0]["sha256"]
+        before: dict[str, Any] = fm["confluence"]
+        for key in ("version", "updated_at", "updated_by", "exported_at"):
+            assert conf[key] == before[key]
+        assert "![d](diagram.png)" in new_body
+
+    def test_second_run_after_attachment_only_push_is_noop(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        _write_local_image(md_path)
+        body = f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n\n![d](diagram.png)\n"
+        _write_md_file(md_path, fm, body)
+
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+            patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
+        ):
+            from mdd.confluence.update import update_page
+
+            assert update_page(md_path, mock_config, yes=True) == 0
+            mock_client.upload_attachment.reset_mock()
+            confirm = MagicMock(return_value=True)
+            caplog.clear()
+            with (
+                patch("mdd.confluence.update._confirm_push", confirm),
+                caplog.at_level("INFO", logger="mdd.confluence.update"),
+            ):
+                assert update_page(md_path, mock_config, yes=False) == 0
+
+        mock_client.upload_attachment.assert_not_called()
+        mock_client.put_page.assert_not_called()
+        confirm.assert_not_called()
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "No changes detected" in msgs
+        assert "Only attachments changed" not in msgs
+
 
 class TestUpdatePageYes:
     def test_yes_skips_prompt_and_calls_put(self, tmp_path: Path) -> None:
