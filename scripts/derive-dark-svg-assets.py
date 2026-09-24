@@ -10,6 +10,10 @@ The site cannot import from `assets/` (Astro's dev server only serves files
 under its own root), so both variants of each asset are also copied into
 `site/src/assets/`, the same arrangement the PNG logo already uses.
 
+Every source and every generated file must be well-formed XML with no
+scripts, event handlers or script-capable links in it; a file that fails
+stops the run before it is written or copied.
+
 Run with `mise run derive-dark-svg-assets`.
 """
 
@@ -94,6 +98,14 @@ def recolour(svg: str, label: str) -> str:
     return HEX.sub(lambda match: RECOLOUR.get(match.group(), match.group()), svg)
 
 
+def parse(svg: str, label: str) -> ElementTree.Element:
+    """Parse `svg`, failing with a message naming `label` if it is malformed."""
+    try:
+        return ElementTree.fromstring(svg)  # noqa: S314  # input is a file in this repository, not untrusted
+    except ElementTree.ParseError as error:
+        raise SystemExit(f"{label} is not well-formed XML: {error}") from error
+
+
 def check_well_formed(svg: str, label: str) -> None:
     """Fail on malformed XML, which nothing downstream would catch.
 
@@ -101,10 +113,68 @@ def check_well_formed(svg: str, label: str) -> None:
     parses the rest, so a broken file builds and deploys happily and then draws
     nothing in the browser. A stray `--` inside a comment is enough to do it.
     """
-    try:
-        ElementTree.fromstring(svg)  # noqa: S314  # input is a file in this repository, not untrusted
-    except ElementTree.ParseError as error:
-        raise SystemExit(f"{label} is not well-formed XML: {error}") from error
+    parse(svg, label)
+
+
+# Elements that run code or embed a foreign document, compared lower-cased.
+ACTIVE_ELEMENTS = frozenset({"script", "foreignobject"})
+
+# URL schemes a link may not use. Browsers drop whitespace and control
+# characters from a URL before reading its scheme, so the check does too.
+REFUSED_SCHEMES = ("javascript:", "data:")
+
+# `onclick`, `onload`, `onmouseover`, ...: an event handler attribute.
+EVENT_HANDLER = re.compile(r"on[a-z]+")
+
+
+def local_name(name: str) -> str:
+    """Drop the `{namespace}` prefix ElementTree puts on qualified names."""
+    return name.rsplit("}", 1)[-1].lower()
+
+
+def url_scheme_refused(value: str) -> bool:
+    """Whether `value`, read as a URL, uses one of REFUSED_SCHEMES."""
+    compact = "".join(char for char in value if char > " ").lower()
+    return compact.startswith(REFUSED_SCHEMES)
+
+
+def attribute_problems(tag: str, name: str, value: str) -> list[str]:
+    """Describe what is wrong with one attribute of a `<tag>` element, if anything."""
+    if EVENT_HANDLER.fullmatch(name):
+        return [f"<{tag}> has an event handler attribute {name}"]
+    if name == "href" and url_scheme_refused(value):
+        return [f"<{tag}> links to a {value.strip()[:40]!r} URL"]
+    if name == "attributename" and value.strip().lower().rsplit(":", 1)[-1] == "href":
+        return [f"<{tag}> animates a link target"]
+    return []
+
+
+def element_problems(element: ElementTree.Element) -> list[str]:
+    """Describe the content in `element` itself that runs code, if any."""
+    tag = local_name(element.tag)
+    problems = [f"contains a <{tag}> element"] if tag in ACTIVE_ELEMENTS else []
+    for name, value in element.attrib.items():
+        problems.extend(attribute_problems(tag, local_name(name), value))
+    return problems
+
+
+def check_no_active_content(svg: str, label: str) -> None:
+    """Fail if the SVG could run code when a browser displays it.
+
+    Both variants of every asset are copied into the documentation site, and
+    other builds copy them onward from there. A drawing needs none of scripts,
+    embedded foreign documents, event handler attributes, `javascript:` or
+    `data:` links, or animations that rewrite a link, so any of them is refused
+    outright rather than stripped.
+    """
+    problems = [
+        problem for element in parse(svg, label).iter() for problem in element_problems(element)
+    ]
+    if problems:
+        raise SystemExit(
+            f"{label} contains content that runs code, which an SVG asset must not:\n"
+            + "\n".join(f"  {problem}" for problem in problems)
+        )
 
 
 def insert_banner(svg: str, source: Path) -> str:
@@ -119,10 +189,12 @@ def derive(source: Path) -> list[Path]:
     """Write `source`'s dark sibling and return both files, in light-dark order."""
     light = source.read_text(encoding="utf-8")
     check_well_formed(light, source.name)
+    check_no_active_content(light, source.name)
 
     target = dark_path(source)
     dark = insert_banner(recolour(light, source.name), source)
     check_well_formed(dark, target.name)
+    check_no_active_content(dark, target.name)
     target.write_text(dark, encoding="utf-8")
     return [source, target]
 
