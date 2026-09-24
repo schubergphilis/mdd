@@ -285,7 +285,7 @@ Confirmation prompts are narrower than you might assume:
 
 | Operation | Prompts? |
 |---|---|
-| `mdd confluence update-page` | yes, after printing a diff; `--yes` skips it |
+| `mdd confluence update-page` | yes, after printing a diff and the attachments it would upload; `--yes` skips it. Attachments are uploaded only after you confirm |
 | `mdd confluence rename-page`, `move-page`, `archive-page`, `unarchive-page` | yes; `--yes` skips it |
 | `mdd confluence create-page` | **no** |
 | `mdd confluence sync-space` | **no**, for any of its writes |

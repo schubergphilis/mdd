@@ -175,22 +175,39 @@ class TestUpdatePageConflict:
         assert "1" in msgs  # local version
 
 
+def _write_local_image(md_path: Path) -> Path:
+    """Create ``<stem>-attachments/diagram.png`` beside *md_path* and return it."""
+    img = md_path.parent / f"{md_path.stem}-attachments" / "diagram.png"
+    img.parent.mkdir(parents=True, exist_ok=True)
+    img.write_bytes(b"\x89PNG fake bytes")
+    return img
+
+
 class TestUpdatePageDryRun:
-    def test_dry_run_no_put(self, tmp_path: Path) -> None:
+    def test_dry_run_no_put_and_no_upload(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         md_path = tmp_path / "My-Page.md"
         fm = _make_frontmatter(version=3)
-        _write_md_file(md_path, fm, "## New heading\n\nChanged text.")
+        _write_local_image(md_path)
+        _write_md_file(md_path, fm, "## New heading\n\nChanged text.\n\n![d](diagram.png)")
 
         mock_client = _make_mock_client()
         mock_config = _make_config()
 
-        with patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client):
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            caplog.at_level("INFO", logger="mdd.confluence.attachments.update"),
+        ):
             from mdd.confluence.update import update_page
 
             result = update_page(md_path, mock_config, dry_run=True, yes=True)
 
         assert result == 0
         mock_client.put_page.assert_not_called()
+        mock_client.upload_attachment.assert_not_called()
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "would upload attachment diagram.png" in msgs
 
     def test_dry_run_no_frontmatter_rewrite(self, tmp_path: Path) -> None:
         md_path = tmp_path / "My-Page.md"
@@ -207,6 +224,85 @@ class TestUpdatePageDryRun:
             update_page(md_path, mock_config, dry_run=True, yes=True)
 
         assert md_path.read_text() == original_content
+
+
+class TestUpdatePageDeclined:
+    def test_declined_prompt_uploads_nothing(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        _write_local_image(md_path)
+        _write_md_file(md_path, fm, "## Changed\n\nDifferent.\n\n![d](diagram.png)")
+
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update._confirm_push", return_value=False),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, mock_config, yes=False)
+
+        assert result == 0
+        mock_client.put_page.assert_not_called()
+        mock_client.upload_attachment.assert_not_called()
+
+    def test_confirmed_prompt_uploads_after_confirmation(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        img = _write_local_image(md_path)
+        _write_md_file(md_path, fm, "## Changed\n\nDifferent.\n\n![d](diagram.png)")
+
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        def _confirm(*, yes: bool) -> bool:  # pyright: ignore[reportUnusedParameter]
+            # Nothing may have been uploaded by the time the prompt shows.
+            mock_client.upload_attachment.assert_not_called()
+            return True
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update._confirm_push", side_effect=_confirm),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, mock_config, yes=False)
+
+        assert result == 0
+        mock_client.upload_attachment.assert_called_once_with("12345", img)
+        mock_client.put_page.assert_called_once()
+        assert "diagram.png" in md_path.read_text()
+
+    def test_attachment_only_change_uploads_without_new_version(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        img = _write_local_image(md_path)
+        body = f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n\n![d](diagram.png)\n"
+        _write_md_file(md_path, fm, body)
+
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+            patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
+            caplog.at_level("INFO", logger="mdd.confluence.update"),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, mock_config, yes=True)
+
+        assert result == 0
+        mock_client.upload_attachment.assert_called_once_with("12345", img)
+        mock_client.put_page.assert_not_called()
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "Only attachments changed" in msgs
 
 
 class TestUpdatePageYes:

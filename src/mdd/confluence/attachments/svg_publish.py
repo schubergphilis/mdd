@@ -144,12 +144,35 @@ def _upload_rasterized_png(
     )
 
 
+def _plan_rasterized_pngs(svg_basenames: set[str], resolved: dict[str, Path]) -> dict[str, str]:
+    """Log what a real run would rasterize and upload; write and upload nothing.
+
+    Returns the svg basename → png basename map needed to rewrite the body
+    exactly as the real run would.
+    """
+    png_by_svg: dict[str, str] = {}
+    for basename in sorted(svg_basenames):
+        svg_path = resolved[basename]
+        if not svg_path.exists():
+            continue
+        png_basename = svg_path.name + SvgToPngConverter.output_suffix
+        png_by_svg[basename] = png_basename
+        log.info(
+            "would rasterize %s to %s and upload the PNG (unless unchanged)",
+            svg_path,
+            png_basename,
+        )
+    return png_by_svg
+
+
 def rasterize_and_upload_svg_images(
     client: ConfluenceClient,
     page_id: str,
     body_md: str,
     resolved: dict[str, Path],
     manifest_by_name: dict[str, AttachmentManifestEntry],
+    *,
+    dry_run: bool = False,
 ) -> tuple[dict[str, AttachmentManifestEntry], str]:
     """Rasterize SVGs referenced as markdown images, upload the PNGs, and
     rewrite those image refs to point at the uploaded PNG attachment.
@@ -159,6 +182,10 @@ def rasterize_and_upload_svg_images(
     SVG itself is uploaded there unchanged (this function only adds the
     rasterized PNG as an extra attachment).
 
+    With ``dry_run`` no PNG is written and nothing is uploaded; the planned
+    rasterizations are logged and the body is still rewritten so the caller
+    can render the same preview a real run would push.
+
     Returns:
         ``(new manifest entries keyed by png basename, rewritten body_md)``;
         the caller merges the entries into its own manifest dict.
@@ -166,6 +193,10 @@ def rasterize_and_upload_svg_images(
     svg_basenames = scan_local_svg_image_refs(body_md) & resolved.keys()
     if not svg_basenames:
         return {}, body_md
+
+    if dry_run:
+        png_by_svg = _plan_rasterized_pngs(svg_basenames, resolved)
+        return {}, rewrite_svg_refs_to_png(body_md, png_by_svg)
 
     converter = SvgToPngConverter()
     png_by_svg: dict[str, str] = {}

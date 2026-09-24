@@ -401,6 +401,40 @@ def _put_with_409_message(
         raise _UpdateAbort(1) from exc
 
 
+def _sync_attachments(
+    client: ConfluenceClient,
+    spec: _LocalSpec,
+    body_stripped: str,
+    md_path: Path,
+    *,
+    dry_run: bool,
+) -> tuple[list[AttachmentManifestEntry], str] | None:
+    """Sync (or, with *dry_run*, only plan) the page's local image attachments.
+
+    Returns ``(manifest, body to render)`` or ``None`` after logging the error.
+    """
+    try:
+        return sync_attachments_for_update(
+            client,
+            spec.page_id,
+            body_stripped,
+            md_path.parent,
+            spec.attachment_manifest,
+            attachments_dir=md_path.parent / f"{md_path.stem}-attachments",
+            dry_run=dry_run,
+        )
+    except (ConfluenceError, AttachmentCollisionError, OSError) as exc:
+        log.error("attachment sync: %s", exc)
+        return None
+
+
+def _manifest_changed(
+    before: list[AttachmentManifestEntry], after: list[AttachmentManifestEntry]
+) -> bool:
+    """True when *after* names or hashes any attachment differently from *before*."""
+    return {(e.filename, e.sha256) for e in before} != {(e.filename, e.sha256) for e in after}
+
+
 def _push_page(  # noqa: PLR0913
     client: ConfluenceClient,
     spec: _LocalSpec,
@@ -433,27 +467,36 @@ def _push_page(  # noqa: PLR0913
     # attachment sync, which uploads and rasterizes the rendered SVGs.
     body_stripped = render_mermaid_fences(body_stripped, md_path)
 
-    try:
-        updated_manifest, body_stripped = sync_attachments_for_update(
-            client,
-            spec.page_id,
-            body_stripped,
-            md_path.parent,
-            spec.attachment_manifest,
-            attachments_dir=md_path.parent / f"{md_path.stem}-attachments",
-        )
-    except (ConfluenceError, AttachmentCollisionError, OSError) as exc:
-        log.error("attachment sync: %s", exc)
+    # Plan-only pass: lists what would be uploaded and rewrites the body the
+    # way a real sync would, without touching Confluence. Uploads happen
+    # only after the operator has seen the preview and confirmed.
+    planned = _sync_attachments(client, spec, body_stripped, md_path, dry_run=True)
+    if planned is None:
         return 1
+    planned_manifest, preview_body = planned
+    attachments_pending = _manifest_changed(spec.attachment_manifest, planned_manifest)
 
+    body_xhtml = _render_body_xhtml(
+        md_path, preview_body, remote_storage, resolve_links=resolve_links
+    )
+    diff = _print_diff_or_noop(body_xhtml, remote_storage)
+    if dry_run or (not diff and not attachments_pending):
+        return 0
+    if not diff:
+        log.info("Only attachments changed; the page body will not get a new version.")
+    if not _confirm_push(yes=yes):
+        return 0
+
+    synced = _sync_attachments(client, spec, body_stripped, md_path, dry_run=False)
+    if synced is None:
+        return 1
+    updated_manifest, body_stripped = synced
+    if not diff:
+        # Only attachments changed; the page body itself needs no new version.
+        return 0
     body_xhtml = _render_body_xhtml(
         md_path, body_stripped, remote_storage, resolve_links=resolve_links
     )
-    diff = _print_diff_or_noop(body_xhtml, remote_storage)
-    if not diff or dry_run:
-        return 0
-    if not _confirm_push(yes=yes):
-        return 0
 
     new_version = remote_version + 1
     result = _put_with_409_message(

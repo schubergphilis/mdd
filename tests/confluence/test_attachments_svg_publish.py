@@ -22,6 +22,8 @@ from mdd.converters.protocol import ConvertResult
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
+
 _SVG_CONVERTER = "mdd.confluence.attachments.svg_publish.SvgToPngConverter"
 
 
@@ -110,6 +112,45 @@ class TestSvgImageRasterization:
         assert rewritten_body == (
             '![diagram](confluence-attachment:diagram.svg.png;version-at-save=3 "align=left")'
         )
+
+    def test_dry_run_rewrites_body_without_rasterizing_or_uploading(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        svg = tmp_path / "diagram.svg"
+        _write_file(svg, b"<svg/>")
+
+        client = _make_client()
+        body_md = "![diagram](diagram.svg)"
+
+        with (
+            # The class itself is mocked, so restate the suffix the plan reads.
+            patch(_SVG_CONVERTER, output_suffix=".png") as converter_cls,
+            caplog.at_level("INFO", logger="mdd.confluence.attachments.svg_publish"),
+        ):
+            manifest, rewritten_body = sync_attachments_for_update(
+                client, "123", body_md, tmp_path, [], dry_run=True
+            )
+
+        converter_cls.assert_not_called()
+        client.upload_attachment.assert_not_called()
+        assert not (tmp_path / "diagram.svg.png").exists()
+        assert rewritten_body == "![diagram](confluence-attachment:diagram.svg.png)"
+        # Only the raw SVG is planned; the PNG entry appears on the real run.
+        assert [e.filename for e in manifest] == ["diagram.svg"]
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert f"would rasterize {svg} to diagram.svg.png" in msgs
+
+    def test_dry_run_skips_missing_svg(self, tmp_path: Path) -> None:
+        client = _make_client()
+        body_md = "![diagram](diagram.svg)"
+
+        with patch(_SVG_CONVERTER) as converter_cls:
+            _manifest, rewritten_body = sync_attachments_for_update(
+                client, "123", body_md, tmp_path, [], dry_run=True
+            )
+
+        converter_cls.assert_not_called()
+        assert rewritten_body == body_md
 
     def test_svg_link_is_not_rasterized(self, tmp_path: Path) -> None:
         """A plain (non-image) attachment link is a deliberate download
