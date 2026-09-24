@@ -154,7 +154,9 @@ mdd confluence update-page "Some Page.md" --dry-run
 ```
 
 That fetches the live page, renders your Markdown to Confluence storage
-format, and prints a unified diff of the two. It pushes nothing.
+format, and prints a unified diff of the two, followed by the local images
+it would upload as attachments. It pushes nothing: no page body, no
+attachments.
 
 Read the diff carefully the first time. You are looking for two things:
 that your change appears, and that nothing *else* does. Spurious diff hunks

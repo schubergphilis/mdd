@@ -86,7 +86,19 @@ three cases: external URLs pass through; existing Confluence-hosted
 URLs are left alone; local files are uploaded as page attachments (or
 versioned if their SHA-256 differs from the manifest, or skipped if
 unchanged). Uploads happen **before** the body POST/PUT so references
-resolve at render time. Filename collisions (two local files with the
+resolve at render time, but in `update` only **after** the operator has
+confirmed: the sync first runs in plan-only mode, which logs every file
+that would be uploaded (name, size, SHA-256, local path) and any SVG that
+would be rasterized, and rewrites the body the way the real sync would so
+the printed diff matches what gets pushed. The upload pass runs once the
+prompt is answered `y` (or `--yes` is given); declining uploads nothing.
+When only attachments changed and the body diff is empty, confirming
+uploads the changed files without creating a new page version. Under
+`--dry-run` the plan-only pass is the whole run: no attachment is uploaded
+and no PNG is rasterized. The one local write a dry run still performs is
+rendering ```` ```mermaid ```` fences into `<stem>-attachments/`, a
+content-hash-named cache that a real push would produce identically.
+Filename collisions (two local files with the
 same basename) are a hard error — Confluence keys attachments by
 filename within a page. The v2 attachment endpoints are still maturing;
 the client falls back to v1 for multipart upload as needed.
@@ -229,8 +241,8 @@ behaviour.)
   full frontmatter back so future edits use `update page`.
 - `update page` — reads a local `.md`, looks up its source via
   frontmatter, diffs against Confluence, syncs changed image
-  attachments, and pushes the update. `--dry-run` prints the diff
-  without writing.
+  attachments, and pushes the update. `--dry-run` prints the diff and
+  the planned attachment uploads without writing anything to Confluence.
 
 ### Title H1 on export and update
 

@@ -95,7 +95,7 @@ def _warn_missing_attachment(basename: str, abs_path: Path) -> None:
     )
 
 
-def sync_attachments_for_update(
+def sync_attachments_for_update(  # noqa: PLR0913
     client: ConfluenceClient,
     page_id: str,
     body_md: str,
@@ -103,6 +103,7 @@ def sync_attachments_for_update(
     manifest: list[AttachmentManifestEntry],
     *,
     attachments_dir: Path | None = None,
+    dry_run: bool = False,
 ) -> tuple[list[AttachmentManifestEntry], str]:
     """Sync local image attachments to a Confluence page.
 
@@ -121,6 +122,12 @@ def sync_attachments_for_update(
     ``working_dir / "<page>-attachments"``), bare filenames in the markdown
     are resolved there first — matching what ``mdd confluence export-page``
     writes to disk. Falls back to ``working_dir`` for legacy refs.
+
+    With ``dry_run`` nothing is uploaded and no PNG is rasterized: every file
+    that *would* be uploaded is logged with its size and hash instead, and the
+    returned manifest carries the planned entries with ``version=0``. The
+    returned body is rewritten exactly as it would be for a real sync, so
+    callers can render the preview from it.
 
     Returns:
         A tuple of ``(updated manifest entries, body_md to render)``. The
@@ -155,6 +162,17 @@ def sync_attachments_for_update(
             # Hash matches — skip upload.
             continue
 
+        if dry_run:
+            log.info(
+                "would upload attachment %s (%d bytes, sha256 %s) from %s",
+                basename,
+                abs_path.stat().st_size,
+                sha256,
+                abs_path,
+            )
+            updated[basename] = AttachmentManifestEntry(filename=basename, sha256=sha256, version=0)
+            continue
+
         result = client.upload_attachment(page_id, abs_path)
         updated[basename] = AttachmentManifestEntry(
             filename=basename,
@@ -163,7 +181,7 @@ def sync_attachments_for_update(
         )
 
     svg_entries, rewritten_body = rasterize_and_upload_svg_images(
-        client, page_id, body_md, resolved, manifest_by_name
+        client, page_id, body_md, resolved, manifest_by_name, dry_run=dry_run
     )
     updated.update(svg_entries)
 

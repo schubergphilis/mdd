@@ -47,6 +47,46 @@ class TestSyncAttachmentsForUpdate:
         assert result[0].filename == "image.png"
         assert result[0].sha256 == hashlib.sha256(b"PNG data").hexdigest()
 
+    def test_dry_run_plans_without_uploading(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        img = tmp_path / "image.png"
+        _write_file(img, b"PNG data")
+        sha = hashlib.sha256(b"PNG data").hexdigest()
+
+        client = _make_client()
+        body_md = "![diagram](image.png)"
+
+        with caplog.at_level("INFO", logger="mdd.confluence.attachments.update"):
+            result, body = sync_attachments_for_update(
+                client, "123", body_md, tmp_path, [], dry_run=True
+            )
+
+        client.upload_attachment.assert_not_called()
+        assert body == body_md
+        assert [(e.filename, e.sha256, e.version) for e in result] == [("image.png", sha, 0)]
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert f"would upload attachment image.png (8 bytes, sha256 {sha})" in msgs
+
+    def test_dry_run_unchanged_file_is_not_planned(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        img = tmp_path / "image.png"
+        _write_file(img, b"PNG data")
+        existing = AttachmentManifestEntry(
+            filename="image.png", sha256=hashlib.sha256(b"PNG data").hexdigest(), version=2
+        )
+
+        client = _make_client()
+        with caplog.at_level("INFO", logger="mdd.confluence.attachments.update"):
+            result, _ = sync_attachments_for_update(
+                client, "123", "![d](image.png)", tmp_path, [existing], dry_run=True
+            )
+
+        client.upload_attachment.assert_not_called()
+        assert result == [existing]
+        assert "would upload" not in " ".join(r.getMessage() for r in caplog.records)
+
     def test_hash_matches_manifest_skips_upload(self, tmp_path: Path) -> None:
         data = b"unchanged image data"
         img = tmp_path / "image.png"
