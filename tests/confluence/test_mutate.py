@@ -571,6 +571,40 @@ class TestRemoteTruthInPromptsAndParent:
         warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
         assert any("Remote Title" in m for m in warnings)
 
+    def test_move_prompt_and_put_use_remote_title(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
+        md_path = repo / "Old-Title.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        parent_response: dict[str, Any] = {
+            "id": "99999",
+            "title": "New Parent",
+            "spaceId": "98306",
+            "spaceKey": "ENG",
+            "version": {"number": 1},
+            "body": {"storage": {"value": "", "representation": "storage"}},
+        }
+        mock_client = _make_mock_client(
+            page_response=self._drifted_remote(), parent_response=parent_response
+        )
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = move_page(md_path, "99999", opts=opts)
+
+        assert rc == 0
+        joined = "\n".join(caplog.messages)
+        assert 'Move: "Remote Title" (page 12345)' in joined
+        assert 'Move: "Old Title"' not in joined
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any("Remote Title" in m and "Old Title" in m for m in warnings)
+        # The PUT keeps the remote title; only the parent changes.
+        assert mock_client.put_page.call_args.args[1] == "Remote Title"
+        assert mock_client.put_page.call_args.kwargs["options"].parent_id == "99999"
+
     def test_prompt_falls_back_to_frontmatter_space_key(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
         md_path = repo / "Page.md"
         _write_md(md_path, _make_fm(status="CURRENT"))
