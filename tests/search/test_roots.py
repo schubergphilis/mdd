@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 import textwrap
-import warnings
 from typing import TYPE_CHECKING
 
 from mdd.search.roots import resolve_roots, roots_for_source
@@ -11,6 +11,8 @@ from mdd.search.sources import CONFLUENCE, DOCS, SHAREPOINT, registered_root_sou
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 # ---------------------------------------------------------------------------
 # roots_for_source
@@ -39,7 +41,9 @@ class TestConfluenceRoots:
         assert roots[0].mirror_name == "confluence/ENGINEERING"
         assert roots[0].path == mirror
 
-    def test_skips_missing_dirs_with_warning(self, tmp_path: Path) -> None:
+    def test_skips_missing_dirs_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         config = tmp_path / "confluence.yaml"
         config.write_text(
             textwrap.dedent(
@@ -51,15 +55,30 @@ class TestConfluenceRoots:
                 """
             )
         )
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="mdd"):
             roots = roots_for_source(CONFLUENCE, config)
         assert roots == []
         assert any(
-            "MISSING" in str(warning.message) or "not exist" in str(warning.message).lower()
-            for warning in w
+            "Confluence mirror root does not exist locally" in m
+            and "/this/does/not/exist/hopefully" in m
+            for m in caplog.messages
         )
-        assert any("Confluence" in str(warning.message) for warning in w)
+
+    def test_missing_dir_warning_neutralises_control_characters(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        config = tmp_path / "confluence.yaml"
+        # YAML double-quoted escapes: ESC CSI erase, OSC title, C1 CSI, RLO.
+        config.write_text(
+            "confluence:\n  spaces:\n    X:\n"
+            '      output_dir: "/nonexistent\\e[2K\\e]0;title\\a\\u009b1A\\u202e"\n'
+        )
+        with caplog.at_level(logging.WARNING, logger="mdd"):
+            roots = roots_for_source(CONFLUENCE, config)
+        assert roots == []
+        (message,) = caplog.messages
+        assert not any(c in message for c in "\x1b\x07\x9b\u202e")
+        assert "/nonexistent\ufffd[2K\ufffd]0;title\ufffd\ufffd1A\ufffd" in message
 
     def test_returns_empty_when_no_config(self, tmp_path: Path) -> None:
         # Pass a path that doesn't exist
@@ -144,16 +163,15 @@ class TestSharepointRoots:
         assert roots[0].identifier == "Engineering"
         assert roots[0].mirror_name == "sharepoint/Engineering"
 
-    def test_skips_missing_dirs(self, tmp_path: Path) -> None:
+    def test_skips_missing_dirs(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         config = tmp_path / "sharepoint.yaml"
         config.write_text(
             "sharepoint:\n  sites:\n    Appraisals:\n      output_dir: /no/such/path\n"
         )
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="mdd"):
             roots = roots_for_source(SHAREPOINT, config)
         assert roots == []
-        assert len(w) >= 1
+        assert any("/no/such/path" in m for m in caplog.messages)
 
     def test_returns_empty_when_no_config(self, tmp_path: Path) -> None:
         roots = roots_for_source(SHAREPOINT, tmp_path / "nonexistent.yaml")
@@ -335,13 +353,16 @@ class TestResolveRoots:
         roots = resolve_roots(config_paths=self._config_paths(tmp_path), extra_paths=[extra])
         assert any(r.path == extra for r in roots)
 
-    def test_extra_path_missing_warns(self, tmp_path: Path) -> None:
+    def test_extra_path_missing_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         missing = tmp_path / "no-such-dir"
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="mdd"):
             roots = resolve_roots(config_paths=self._config_paths(tmp_path), extra_paths=[missing])
         assert not any(r.path == missing for r in roots)
-        assert len(w) >= 1
+        assert any(
+            "Extra search path does not exist" in m and str(missing) in m for m in caplog.messages
+        )
 
     def test_exclude_paths_removes_root(self, tmp_path: Path) -> None:
         d = tmp_path / "d"

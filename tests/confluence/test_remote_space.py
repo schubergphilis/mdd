@@ -130,3 +130,12 @@ class TestSpaceMismatch:
     def test_surrounding_whitespace_is_ignored(self) -> None:
         assert space_mismatch(_remote(), local_space_key=" ENG ", local_space_id="") == ""
         assert space_mismatch(_remote(), local_space_key="", local_space_id=" 131077 ") == ""
+
+    def test_control_characters_in_space_keys_are_neutralised(self) -> None:
+        msg = space_mismatch(
+            _remote(space_key="H\x1b[2KR"), local_space_key="EN\x9bG", local_space_id=""
+        )
+        assert "\x1b" not in msg
+        assert "\x9b" not in msg
+        assert "space H\ufffd[2KR" in msg
+        assert "frontmatter says space EN\ufffdG" in msg

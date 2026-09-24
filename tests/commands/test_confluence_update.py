@@ -1171,3 +1171,99 @@ class TestUpdatePageManagedOnRealPayload:
         mock_client = _make_mock_client()
         assert self._outcome(tmp_path, mock_client, _managed()) is PushOutcome.PUSHED
         mock_client.get_page_ancestors.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Control characters in the summary and diff
+# ---------------------------------------------------------------------------
+
+# ESC CSI erase line, C1 CSI cursor up, OSC window title, right-to-left override.
+_CONTROLS = "\x1b[2K\x9b1A\x1b]0;t\x07\u202e"
+_RAW_CONTROL_CHARS = "\x1b\x9b\x07\u202e"
+_P = "\ufffd"
+
+
+def _has_raw_controls(text: str) -> bool:
+    return any(c in text for c in _RAW_CONTROL_CHARS)
+
+
+class TestUpdatePageNeutralisesControls:
+    def test_remote_title_and_space_in_summary(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+        page = dict(_SAMPLE_PAGE)
+        page["title"] = f"My{_CONTROLS}Page"
+        page["_links"] = {"webui": "/wiki/spaces/SP%1B%5B8mACE/pages/12345/My+Page"}
+        mock_client.get_page.return_value = page
+
+        _rc, seen = _run_interactive(md_path, mock_client, capsys)
+
+        assert not _has_raw_controls(seen[0])
+        assert f'Update: "My{_P}[2K{_P}1A{_P}]0;t{_P}{_P}Page"' in seen[0]
+        assert f"in space SP{_P}[8mACE" in seen[0]
+        assert "new title: " in seen[0]
+
+    def test_local_title_in_summary(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        del fm["confluence"]["title"]
+        _write_md_file(md_path, fm, f"# New{_CONTROLS}Title\n\nDifferent content.")
+
+        _rc, seen = _run_interactive(md_path, _make_mock_client(), capsys)
+
+        assert not _has_raw_controls(seen[0])
+        assert f'new title: "New{_P}[2K' in seen[0]
+
+    def test_diff_lines_neutralised_at_info(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "Local\x1b[1A\x1b[2K\u202eedit end.")
+        mock_client = _make_mock_client()
+        # The remote side carries a numeric reference to C1 CSI, which the
+        # diff decodes to the raw character.
+        mock_client.get_page.return_value = _page_with_storage("<p>&#155;8mRemote text</p>")
+
+        with caplog.at_level("INFO", logger="mdd"):
+            _rc, _seen = _run_interactive(md_path, mock_client, capsys, answer="y")
+
+        diffs = [m for m in caplog.messages if "+++ local" in m]
+        assert len(diffs) == 1
+        diff = diffs[0]
+        assert not _has_raw_controls(diff)
+        assert f"-<p>{_P}8mRemote text</p>" in diff
+        assert f"Local{_P}[1A{_P}[2K{_P}edit end." in diff
+        # The page body sent to Confluence is not altered.
+        body = mock_client.put_page.call_args.args[2]
+        assert "\x1b[1A" in body
+
+    def test_print_diff_returns_unmodified_diff(self, caplog: pytest.LogCaptureFixture) -> None:
+        from mdd.confluence.update import (
+            _print_diff_or_noop,  # pyright: ignore[reportPrivateUsage]
+        )
+
+        with caplog.at_level("INFO", logger="mdd"):
+            diff = _print_diff_or_noop("<pre>a\x9bb\nc</pre>", "<pre>a b\nc</pre>")
+
+        assert "\x9b" in diff
+        (logged,) = caplog.messages
+        assert logged == diff.replace("\x9b", _P)
+
+    def test_plain_diff_printed_unchanged(self, caplog: pytest.LogCaptureFixture) -> None:
+        from mdd.confluence.update import (
+            _print_diff_or_noop,  # pyright: ignore[reportPrivateUsage]
+        )
+
+        with caplog.at_level("INFO", logger="mdd"):
+            diff = _print_diff_or_noop("<p>new café</p>\n<p>same</p>", "<p>old</p>\n<p>same</p>")
+
+        (logged,) = caplog.messages
+        assert logged == diff
+        assert "\n <p>same</p>" in logged

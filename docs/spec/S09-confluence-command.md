@@ -62,7 +62,13 @@ by `spaceId`; when neither works the line says `in space unknown`. The
 full unified diff is logged at INFO, so `-v` shows it above the summary.
 Pushing then needs a `y` answer, or `--yes` (required when stdin is not a
 TTY). With `--yes` the summary is logged at INFO instead of printed.
-`--dry-run` prints the same summary and stops. `--message` sets the
+`--dry-run` prints the same summary and stops. The summary and the
+printed diff carry text from Confluence and from the mirror, so terminal
+control and bidi override characters in them are shown as `U+FFFD`
+(the [S19](S19-search-command.md) rule; CRLF line ends are kept as line
+breaks). This is display only: the diff used to decide whether to push,
+and the body that is pushed, are unchanged. Error messages quoting an
+HTTP error response body get the same treatment. `--message` sets the
 version comment in Confluence page history. Image sync runs as part of
 update. On success, frontmatter is rewritten with the new version and
 updated attachment manifest.

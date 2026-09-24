@@ -16,7 +16,6 @@ from mdd.commands.search import (
     _build_rg_cmd,  # pyright: ignore[reportPrivateUsage]
     _build_rg_type_args,  # pyright: ignore[reportPrivateUsage]
     _check_rg,  # pyright: ignore[reportPrivateUsage]
-    _neutralise_stderr,  # pyright: ignore[reportPrivateUsage]
 )
 from mdd.search.roots import MirrorRoot
 
@@ -261,9 +260,6 @@ class TestCmdSearchArgs:
         assert "\x1b" not in err
         assert "x\ufffd[2Ky" in err
 
-    def test_neutralise_stderr_keeps_line_breaks(self) -> None:
-        assert _neutralise_stderr("  a\x00b\nc\td\n") == "a\ufffdb\nc\td"
-
     def test_missing_rg_returns_1(self) -> None:
         with patch("mdd.commands.search._check_rg", return_value=False):
             rc = cmd_search(["query"])
@@ -420,6 +416,19 @@ class TestCmdSearchArgs:
         assert "[mdd search]" in err
         assert "rg" in err
         assert "foo" in err
+
+    def test_trace_neutralises_control_characters_in_root_paths(self, tmp_path: Path) -> None:
+        root = MirrorRoot(
+            path=tmp_path / "mirror\x1b]0;title\x07\x9b2K\u202e",
+            mirror_name="confluence/TEST",
+            source_type="confluence",
+            identifier="TEST",
+        )
+        rc, _, err = self._run(["foo", "--trace"], [root], rg_lines=[], rg_returncode=1)
+        assert rc == 1
+        assert "[mdd search]" in err
+        assert not any(c in err for c in "\x1b\x07\x9b\u202e")
+        assert "mirror\ufffd]0;title\ufffd\ufffd2K\ufffd" in err
 
     def test_exclude_blacklisted_flag_calls_filter(self) -> None:
         """--exclude-blacklisted causes filter_blacklisted to be called."""

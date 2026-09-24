@@ -94,7 +94,13 @@ embedding, override and isolate controls (`U+202A`..`U+202E`,
 `U+2066`..`U+2069`, which can visually reorder the rest of a line)
 are all replaced. Implicit right-to-left text is unaffected. JSON
 output is unaffected: `json.dumps` already escapes the C0 range and
-emits the rest verbatim for the consumer to handle.
+emits the rest verbatim for the consumer to handle. The same rule
+applies on stderr to the `--trace` argv line and to the warning
+logged for a configured or `--include` root that does not exist
+locally, since both quote paths from config files. The helper lives in
+`mdd.utils.terminal` and is shared with the Confluence push and mutate
+previews ([S09](S09-confluence-command.md),
+[S27](S27-confluence-page-rename-move-archive.md)).
 - `--exclude-blacklisted` filters out content from blacklisted
   ([S07](S07-data-protection.md)) spaces / sites. Off by default — local search is
   unrestricted because the user already has the content on disk;
