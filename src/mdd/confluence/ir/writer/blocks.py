@@ -26,7 +26,7 @@ from mdd.ir.nodes import (
 
 from ..cdata import wrap as cdata_wrap
 from .code import render_code_block
-from .entities import emit_attrs
+from .entities import emit_attrs, macro_attrs
 from .inlines import render_inlines
 from .layout import render_layout
 from .links import render_confluence_link
@@ -222,15 +222,7 @@ def _render_callout(
     *,
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
-    # `attributes` has all source-order attrs (ac:name, ac:schema-version,
-    # passthroughs, ac:local-id, ac:macro-id) when the node came from storage
-    # or was reattached. For markdown-sourced callouts (attributes empty),
-    # emit ac:name from the typed `kind` field as the sole attribute.
-    if "ac:name" not in block.attributes:
-        attrs_str = f" ac:name={quoteattr(block.kind)}"
-    else:
-        attrs_str = emit_attrs(block.attributes)
-    out.append(f"<ac:structured-macro{attrs_str}>")
+    out.append(f"<ac:structured-macro{macro_attrs(block.attributes, block.kind)}>")
     if block.title is not None:
         out.append(f'<ac:parameter ac:name="title">{escape(block.title)}</ac:parameter>')
     for key, value in block.params.items():
@@ -252,15 +244,7 @@ def _render_confluence_macro(
     *,
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
-    # `attributes` carries all source-order attrs (including ac:name,
-    # ac:schema-version, passthroughs, ac:local-id, ac:macro-id) when the
-    # node came from storage or was reattached. For markdown-sourced macros
-    # (attributes empty), emit ac:name from the typed `name` field.
-    if "ac:name" not in block.attributes:
-        attrs_str = f" ac:name={quoteattr(block.name)}"
-    else:
-        attrs_str = emit_attrs(block.attributes)
-    out.append(f"<ac:structured-macro{attrs_str}>")
+    out.append(f"<ac:structured-macro{macro_attrs(block.attributes, block.name)}>")
     for key, value in block.params.items():
         out.append(f"<ac:parameter ac:name={quoteattr(key)}>{value}</ac:parameter>")
     # Honour rich_body vs plain_body — don't emit

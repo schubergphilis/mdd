@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mdd.confluence.ir import parse_confluence_storage, render_confluence_storage
+from mdd.confluence.ir.writer.entities import render_preserved_text
 from mdd.ir.document import Document
 from mdd.ir.nodes import (
     BulletList,
@@ -379,3 +380,32 @@ class TestRoundTrip:
         out1 = _roundtrip(storage)
         out2 = _roundtrip(out1)
         assert out1 == out2
+
+
+class TestPreservedText:
+    """`render_preserved_text` only re-emits entities that match the content."""
+
+    def test_matching_entity_is_re_emitted(self) -> None:
+        out: list[str] = []
+        render_preserved_text("a < b", {2: "&lt;"}, out)
+        assert "".join(out) == "a &lt; b"
+
+    def test_mismatched_entity_is_ignored(self) -> None:
+        out: list[str] = []
+        render_preserved_text("x = 1", {2: "&lt;"}, out)
+        assert "".join(out) == "x = 1"
+
+    def test_entity_past_the_end_is_ignored(self) -> None:
+        out: list[str] = []
+        render_preserved_text("ab", {5: "&lt;"}, out)
+        assert "".join(out) == "ab"
+
+    def test_unknown_entity_is_ignored(self) -> None:
+        out: list[str] = []
+        render_preserved_text("a<b", {1: "&nosuch;"}, out)
+        assert "".join(out) == "a&lt;b"
+
+    def test_overlapping_offsets_keep_the_first(self) -> None:
+        out: list[str] = []
+        render_preserved_text("a≂̸b", {1: "&NotEqualTilde;", 2: "&ne;"}, out)
+        assert "".join(out) == "a&NotEqualTilde;b"

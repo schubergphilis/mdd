@@ -23,6 +23,22 @@ def emit_attrs(attributes: dict[str, str]) -> str:
     return "".join(f" {k}={quoteattr(v)}" for k, v in attributes.items() if not k.startswith("_"))
 
 
+def macro_attrs(attributes: dict[str, str], name: str) -> str:
+    """Emit ``<ac:structured-macro>`` attributes with the typed name winning.
+
+    ``attributes`` carries every source-order attr (``ac:name``,
+    ``ac:schema-version``, passthroughs, ``ac:local-id``, ``ac:macro-id``)
+    when the node came from storage or was reattached; markdown-sourced
+    nodes have an empty dict. The typed ``name`` / ``kind`` field is what
+    the author wrote, so it always supplies ``ac:name`` — in the source
+    position when the attribute was present, first otherwise.
+    """
+    merged: dict[str, str] = {"ac:name": name}
+    merged.update(attributes)
+    merged["ac:name"] = name
+    return emit_attrs(merged)
+
+
 _XML_PREDEFINED_DECODES = {
     "&amp;": "&",
     "&lt;": "<",
@@ -45,6 +61,11 @@ def render_preserved_text(content: str, entity_form: dict[int, str], out: list[s
 
     The text between entities is XML-escaped via `escape()` so any `<`, `>`
     or `&` literal in `content` round-trips as `&lt;` / `&gt;` / `&amp;`.
+
+    An entity is only substituted when it decodes to the character(s)
+    actually present at that offset; otherwise the literal content is
+    escaped as-is. Offsets calibrated on different content would
+    otherwise overwrite the author's characters.
     """
     if not entity_form:
         out.append(escape(content))
@@ -54,12 +75,11 @@ def render_preserved_text(content: str, entity_form: dict[int, str], out: list[s
     for offset in sorted(entity_form.keys()):
         entity_str = entity_form[offset]
         char = _decode_entity(entity_str)
-        char_len = len(char) if char else 1
-        if offset >= len(content):
+        if not char or offset < pos or content[offset : offset + len(char)] != char:
             continue
         parts.append(escape(content[pos:offset]))
         parts.append(entity_str)
-        pos = offset + char_len
+        pos = offset + len(char)
     parts.append(escape(content[pos:]))
     out.append("".join(parts))
 

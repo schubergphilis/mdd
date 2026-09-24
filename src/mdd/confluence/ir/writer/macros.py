@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from xml.sax.saxutils import quoteattr
 
-from .entities import emit_attrs
+from .entities import emit_attrs, macro_attrs
 
 if TYPE_CHECKING:
     from mdd.ir.nodes import ConfluenceImage, InlineMacro
@@ -31,15 +31,7 @@ def render_confluence_image(tok: ConfluenceImage, out: list[str]) -> None:
 
 
 def render_inline_macro(tok: InlineMacro, out: list[str]) -> None:
-    # `attributes` has all source-order attrs (ac:name, ac:schema-version,
-    # ac:local-id, ac:macro-id) when the node came from storage or was
-    # reattached. For markdown-sourced inline macros (attributes empty),
-    # emit ac:name from the typed `name` field.
-    if "ac:name" not in tok.attributes:
-        attrs_str = f" ac:name={quoteattr(tok.name)}"
-    else:
-        attrs_str = emit_attrs(tok.attributes)
-    out.append(f"<ac:structured-macro{attrs_str}>")
+    out.append(f"<ac:structured-macro{macro_attrs(tok.attributes, tok.name)}>")
     for key, value in tok.params.items():
         # Param values may contain raw markup (e.g. `<ri:attachment …/>`
         # inside a `view-file` macro, fixture 164069). The reader stores
