@@ -288,7 +288,10 @@ cheap signal that something went missing.
 - Summaries and topic titles are model text and are rendered as
   literal text: whitespace runs collapse to one line and the
   characters that would open a link, image, fence, raw HTML, macro,
-  heading or emphasis are backslash-escaped.
+  heading, emphasis or strikethrough are backslash-escaped, as are
+  parentheses, so a model-written `](confluence-attachment:...)` is
+  never picked up by the attachment upload scan when the index is
+  later published.
 
 ## Design Approach
 

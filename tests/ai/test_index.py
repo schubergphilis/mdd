@@ -21,6 +21,7 @@ from mdd.ai.index import (
 from mdd.ai.index import _path_to_title as _path_to_title  # pyright: ignore[reportPrivateUsage]
 from mdd.ai.index import _render_index as _render_index  # pyright: ignore[reportPrivateUsage]
 from mdd.ai.models import ChatResult
+from mdd.confluence.attachments.scan import scan_local_image_refs
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -213,7 +214,17 @@ class TestRenderIndex:
         content = _render_index(summaries, clusters=None, generated_at="2026-01-01T00:00:00Z")
 
         assert "![" not in content
-        assert "Overview. \\!\\[x\\](configs/confluence.yaml)" in content
+        assert "Overview. \\!\\[x\\]\\(configs/confluence.yaml\\)" in content
+
+    def test_summary_attachment_link_is_not_picked_up_by_the_upload_scanner(self) -> None:
+        summary = "See [x](confluence-attachment:configs/confluence.yaml) and _y_ ~~z~~"
+        summaries = [FileSummary(path=Path("a.md"), rel_path="a.md", summary=summary, cached=True)]
+        content = _render_index(summaries, clusters=None, generated_at="2026-01-01T00:00:00Z")
+
+        assert "](" not in content.split("\n---\n", 1)[1].split("** — ", 1)[1]
+        assert "\\[x\\]\\(confluence-attachment:configs/confluence.yaml\\)" in content
+        assert "and \\_y\\_ \\~\\~z\\~\\~" in content
+        assert scan_local_image_refs(content) == []
 
     def test_summary_fence_is_collapsed_to_one_line(self) -> None:
         summary = "Overview.\n\n```confluence-xml\n<ac:structured-macro/>\n```\n"
@@ -232,7 +243,7 @@ class TestRenderIndex:
         ]
         content = _render_index(summaries, clusters=clusters, generated_at="2026-01-01T00:00:00Z")
 
-        assert "## Ops \\# Not a heading \\[x\\](y)" in content
+        assert "## Ops \\# Not a heading \\[x\\]\\(y\\)" in content
         assert "\n# Not a heading" not in content
 
     def test_cluster_path_outside_indexed_set_is_skipped(
