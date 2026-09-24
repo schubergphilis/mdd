@@ -40,6 +40,11 @@ def consume_inlines(inline_tok: Token, ctx: IRContext | None) -> list[Inline]:
     return _merge_inline_raw_html_pairs(out)
 
 
+def drop_empty_text(tokens: list[Inline]) -> list[Inline]:
+    """Remove the empty ``text`` tokens markdown-it emits around delimiter runs."""
+    return [tok for tok in tokens if not (isinstance(tok, Text) and not tok.content)]
+
+
 _HTML_OPEN_TAG_RE = re.compile(r"^<([A-Za-z][A-Za-z0-9-]*)(\s[^>]*)?>$")
 _HTML_CLOSE_TAG_RE = re.compile(r"^</([A-Za-z][A-Za-z0-9-]*)\s*>$")
 
@@ -175,9 +180,27 @@ def _consume_link(
     return j + 1
 
 
+def _image_alt(tok: Token) -> str:
+    """Return the image label with backslash escapes resolved.
+
+    ``tok.content`` is the raw label source, so ``![a\\]b](x)`` would keep
+    the backslash. The child tokens carry the decoded text; delimiter
+    tokens contribute their markup so the label otherwise reads as written.
+    """
+    if not tok.children:
+        return str(tok.attrGet("alt") or tok.content)
+    parts: list[str] = []
+    for child in tok.children:
+        if child.type == "code_inline":
+            parts.append(f"{child.markup}{child.content}{child.markup}")
+        else:
+            parts.append(child.content or child.markup)
+    return "".join(parts)
+
+
 def _image_from_token(tok: Token) -> Inline:
     src = str(tok.attrGet("src") or "")
-    alt = str(tok.attrGet("alt") or tok.content)
+    alt = _image_alt(tok)
     title_raw = tok.attrGet("title")
     title = str(title_raw) if title_raw is not None else None
     return _build_image(src, alt, title)

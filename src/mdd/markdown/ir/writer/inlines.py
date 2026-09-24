@@ -36,9 +36,23 @@ def render_inlines(
     out: list[str],
     *,
     mode: Literal["normalising", "preserving"] = "normalising",
+    line_start: bool = False,
 ) -> None:
+    """Render *tokens* in order.
+
+    ``line_start`` says the first token begins a paragraph line, so a
+    ``Text`` there (or after a ``LineBreak``) has its line-leading block
+    markers escaped as well as its inline ones.
+    """
+    at_line_start = line_start
     for tok in tokens:
-        render_inline(tok, out, mode=mode)
+        if isinstance(tok, Text):
+            _render_text(tok, out, mode, line_start=at_line_start)
+        else:
+            render_inline(tok, out, mode=mode)
+        at_line_start = isinstance(tok, LineBreak) or (
+            isinstance(tok, Text) and tok.content.endswith("\n")
+        )
 
 
 _Mode = Literal["normalising", "preserving"]
@@ -60,10 +74,10 @@ def _origin_raw_bytes_for(tok: Text | RawInline, mode: _Mode) -> str | None:
     return origin.raw_bytes.decode("utf-8")
 
 
-def _render_text(tok: Inline, out: list[str], mode: _Mode) -> None:
+def _render_text(tok: Inline, out: list[str], mode: _Mode, *, line_start: bool = False) -> None:
     assert isinstance(tok, Text)  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction
     raw = _origin_raw_bytes_for(tok, mode)
-    out.append(raw if raw is not None else escape_text(tok.content))
+    out.append(raw if raw is not None else escape_text(tok.content, line_start=line_start))
 
 
 def _render_raw_inline(tok: Inline, out: list[str], mode: _Mode) -> None:
@@ -127,14 +141,14 @@ def _render_link(tok: Inline, out: list[str], mode: _Mode) -> None:
     if not tok.title and body_text == tok.href and is_safe_autolink(tok.href):
         out.append(f"<{tok.href}>")
         return
-    title_part = f' "{tok.title}"' if tok.title else ""
+    title_part = f' "{escape_attr(tok.title)}"' if tok.title else ""
     out.append(f"[{body_text}]({escape_url(tok.href)}{title_part})")
 
 
 def _render_image(tok: Inline, out: list[str], mode: _Mode) -> None:
     del mode
     assert isinstance(tok, Image)  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction
-    title_part = f' "{tok.title}"' if tok.title else ""
+    title_part = f' "{escape_attr(tok.title)}"' if tok.title else ""
     out.append(f"![{escape_text(tok.alt)}]({escape_url(tok.src)}{title_part})")
 
 
@@ -232,7 +246,7 @@ def _render_confluence_image(tok: ConfluenceImage, out: list[str]) -> None:
     alt = tok.attributes.get("ac:alt", "")
     if title_attrs:
         title = " ".join(f"{k}={v}" for k, v in title_attrs.items())
-        out.append(f'![{escape_text(alt)}]({escape_url(uri)} "{title}")')
+        out.append(f'![{escape_text(alt)}]({escape_url(uri)} "{escape_attr(title)}")')
     else:
         out.append(f"![{escape_text(alt)}]({escape_url(uri)})")
 

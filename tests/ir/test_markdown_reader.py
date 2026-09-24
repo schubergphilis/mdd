@@ -563,3 +563,33 @@ def test_layout_multiple_sections_roundtrip() -> None:
             assert isinstance(tok, Text)
             flat.append(tok.content)
     assert flat == ["intro", "a", "b", "c"]
+
+
+def test_image_alt_resolves_backslash_escapes_and_keeps_markup() -> None:
+    doc = parse_markdown("![a\\]b *c* `d`](x.png)")
+    p = doc.children[0]
+    assert isinstance(p, Paragraph)
+    img = p.inlines[0]
+    assert isinstance(img, Image)
+    assert img.alt == "a]b *c* `d`"
+
+
+def test_escaped_inline_macro_marker_stays_text() -> None:
+    doc = parse_markdown("\\{{confluence:toc}} and \\{{confluence-raw:PGI+eDwvYj4=}}")
+    p = doc.children[0]
+    assert isinstance(p, Paragraph)
+    assert [type(t).__name__ for t in p.inlines] == ["Text"]
+    assert isinstance(p.inlines[0], Text)
+    assert p.inlines[0].content == "{{confluence:toc}} and {{confluence-raw:PGI+eDwvYj4=}}"
+
+
+def test_table_cell_inline_macro_marker_parses() -> None:
+    doc = parse_markdown("| {{confluence:toc}} |\n| --- |\n| **b** |")
+    tbl = doc.children[0]
+    assert isinstance(tbl, Table)
+    head = tbl.rows[0].cells[0].children[0]
+    assert isinstance(head, Paragraph)
+    assert isinstance(head.inlines[0], InlineMacro)
+    body = tbl.rows[1].cells[0].children[0]
+    assert isinstance(body, Paragraph)
+    assert [type(t).__name__ for t in body.inlines] == ["Strong"]

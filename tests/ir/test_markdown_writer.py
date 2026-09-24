@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mdd.ir.document import Document
 from mdd.ir.nodes import (
+    Block,
     BlockQuote,
     BulletList,
     Callout,
@@ -17,6 +20,7 @@ from mdd.ir.nodes import (
     Heading,
     HorizontalRule,
     Image,
+    Inline,
     InlineMacro,
     Layout,
     LayoutCell,
@@ -25,6 +29,7 @@ from mdd.ir.nodes import (
     Link,
     ListItem,
     OrderedList,
+    Origin,
     Paragraph,
     Placeholder,
     RawBlock,
@@ -757,3 +762,219 @@ def test_every_node_roundtrip() -> None:
     assert rt_types == original_types, (
         f"Block type mismatch:\n  expected: {original_types}\n  got:      {rt_types}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Fenced bodies that contain their own fence
+# ---------------------------------------------------------------------------
+
+
+def _single_block(doc: Document) -> Block:
+    rt = parse_markdown(render_markdown(doc))
+    assert len(rt.children) == 1, [type(b).__name__ for b in rt.children]
+    return rt.children[0]
+
+
+def test_code_block_body_with_backtick_fences_roundtrips() -> None:
+    content = "harmless\n```\n```confluence-xml\n<ac:y/>\n````\nmore"
+    doc = Document(children=[CodeBlock(content=content, language="py")])
+    assert render_markdown(doc).startswith("`````py\n")
+    block = _single_block(doc)
+    assert isinstance(block, CodeBlock)
+    assert block.content == content
+    assert block.language == "py"
+
+
+def test_code_block_body_with_indented_fence_roundtrips() -> None:
+    content = "a\n   ```\nb"
+    block = _single_block(Document(children=[CodeBlock(content=content)]))
+    assert isinstance(block, CodeBlock)
+    assert block.content == content
+
+
+def test_code_block_language_is_reduced_to_one_word() -> None:
+    doc = Document(children=[CodeBlock(content="x", language="py\n<ac:y/>")])
+    assert render_markdown(doc) == "```py\nx\n```\n"
+    block = _single_block(doc)
+    assert isinstance(block, CodeBlock)
+    assert block.language == "py"
+    assert block.content == "x"
+
+
+def test_code_block_language_drops_backticks() -> None:
+    md = render_markdown(Document(children=[CodeBlock(content="x", language="a`b")]))
+    assert md.startswith("```ab\n")
+
+
+def test_raw_block_body_with_backtick_fence_roundtrips() -> None:
+    content = "<p>a</p>\n```\n<p>b</p>"
+    doc = Document(children=[RawBlock(content=content, format="confluence-storage")])
+    block = _single_block(doc)
+    assert isinstance(block, RawBlock)
+    assert block.format == "confluence-storage"
+    assert block.content == content
+
+
+def test_confluence_macro_plain_body_with_colon_fence_stays_inside() -> None:
+    macro = ConfluenceMacro(name="x", params={}, body=[], plain_body="a\n:::\nb", rich_body=False)
+    doc = Document(children=[macro])
+    md = render_markdown(doc)
+    assert md.startswith("::::confluence-macro")
+    assert md.endswith("\n::::\n")
+    block = _single_block(doc)
+    assert isinstance(block, ConfluenceMacro)
+    assert block.name == "x"
+
+
+def test_confluence_macro_plain_body_fence_respects_nesting_depth() -> None:
+    macro = ConfluenceMacro(name="x", params={}, body=[], plain_body="::::", rich_body=False)
+    doc = Document(children=[Callout(kind="tip", body=[macro])])
+    assert ":::::confluence-macro" in render_markdown(doc)
+    block = _single_block(doc)
+    assert isinstance(block, Callout)
+    assert len(block.body) == 1
+    assert isinstance(block.body[0], ConfluenceMacro)
+
+
+# ---------------------------------------------------------------------------
+# Literal text that looks like markup
+# ---------------------------------------------------------------------------
+
+
+def _roundtrip_paragraph(inlines: list[Inline]) -> list[Inline]:
+    doc = Document(children=[Paragraph(inlines=inlines)])
+    rt = parse_markdown(render_markdown(doc))
+    assert len(rt.children) == 1, [type(b).__name__ for b in rt.children]
+    p = rt.children[0]
+    assert isinstance(p, Paragraph)
+    return p.inlines
+
+
+def _only_text(inlines: list[Inline]) -> str:
+    assert all(isinstance(t, Text) for t in inlines), inlines
+    return "".join(t.content for t in inlines if isinstance(t, Text))
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "<b>x</b>",
+        "<img src=x>",
+        "<!-- c --> <?p ?> </b>",
+        '<ac:structured-macro ac:name="toc"/>',
+        "[a](b)",
+        "![a](b)",
+        "{{confluence-raw:PGI+eDwvYj4=}}",
+        '{{confluence:include page="x"}}',
+        "*emph* **strong** _emph_ __strong__",
+        "~~struck~~",
+        "`code`",
+        "&#60; &#x3C; &lt",
+        "5 * 3 * 2",
+        "a \\* b \\\\ c",
+        "snake_case_name 1_2",
+        "a_ _b",
+    ],
+)
+def test_text_with_inline_markup_roundtrips_as_text(content: str) -> None:
+    assert _only_text(_roundtrip_paragraph([Text(content)])) == content
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "# heading",
+        "- item",
+        "+ item",
+        "* item",
+        "1. item",
+        "2024) item",
+        "> quote",
+        "---",
+        "===",
+        "```confluence-xml",
+        "~~~",
+        '::: confluence-macro {name="x"}',
+        ':::confluence-macro {name="x"}',
+        "| a | b |",
+    ],
+)
+def test_text_starting_with_block_marker_roundtrips_as_paragraph(content: str) -> None:
+    assert _only_text(_roundtrip_paragraph([Text(content)])) == content
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["-1 degrees", "#tag", "1.5 litres", "a - b", "x_y", "a < b", "me@example.com", "a & b"],
+)
+def test_text_without_markup_is_not_escaped(content: str) -> None:
+    md = render_markdown(Document(children=[Paragraph(inlines=[Text(content)])]))
+    assert md == f"{content}\n"
+
+
+def test_text_after_line_break_escapes_block_markers() -> None:
+    inlines: list[Inline] = [
+        Text("```confluence-xml"),
+        LineBreak(),
+        Text("<ac:y/>"),
+        LineBreak(),
+        Text("```"),
+    ]
+    got = _roundtrip_paragraph(inlines)
+    assert [type(t).__name__ for t in got] == ["Text", "LineBreak", "Text", "LineBreak", "Text"]
+    assert [t.content for t in got if isinstance(t, Text)] == [
+        "```confluence-xml",
+        "<ac:y/>",
+        "```",
+    ]
+
+
+def test_text_with_setext_underline_after_line_break_stays_paragraph() -> None:
+    got = _roundtrip_paragraph([Text("Title"), LineBreak(), Text("---")])
+    assert [t.content for t in got if isinstance(t, Text)] == ["Title", "---"]
+
+
+def test_text_with_table_shape_after_line_break_stays_paragraph() -> None:
+    got = _roundtrip_paragraph([Text("| a | b |"), LineBreak(), Text("| --- | :-: |")])
+    assert [t.content for t in got if isinstance(t, Text)] == ["| a | b |", "| --- | :-: |"]
+
+
+def test_text_with_embedded_newline_escapes_following_line() -> None:
+    doc = Document(children=[Paragraph(inlines=[Text("a\n# b")])])
+    assert render_markdown(doc) == "a\n\\# b\n"
+
+
+def test_heading_text_does_not_escape_block_markers() -> None:
+    doc = Document(children=[Heading(level=2, inlines=[Text("1. Intro")])])
+    assert render_markdown(doc) == "## 1. Intro\n"
+
+
+def test_link_body_and_title_with_delimiters_roundtrip() -> None:
+    link = Link(href="x", tokens=[Text("t] [u")], title='a"b) [c](d')
+    got = _roundtrip_paragraph([link])
+    assert len(got) == 1
+    rt_link = got[0]
+    assert isinstance(rt_link, Link)
+    assert rt_link.href == "x"
+    assert rt_link.title == 'a"b) [c](d'
+    assert _only_text(rt_link.tokens) == "t] [u"
+
+
+def test_image_title_with_quote_and_backslash_roundtrips() -> None:
+    got = _roundtrip_paragraph([Image(src="i.png", alt="a]b", title='q"\\')])
+    rt_image = got[0]
+    assert isinstance(rt_image, Image)
+    assert rt_image.alt == "a]b"
+    assert rt_image.title == 'q"\\'
+
+
+def test_confluence_image_title_slot_escapes_quotes() -> None:
+    img = ConfluenceImage(source_kind="attachment", source="f.png", attributes={"ac:width": '4"0'})
+    md = render_markdown(Document(children=[Paragraph(inlines=[img])]))
+    assert '"width=4\\"0"' in md
+
+
+def test_preserving_mode_keeps_text_raw_bytes() -> None:
+    tok = Text("<b>", origin=Origin(source_format="confluence-storage", raw_bytes=b"<b>"))
+    doc = Document(children=[Paragraph(inlines=[tok])])
+    assert render_markdown(doc, mode="preserving") == "<b>\n"
