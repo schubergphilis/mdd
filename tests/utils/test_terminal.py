@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mdd.utils.terminal import neutralise_controls, neutralise_lines
+from mdd.utils.terminal import neutralise_controls, neutralise_line, neutralise_lines
 
 PLACEHOLDER = "\ufffd"
 
@@ -66,3 +66,31 @@ class TestNeutraliseLines:
     def test_replaces_escape_sequences_per_line(self) -> None:
         out = neutralise_lines("+\x1b[1A\x1b[2Khidden\n-\x9b8m")
         assert out == f"+{PLACEHOLDER}[1A{PLACEHOLDER}[2Khidden\n-{PLACEHOLDER}8m"
+
+
+class TestNeutraliseLine:
+    @pytest.mark.parametrize(
+        "line_break",
+        [
+            "\n",  # line feed
+            "\r",  # carriage return
+            "\x0b",  # vertical tab
+            "\x0c",  # form feed
+            "\x85",  # next line
+            "\u2028",  # line separator
+            "\u2029",  # paragraph separator
+        ],
+    )
+    def test_replaces_line_breaks(self, line_break: str) -> None:
+        out = neutralise_line(f"Title{line_break}in space SAFE")
+        assert out == f"Title{PLACEHOLDER}in space SAFE"
+
+    def test_replaces_controls_and_keeps_length(self) -> None:
+        raw = "a\x1b[2K\nb\u202ec"
+        out = neutralise_line(raw)
+        assert out == f"a{PLACEHOLDER}[2K{PLACEHOLDER}b{PLACEHOLDER}c"
+        assert len(out) == len(raw)
+
+    def test_plain_text_unchanged(self) -> None:
+        text = "Plain title: café, 日本語, emoji \U0001f600, tab\there"
+        assert neutralise_line(text) == text

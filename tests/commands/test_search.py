@@ -419,7 +419,7 @@ class TestCmdSearchArgs:
 
     def test_trace_neutralises_control_characters_in_root_paths(self, tmp_path: Path) -> None:
         root = MirrorRoot(
-            path=tmp_path / "mirror\x1b]0;title\x07\x9b2K\u202e",
+            path=tmp_path / "mirror\x1b]0;title\x07\x9b2K\u202e\nforged",
             mirror_name="confluence/TEST",
             source_type="confluence",
             identifier="TEST",
@@ -428,7 +428,7 @@ class TestCmdSearchArgs:
         assert rc == 1
         assert "[mdd search]" in err
         assert not any(c in err for c in "\x1b\x07\x9b\u202e")
-        assert "mirror\ufffd]0;title\ufffd\ufffd2K\ufffd" in err
+        assert "mirror\ufffd]0;title\ufffd\ufffd2K\ufffd\ufffdforged" in err
 
     def test_exclude_blacklisted_flag_calls_filter(self) -> None:
         """--exclude-blacklisted causes filter_blacklisted to be called."""

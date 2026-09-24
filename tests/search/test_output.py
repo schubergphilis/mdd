@@ -810,6 +810,14 @@ class TestControlCharacterNeutralisation:
         assert "Hello�[2KWorld" in out
         assert "(page 4�[1m2)" in out
 
+    def test_line_breaks_in_header_fields_are_neutralised(self, tmp_path: Path) -> None:
+        f = tmp_path / "pa\nge.md"
+        f.write_text('---\ntitle: "Hello\\nWorld"\n---\n\n# Body\n')
+        rg_line = _make_rg_json_line(str(f), 6, "# Body")
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=False))
+        assert "confluence/ENGINEERING/pa�ge.md" in out
+        assert "Title: Hello�World" in out
+
     def test_display_path_is_neutralised(self, tmp_path: Path) -> None:
         f = tmp_path / "pa\x1b[2Kge.md"
         f.write_text("# Body\n")

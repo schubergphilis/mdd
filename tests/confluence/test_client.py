@@ -831,8 +831,8 @@ class TestTokenRefreshOn401:
 class TestErrorTextNeutralised:
     """Response text quoted in an error cannot drive the terminal."""
 
-    _BODY = "bad\x1b[2K\x9b1A\x1b]0;t\x07\u202erequest"
-    _SHOWN = "bad\ufffd[2K\ufffd1A\ufffd]0;t\ufffd\ufffdrequest"
+    _BODY = "bad\x1b[2K\x9b1A\x1b]0;t\x07\u202erequest\nforged line"
+    _SHOWN = "bad\ufffd[2K\ufffd1A\ufffd]0;t\ufffd\ufffdrequest\ufffdforged line"
 
     def _response(self, status_code: int) -> MagicMock:
         resp = _mock_response(status_code)

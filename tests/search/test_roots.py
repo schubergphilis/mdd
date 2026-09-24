@@ -80,6 +80,18 @@ class TestConfluenceRoots:
         assert not any(c in message for c in "\x1b\x07\x9b\u202e")
         assert "/nonexistent\ufffd[2K\ufffd]0;title\ufffd\ufffd1A\ufffd" in message
 
+    def test_missing_dir_warning_stays_on_one_line(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        config = tmp_path / "confluence.yaml"
+        config.write_text(
+            'confluence:\n  spaces:\n    X:\n      output_dir: "/nonexistent\\nWARNING forged"\n'
+        )
+        with caplog.at_level(logging.WARNING, logger="mdd"):
+            roots_for_source(CONFLUENCE, config)
+        (message,) = caplog.messages
+        assert message.endswith("skipping: /nonexistent\ufffdWARNING forged")
+
     def test_returns_empty_when_no_config(self, tmp_path: Path) -> None:
         # Pass a path that doesn't exist
         roots = roots_for_source(CONFLUENCE, tmp_path / "nonexistent.yaml")

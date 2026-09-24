@@ -92,7 +92,11 @@ offsets are unaffected). Tabs are kept. C0 controls other than tab,
 `DEL`, C1 controls (`U+0080`..`U+009F`) and the explicit bidi
 embedding, override and isolate controls (`U+202A`..`U+202E`,
 `U+2066`..`U+2069`, which can visually reorder the rest of a line)
-are all replaced. Implicit right-to-left text is unaffected. JSON
+are all replaced. Implicit right-to-left text is unaffected. A value
+shown inside one line (a title, page id or path) also has its line
+breaks replaced (LF, CR, VT, FF, NEL, `U+2028`, `U+2029`), so it cannot
+start a line of its own; multi-line text such as `rg` error output
+keeps its line feeds. JSON
 output is unaffected: `json.dumps` already escapes the C0 range and
 emits the rest verbatim for the consumer to handle. The same rule
 applies on stderr to the `--trace` argv line and to the warning
