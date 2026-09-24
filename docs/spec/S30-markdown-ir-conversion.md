@@ -260,6 +260,31 @@ verbatim.
   (see "Depth-aware fence counts" above). The macro's parameters (plus
   `name`) go in the info string; the body is nested block content when
   `rich_body` is set, or emitted as verbatim lines otherwise.
+- Fence-header parameters (`Callout` and `ConfluenceMacro`) are written
+  as `key="value"` with `\` and `"` backslash-escaped. The header is a
+  single line that the reader cuts at the first `}`, so a value holding
+  a `}`, a line break (any character `str.splitlines` splits on, CR
+  included), NUL or another control character other than tab is
+  written as `key="confluence-b64:<base64>"` instead: standard base64
+  of the UTF-8 value, the same encoding the `{{confluence-raw:…}}`
+  inline marker uses. A value that itself starts with
+  `confluence-b64:` is encoded too, so the prefix is never ambiguous.
+  The reader decodes the prefixed form back to the original value; a
+  prefixed value that is not valid base64 of UTF-8 is kept as written.
+  A panel parameter `red\nsecond line` therefore survives
+  pull → push unchanged instead of splitting the header.
+- Link and image destinations are written unbracketed with
+  whitespace (Unicode whitespace included), every C0 and C1 control
+  character (CR, LF and tab included), DEL, `(`, `)`, `<`, `>`, `\` and
+  an `&` that would start a character reference (`&name;`, `&#NN;`,
+  `&#xHH;`) percent-encoded as UTF-8. None of these can
+  then end the destination, start a new line or be decoded by the
+  reader into a different character; the reader percent-decodes the
+  destination, so the href comes back unchanged. An existing `%XX` in
+  an href is left as is and is decoded on read.
+- Inline `Code` is delimited by a backtick run one longer than the
+  longest backtick run in its content, found in one pass, with a
+  space of padding when the content starts or ends with a backtick.
 - `RawBlock(format="markdown", ...)` emits its content verbatim.
 - `RawBlock(format="confluence-storage", ...)` — and any other
   `RawBlock` format the writer does not otherwise recognise — emits a

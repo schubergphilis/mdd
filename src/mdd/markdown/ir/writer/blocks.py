@@ -21,7 +21,7 @@ from mdd.ir.nodes import (
     Table,
 )
 
-from .escape import escape_attr, render_attr_dict
+from .escape import escape_attr, render_fence_attr_dict
 from .inlines import render_inlines
 from .table import render_table
 
@@ -217,7 +217,7 @@ def _render_callout(
     mode: Literal["normalising", "preserving"] = "normalising",
     fence_depth: int = 0,
 ) -> None:
-    param_str = render_attr_dict(block.params)
+    param_str = render_fence_attr_dict(block.params)
     body: list[str] = []
     for i, child in enumerate(block.body):
         if i > 0:
@@ -245,7 +245,7 @@ def _render_confluence_macro(
 ) -> None:
     params = dict(block.params)
     params["name"] = block.name
-    param_str = render_attr_dict(params)
+    param_str = render_fence_attr_dict(params)
     body: list[str] = []
     if block.rich_body:
         for i, child in enumerate(block.body):
