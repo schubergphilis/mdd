@@ -568,6 +568,43 @@ class TestSyncAllAttachmentsHostileFilenames:
         # No file written outside the attachments dir
         assert not (tmp_path / "etc").exists()
 
+    @pytest.mark.parametrize(
+        "name", [".gitignore", ".GitIgnore", ".git", ".gitattributes", ".gitmodules", ".mailmap"]
+    )
+    def test_git_control_file_names_are_skipped_with_warning(
+        self, tmp_path: Path, name: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        att = _make_att(name)
+        client = _make_client([att], {name: b"*"})
+        att_dir = tmp_path / "page-attachments"
+
+        with (
+            patch(_CONV_FOR, return_value=None),
+            caplog.at_level("WARNING", logger="mdd.confluence.attachments"),
+        ):
+            result, summary = sync_all_attachments(client, "999", att_dir, [])
+
+        assert result == []
+        assert summary.synced == 0
+        client.download_attachment_to_file.assert_not_called()
+        assert not (att_dir / name).exists()
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert repr(name) in msgs
+        assert "git control-file" in msgs
+
+    def test_git_control_file_name_does_not_block_other_attachments(self, tmp_path: Path) -> None:
+        atts = [_make_att(".gitignore"), _make_att("good.png")]
+        client = _make_client(atts, {".gitignore": b"*", "good.png": b"png"})
+        att_dir = tmp_path / "page-attachments"
+
+        with patch(_CONV_FOR, return_value=None):
+            result, summary = sync_all_attachments(client, "999", att_dir, [])
+
+        assert [e.filename for e in result] == ["good.png"]
+        assert summary.synced == 1
+        assert (att_dir / "good.png").exists()
+        assert not (att_dir / ".gitignore").exists()
+
 
 class TestSyncAllAttachmentsMalformedInputManifest:
     """``_coerce_existing_manifest`` defends against frontmatter shape drift.

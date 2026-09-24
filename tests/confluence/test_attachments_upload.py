@@ -211,6 +211,55 @@ class TestSyncAttachmentsForUpdate:
         outside_file.unlink(missing_ok=True)
         outside_dir.rmdir()
 
+    @pytest.mark.parametrize("src", [".git/config", ".env", "sub/.hidden/a.png"])
+    def test_dot_prefixed_component_is_skipped(
+        self, tmp_path: Path, src: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A reference through a dot-prefixed file or directory is never uploaded."""
+        _write_file(tmp_path / src, b"local only")
+
+        client = _make_client()
+        with caplog.at_level("WARNING", logger="mdd.confluence.attachments"):
+            result, _ = sync_attachments_for_update(client, "123", f"![x]({src})", tmp_path, [])
+
+        client.upload_attachment.assert_not_called()
+        assert result == []
+        assert f"skipping attachment reference {src!r}" in caplog.text
+
+    def test_dot_prefixed_bare_filename_is_skipped_in_attachments_dir(self, tmp_path: Path) -> None:
+        """The attachments-dir fallback for bare names applies the same rule."""
+        att_dir = tmp_path / "page-attachments"
+        _write_file(att_dir / ".env", b"local only")
+
+        client = _make_client()
+        result, _ = sync_attachments_for_update(
+            client, "123", "![x](.env)", tmp_path, [], attachments_dir=att_dir
+        )
+
+        client.upload_attachment.assert_not_called()
+        assert result == []
+
+    def test_nested_plain_path_still_uploads(self, tmp_path: Path) -> None:
+        """Only dot-prefixed components are refused; ordinary subdirectories work."""
+        _write_file(tmp_path / "img" / "a.png", b"png")
+
+        client = _make_client()
+        result, _ = sync_attachments_for_update(client, "123", "![x](img/a.png)", tmp_path, [])
+
+        client.upload_attachment.assert_called_once_with("123", tmp_path / "img" / "a.png")
+        assert [e.filename for e in result] == ["a.png"]
+
+    def test_hidden_component_above_working_dir_is_allowed(self, tmp_path: Path) -> None:
+        """A dot-prefixed directory above the page's directory is not the page's concern."""
+        working_dir = tmp_path / ".hidden-root" / "space"
+        _write_file(working_dir / "a.png", b"png")
+
+        client = _make_client()
+        result, _ = sync_attachments_for_update(client, "123", "![x](a.png)", working_dir, [])
+
+        client.upload_attachment.assert_called_once()
+        assert [e.filename for e in result] == ["a.png"]
+
     def test_image_ref_inside_inline_code_is_ignored(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

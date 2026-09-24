@@ -12,6 +12,9 @@ from unittest.mock import MagicMock, patch
 
 from mdd.confluence.attachments import AttachmentSyncSummary
 from mdd.confluence.export import export_page
+from mdd.confluence.sync.deletions import (
+    _delete_path_fs,  # pyright: ignore[reportPrivateUsage]
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -76,3 +79,58 @@ def test_nonzero_attachments_emits_summary_line(
     assert "2 attachments synced" in msgs
     assert "0 converted" in msgs
     assert "0 skipped" in msgs
+
+
+def _attachment_client(filename: str, data: bytes) -> MagicMock:
+    """Client whose every page carries one attachment *filename* with *data*."""
+    client = _fake_client()
+    att = {
+        "title": filename,
+        "version": {"number": 1},
+        "_links": {"download": f"/wiki/download/attachments/x/{filename}"},
+    }
+    client.list_page_attachments.return_value = [att]
+
+    def download_to_file(_att: dict[str, Any], dest: Path) -> int:
+        dest.write_bytes(data)
+        return len(data)
+
+    client.download_attachment_to_file.side_effect = download_to_file
+    return client
+
+
+def test_sibling_pages_with_same_sanitized_title_get_separate_attachment_dirs(
+    tmp_path: Path,
+) -> None:
+    """``X`` and ``X.`` sanitize to the same stem; the second page's attachments
+    dir follows its disambiguated ``.md`` name instead of sharing the first's."""
+    first = _page_data() | {"id": "1", "title": "X"}
+    second = _page_data() | {"id": "2", "title": "X."}
+    client = _attachment_client("a.png", b"png")
+
+    first_path = export_page(client, "1", tmp_path, page_data=first)
+    second_path = export_page(client, "2", tmp_path, page_data=second)
+
+    assert first_path == tmp_path / "X.md"
+    assert second_path == tmp_path / "X(2).md"
+    assert (tmp_path / "X-attachments" / "a.png").exists()
+    assert (tmp_path / "X(2)-attachments" / "a.png").exists()
+
+    _delete_path_fs(second_path)
+
+    assert not second_path.exists()
+    assert not (tmp_path / "X(2)-attachments").exists()
+    assert (tmp_path / "X-attachments" / "a.png").exists()
+    assert first_path.exists()
+
+
+def test_reexport_of_same_page_keeps_its_attachment_dir(tmp_path: Path) -> None:
+    """An incremental re-export of a page reuses its own ``.md`` and attachments dir."""
+    page = _page_data() | {"id": "1", "title": "X"}
+    client = _attachment_client("a.png", b"png")
+
+    export_page(client, "1", tmp_path, page_data=page)
+    out_path = export_page(client, "1", tmp_path, page_data=page)
+
+    assert out_path == tmp_path / "X.md"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["X-attachments", "X.md"]

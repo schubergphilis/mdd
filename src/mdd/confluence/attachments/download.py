@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mdd.utils.logging import get_logger
 
+from ._dest import safe_destination
 from ._types import AttachmentManifestEntry
 from ._version import extract_version
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from mdd.confluence.client import ConfluenceClient
     from mdd.confluence.ir import AttachmentRef
 
@@ -64,18 +66,6 @@ def _index_attachments_by_filename(
     return by_filename
 
 
-def _safe_destination(filename: str, attachments_dir: Path) -> Path | None:
-    """Return the resolved destination path for *filename* under *attachments_dir*,
-    or ``None`` when the name is degenerate or escapes the directory."""
-    safe_name = Path(filename).name
-    if not safe_name or safe_name in {".", ".."}:
-        return None
-    dest = attachments_dir / safe_name
-    if not dest.resolve().is_relative_to(attachments_dir.resolve()):
-        return None
-    return dest
-
-
 def _download_one(
     client: ConfluenceClient,
     att: dict[str, Any],
@@ -113,7 +103,7 @@ def download_for_page(
         page_id: Confluence page ID.
         refs: List of attachment filenames referenced in the markdown.
         out_dir: Base output directory for the page.
-        page_name: Sanitized page name (used to name the attachments subdir).
+        page_name: Stem of the page's ``.md`` file (names the attachments subdir).
 
     Returns:
         List of manifest entries for downloaded attachments.
@@ -127,10 +117,7 @@ def download_for_page(
 
     manifest: list[AttachmentManifestEntry] = []
     for ref in refs:
-        # Sanitise the filename to prevent path traversal: use only the basename
-        # component and reject degenerate names (empty, ".", "..").  Final
-        # defence: ensure the resolved destination stays inside attachments_dir.
-        dest = _safe_destination(ref.filename, attachments_dir)
+        dest = safe_destination(ref.filename, attachments_dir)
         if dest is None:
             continue
         att = by_filename.get(ref.filename)

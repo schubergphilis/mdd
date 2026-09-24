@@ -152,7 +152,9 @@ established by the previous one:
   `<page-name>-attachments/` directory alongside the `.md`. Create
   any missing parent directories.
 - **4b. Filename collisions** — after renames are computed, siblings
-  sharing a sanitized basename get `(page-id)` appended to both.
+  sharing a sanitized basename get `(page-id)` appended to both. The
+  `<page-name>-attachments/` directory follows the disambiguated stem,
+  so colliding siblings never share one attachments directory.
 - **4c. Archive / unarchive** — set `confluence.status: ARCHIVED` (or
   back to `CURRENT`) in frontmatter. No path changes, and the export
   header is left as-is — see the implementation notes in
