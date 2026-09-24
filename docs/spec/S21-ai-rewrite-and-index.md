@@ -170,6 +170,8 @@ Rejected model output is not discarded; it is written to
 - The suffix is deliberately **not** `.md`, so a
   `find . -name '*.md'` sweep does not pick up a dump and feed it
   back through the rewriter.
+- The dump is written atomically and never through a symlink at the
+  dump path or its `*.tmp` sibling; when refused, no dump is recorded.
 - The dump is the raw model output verbatim, prefixed by an
   HTML-comment header carrying: the source path, the rejection
   reason, prompt and completion token counts, the finish reason,

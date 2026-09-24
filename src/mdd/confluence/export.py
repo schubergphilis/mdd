@@ -405,6 +405,7 @@ def export_page(  # noqa: PLR0913
     managed_config: ManagedConfig | None = None,
     include_export_header: bool = True,
     skip_attachments: bool = False,
+    root: Path | None = None,
 ) -> Path:
     """Export a single Confluence page to a Markdown file.
 
@@ -412,6 +413,9 @@ def export_page(  # noqa: PLR0913
         client: Authenticated Confluence client.
         page_id: The Confluence page ID to export.
         out_dir: Directory to write the output file into.
+        root: Mirror root. When given, every directory between *root* and
+            *out_dir* must be a real directory; a symlink anywhere on that
+            chain is refused. ``None`` checks *out_dir* itself only.
         page_data: Pre-fetched page data (optional; avoids a second API call).
         max_attachment_size_bytes: If set, skip attachment downloads above this
             size threshold (the ``--max-attachment-size`` flag).
@@ -471,7 +475,7 @@ def export_page(  # noqa: PLR0913
     attachment_refs = collect_attachment_refs(doc)
 
     page_name = sanitize(meta.title) if meta.title else f"page-{page_id}"
-    mkdir_no_symlink(out_dir)
+    mkdir_no_symlink(out_dir, root=root)
 
     # Settle the final .md path first: the attachments directory is keyed on
     # its stem, so two sibling pages whose titles sanitize to the same name

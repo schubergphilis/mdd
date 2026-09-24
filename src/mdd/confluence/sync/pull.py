@@ -79,6 +79,7 @@ def create_remote_pages(events: list[SyncEvent], ctx: PullCtx) -> None:
                 max_attachment_size_bytes=ctx.opts.max_attachment_size_bytes,
                 managed_config=ctx.get_managed_cfg(),
                 skip_attachments=ctx.opts.skip_attachments,
+                root=ctx.output_dir,
             )
             ctx.summary.new_from_confluence += 1
             log.info("new: %s", exported_path.name)
@@ -113,6 +114,7 @@ def _pull_one_content(
             existing_attachments_manifest=existing_att_manifest,
             managed_config=ctx.get_managed_cfg(),
             skip_attachments=ctx.opts.skip_attachments,
+            root=ctx.output_dir,
         )
         ctx.summary.content_pulled += 1
         log.info("pull: %s", current_path.name)

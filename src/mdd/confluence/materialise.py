@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 from mdd.confluence.apply import ApplyError, git_mv
 from mdd.confluence.export import export_page
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import mkdir_no_symlink
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -63,8 +64,13 @@ def pull_single_page(
     client: ConfluenceClient,
     page_id: str,
     target_dir: Path,
+    *,
+    root: Path | None = None,
 ) -> PullResult:
     """Export one Confluence page into ``target_dir`` as ``_index.md``.
+
+    *root* is the mirror root; when given, a symlink anywhere between it and
+    ``target_dir`` is refused instead of written through.
 
     Reuses the same :func:`mdd.confluence.export.export_page` pipeline
     that ``sync-space`` uses for new / content-edit events.  After the
@@ -79,8 +85,8 @@ def pull_single_page(
     Raises :class:`mdd.confluence.client.ConfluenceError` on API
     failures, :class:`OSError` on filesystem failures.
     """
-    target_dir.mkdir(parents=True, exist_ok=True)
-    written = export_page(client, page_id, target_dir)
+    mkdir_no_symlink(target_dir, root=root)
+    written = export_page(client, page_id, target_dir, root=root)
     index_path = target_dir / INDEX_BASENAME
     if written != index_path:
         # ``export_page`` writes ``<safe-title>.md``; rename onto
@@ -110,7 +116,7 @@ def promote_flat_to_dir(
     Raises :class:`mdd.confluence.apply.ApplyError` when the underlying
     ``git mv`` fails; the caller turns that into a recovery hint.
     """
-    expected_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(expected_dir, root=repo_dir)
     new_index_path = expected_dir / INDEX_BASENAME
     git_mv(flat_md_path, new_index_path, repo_dir)
 

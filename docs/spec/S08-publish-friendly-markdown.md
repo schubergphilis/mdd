@@ -113,6 +113,9 @@ For each fence:
   `PATH` (`mmdc` from `@mermaid-js/mermaid-cli`): the fence content is
   written to a temporary `.mmd` input file, `{input}` / `{output}` in
   `args` are substituted, and the command runs with `subprocess.run`.
+  A symlink at the attachments directory or at the SVG path is neither
+  reused as a cache hit nor written to: the fence is left as a code block
+  and a warning is logged.
   Either way the SVG is produced in a temporary directory and moved into
   the attachments directory only after success, so a failed render never
   poisons the cache.
