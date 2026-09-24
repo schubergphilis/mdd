@@ -78,13 +78,13 @@ def _push_office_body_update(
 
 @dataclass
 class OfficePublishCtx:
-    """Bundle of cross-cutting deps for ``_office_publish_one`` (keeps PLR0913 happy)."""
+    """Cross-cutting state for the office-publish phase (keeps PLR0913 happy)."""
 
     client: ConfluenceClient
     config: ConfluenceConfig
     summary: SyncSummary
-    dry_run: bool
-    managed_config: ManagedConfig | None
+    dry_run: bool = False
+    managed_config: ManagedConfig | None = None
 
 
 def _office_publish_one(page_id: str, md_path: Path, ctx: OfficePublishCtx) -> None:
@@ -123,34 +123,23 @@ def _office_publish_one(page_id: str, md_path: Path, ctx: OfficePublishCtx) -> N
         _push_office_body_update(page_id, md_path, ctx.config, ctx.dry_run)
 
 
-def run_office_publish(  # noqa: PLR0913
-    client: ConfluenceClient,
+def run_office_publish(
     mirror: Any,
-    config: ConfluenceConfig,
-    summary: SyncSummary,
+    ctx: OfficePublishCtx,  # pyright: ignore[reportAny]
     *,
     desired_ids: set[str],
-    dry_run: bool = False,
-    managed_config: ManagedConfig | None = None,
 ) -> None:
     """Run publish_office for opted-in tracked pages that belong to the synced space.
 
     ``desired_ids`` is the set of page ids fetched for the synced space. A
     tracked file whose frontmatter names a page outside that set (for example
     one that survived a cross-space deletion under ``--no-delete``) is skipped
-    and recorded in ``summary.office_skipped_outside_space``: sync-space only
-    writes to the space it was asked to sync.
+    and recorded in ``ctx.summary.office_skipped_outside_space``: sync-space
+    only writes to the space it was asked to sync.
 
     Called after attachment sync and before the commit.
-    Failures are recorded in ``summary.failures``; sync continues.
+    Failures are recorded in ``ctx.summary.failures``; sync continues.
     """
-    ctx = OfficePublishCtx(
-        client=client,
-        config=config,
-        summary=summary,
-        dry_run=dry_run,
-        managed_config=managed_config,
-    )
     tracked: dict[str, Any] = mirror.tracked  # pyright: ignore[reportAny]
     for page_id, local_page in tracked.items():  # pyright: ignore[reportUnknownVariableType]
         md_path: Path = local_page.path  # pyright: ignore[reportAttributeAccessIssue]
@@ -162,6 +151,6 @@ def run_office_publish(  # noqa: PLR0913
                 page_id,
                 md_path,
             )
-            summary.office_skipped_outside_space.append(f"{page_id}: {md_path}")
+            ctx.summary.office_skipped_outside_space.append(f"{page_id}: {md_path}")
             continue
         _office_publish_one(page_id, md_path, ctx)
