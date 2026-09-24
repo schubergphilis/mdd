@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
-from mdd.utils.config import ConfigError, find_blacklist_files, load_yaml
+from mdd.utils.config import ConfigError, find_blacklist_files, load_yaml_plain_text
 from mdd.utils.frontmatter import parse_yaml_mapping
 
 if TYPE_CHECKING:
@@ -52,23 +52,34 @@ def _matches(name: str, patterns: list[str]) -> str | None:
     return None
 
 
-def _section_list(data: dict[str, Any], section: str, key: str) -> list[str] | None:
-    """Return ``data[section][key]`` as a list of strings, or None if absent.
+def _section_list(data: dict[str, Any], section: str, key: str, path: Path) -> list[str] | None:
+    """Return ``data[section][key]`` from the file at *path* as strings, or None if absent.
 
-    Raises BlacklistConfigError if the keys are present but malformed.
+    Raises BlacklistConfigError if the keys are present but malformed, or if
+    any entry is not text. An entry is never coerced: a pattern that is not
+    the text the operator wrote could never match the name they meant.
     """
     if section not in data:
         return None
     section_val: Any = data[section]  # pyright: ignore[reportAny]
     if not isinstance(section_val, dict):
-        raise BlacklistConfigError(f"blacklist section '{section}' must be a mapping")
+        raise BlacklistConfigError(f"{path}: blacklist section '{section}' must be a mapping")
     section_dict: dict[str, Any] = cast("dict[str, Any]", section_val)
     if key not in section_dict:
         return None
     raw: Any = section_dict[key]  # pyright: ignore[reportAny]
     if not isinstance(raw, list):
-        raise BlacklistConfigError(f"blacklist key '{section}.{key}' must be a list")
-    return [str(p) for p in cast("list[Any]", raw)]
+        raise BlacklistConfigError(f"{path}: blacklist key '{section}.{key}' must be a list")
+    entries: list[str] = []
+    for entry in cast("list[Any]", raw):
+        if not isinstance(entry, str):
+            raise BlacklistConfigError(
+                f"{path}: blacklist entry {entry!r} in '{section}.{key}' is not a name. "
+                "Each entry must be a single space key or site name, written as text "
+                "(quote it if in doubt); remove empty entries."
+            )
+        entries.append(entry)
+    return entries
 
 
 def _extend_unique(dest: list[str], values: list[str]) -> None:
@@ -79,10 +90,15 @@ def _extend_unique(dest: list[str], values: list[str]) -> None:
 
 
 def _merge_section(
-    out: dict[str, list[str]], data: dict[str, Any], section: str, key: str, out_key: str
+    out: dict[str, list[str]],
+    data: dict[str, Any],
+    path: Path,
+    section: str,
+    key: str,
+    out_key: str,
 ) -> None:
     """Merge ``data[section][key]`` into ``out[out_key]`` if present."""
-    values = _section_list(data, section, key)
+    values = _section_list(data, section, key, path)
     if values is None:
         return
     _extend_unique(out.setdefault(out_key, []), values)
@@ -104,11 +120,11 @@ def _load_blacklist(blacklist_file: Path | None) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for path in paths:
         try:
-            data = load_yaml(path)
+            data = load_yaml_plain_text(path)
         except ConfigError as exc:
             raise BlacklistConfigError(str(exc)) from exc
-        _merge_section(out, data, "confluence", "blacklisted_spaces", "confluence_spaces")
-        _merge_section(out, data, "sharepoint", "blacklisted_sites", "sharepoint_sites")
+        _merge_section(out, data, path, "confluence", "blacklisted_spaces", "confluence_spaces")
+        _merge_section(out, data, path, "sharepoint", "blacklisted_sites", "sharepoint_sites")
     return out
 
 
@@ -129,7 +145,7 @@ def _pattern_source(section: str, key: str, pattern: str, blacklist_file: Path |
         return _UNKNOWN_SOURCE
     for path in paths:
         try:
-            values = _section_list(load_yaml(path), section, key)
+            values = _section_list(load_yaml_plain_text(path), section, key, path)
         except ConfigError, BlacklistConfigError:
             continue
         if values is not None and pattern in values:

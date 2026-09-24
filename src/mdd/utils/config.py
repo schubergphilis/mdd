@@ -1,5 +1,6 @@
 """Shared config-loading utilities for mdd."""
 
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,14 +11,35 @@ class ConfigError(Exception):
     """Raised when a config file cannot be found or parsed."""
 
 
-def load_yaml(path: Path) -> dict[str, Any]:
-    """Load a YAML file and return its contents as a dict.
+class _PlainTextLoader(yaml.SafeLoader):
+    """A safe loader that reads every plain scalar as the text written.
+
+    ``yaml.safe_load`` follows YAML 1.1 implicit typing, so an unquoted ``NO``
+    becomes ``False``, ``007`` becomes ``7`` and ``2026-01-01`` becomes a date.
+    This loader keeps them as the strings ``"NO"``, ``"007"`` and
+    ``"2026-01-01"``. Lists and mappings still load as lists and dicts.
+
+    Null (``~``, ``null``, an empty value) is still recognised, so a missing
+    value stays distinguishable from text and a caller can reject it.
+    """
+
+
+_PlainTextLoader.yaml_implicit_resolvers = {}
+_PlainTextLoader.add_implicit_resolver(  # pyright: ignore[reportUnknownMemberType]
+    "tag:yaml.org,2002:null",
+    re.compile(r"^(?:~|null|Null|NULL|)$"),
+    ["~", "n", "N", ""],
+)
+
+
+def _load_yaml_with(path: Path, loader: type[yaml.SafeLoader]) -> dict[str, Any]:
+    """Load *path* with *loader* and return the top-level mapping.
 
     Raises ConfigError on missing/unreadable files or parse failure.
     """
     try:
         with path.open() as fh:
-            result: Any = yaml.safe_load(fh)
+            result: Any = yaml.load(fh, Loader=loader)  # noqa: S506  # SafeLoader subclass
     except OSError as exc:
         raise ConfigError(f"Failed to read {path}: {exc}") from exc
     except yaml.YAMLError as exc:
@@ -25,6 +47,27 @@ def load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise ConfigError(f"{path} does not contain a YAML mapping at the top level")
     return cast("dict[str, Any]", result)
+
+
+def load_yaml(path: Path) -> dict[str, Any]:
+    """Load a YAML file and return its contents as a dict.
+
+    Raises ConfigError on missing/unreadable files or parse failure.
+    """
+    return _load_yaml_with(path, yaml.SafeLoader)
+
+
+def load_yaml_plain_text(path: Path) -> dict[str, Any]:
+    """Load a YAML file whose scalars must be kept exactly as written.
+
+    Like :func:`load_yaml`, but an unquoted scalar is never turned into a
+    bool, number or date: ``- NO`` loads as ``"NO"`` and ``- 0x1F`` as
+    ``"0x1F"``. Null is still loaded as ``None``. Use this for files that
+    list names, where a silent retype would change which name is meant.
+
+    Raises ConfigError on missing/unreadable files or parse failure.
+    """
+    return _load_yaml_with(path, _PlainTextLoader)
 
 
 # Leads with the fix rather than with what was expected: the reader of this

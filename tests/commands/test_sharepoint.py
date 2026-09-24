@@ -108,6 +108,30 @@ class TestListSites:
         out = capsys.readouterr().out
         assert "BLOCKED" in out
 
+    def test_list_sites_blocks_site_listed_unquoted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A site named ``No`` listed without quotes is reported as blocked."""
+        sync_root = tmp_path / "OneDrive"
+        sync_root.mkdir()
+        (sync_root / "No - Documents").mkdir()
+        bl = tmp_path / "configs" / "data-protection.yaml"
+        bl.parent.mkdir()
+        bl.write_text(
+            "confluence:\n  blacklisted_spaces: []\nsharepoint:\n  blacklisted_sites:\n    - No\n"
+        )
+        monkeypatch.setattr("mdd.utils.config._repo_blacklist_path", lambda: None)
+        monkeypatch.setattr("mdd.utils.config.Path.home", lambda: tmp_path / "home")
+        monkeypatch.chdir(tmp_path)
+
+        mock_resolve = MagicMock(return_value=sync_root)
+        with patch("mdd.commands.sharepoint.resolve_sync_root", mock_resolve):
+            result = cmd_sharepoint(["list-sites"])
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "blacklist: BLOCKED" in out
+
     def test_list_sites_empty_shows_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
