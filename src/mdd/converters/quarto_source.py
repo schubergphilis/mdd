@@ -110,9 +110,12 @@ _MAX_UNESCAPE_PASSES = 8
 # searches the rest with the expression below. The first two are reproduced by
 # linear scanners (:func:`_html_comment_spans`, :func:`_backtick_fence_spans`):
 # as regular expressions they rescan to the end of the text from every opener
-# that has no closer.
+# that has no closer. Quarto's own YAML expression has ``\n+`` before the
+# closer; a single ``\n`` finds the same blocks, because the lazy part before
+# it can take the other line breaks, and does not retry every length of a long
+# run of blank lines.
 _YAML_BLOCK_RE = re.compile(
-    r"^(---)[ \t]*\n+(?![ \t]*\n+)[\W\w]*?\n+(?:---|\.\.\.)[ \t]*$", re.MULTILINE
+    r"^(---)[ \t]*\n+(?![ \t]*\n+)[\W\w]*?\n(?:---|\.\.\.)[ \t]*$", re.MULTILINE
 )
 
 # Pandoc reads metadata strings as Markdown, so these forms of ``{`` ``<``
@@ -181,6 +184,10 @@ def _filter_frontmatter(fm_block: str, dropped: list[str]) -> dict[str, Any] | N
         if key not in ALLOWED_TOP_LEVEL_KEYS:
             dropped.append(str(key))
             continue
+        if _reuses_containers(value):
+            log.warning("frontmatter key %r reuses a YAML anchor for a list or mapping", key)
+            dropped.append(str(key))
+            continue
         if key == "format":
             kept[key] = _filter_format(value, dropped)
         else:
@@ -205,6 +212,32 @@ def _filter_format(value: object, dropped: list[str]) -> object:
                 dropped.append(f"format.{fmt_name}.{opt}")
         formats[str(fmt_name)] = kept_options
     return formats
+
+
+def _reuses_containers(value: object) -> bool:
+    """Return whether *value* reaches the same list or mapping twice.
+
+    That only happens through YAML aliases. Each alias is a few characters but
+    stands for a whole copy of its anchor, so nested aliases make a short
+    frontmatter expand exponentially (or loop, for an anchor that contains its
+    own alias) once :func:`_neutralise_value` copies it.
+    """
+    seen: set[int] = set()
+    pending: list[object] = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            children = list(cast("dict[object, object]", item).values())
+        elif isinstance(item, list):
+            children = list(cast("list[object]", item))
+        else:
+            continue
+        identity = id(cast("object", item))
+        if identity in seen:
+            return True
+        seen.add(identity)
+        pending.extend(children)
+    return False
 
 
 def _neutralise_value(value: object) -> object:

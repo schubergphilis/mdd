@@ -9,6 +9,7 @@ import time
 import pytest
 
 from mdd.converters.quarto_source import (
+    _YAML_BLOCK_RE,  # pyright: ignore[reportPrivateUsage]
     _backtick_fence_spans,  # pyright: ignore[reportPrivateUsage]
     _html_comment_spans,  # pyright: ignore[reportPrivateUsage]
     prepare_quarto_source,
@@ -180,7 +181,7 @@ class TestMetadataStrings:
         prepared = prepare_quarto_source("---\ntitle: 'Q &amp; A &lt;3'\n---\nbody\n")
         assert _frontmatter(prepared.text)["title"] == "Q & A <3"
 
-    def test_double_encoded_plain_text_decodes_to_what_pandoc_would_show(self) -> None:
+    def test_double_encoded_plain_text_is_decoded_fully(self) -> None:
         prepared = prepare_quarto_source("---\ntitle: 'Q &amp;amp; A'\n---\nbody\n")
         assert _frontmatter(prepared.text)["title"] == "Q & A"
 
@@ -194,6 +195,33 @@ class TestMetadataStrings:
         assert "\\" not in title
         assert "{{<" not in title.replace("{{{<", "")
         assert title.endswith("{< env HOME >}}} x")
+
+    def test_nested_yaml_aliases_are_dropped(self) -> None:
+        """A few hundred bytes of nested aliases would expand to gigabytes when copied."""
+        lines = ["title:", "  - &a0 [" + ",".join(["xxxxxxxx"] * 10) + "]"]
+        lines += [f"  - &a{i} [" + ",".join([f"*a{i - 1}"] * 10) + "]" for i in range(1, 12)]
+        src = "---\n" + "\n".join(lines) + "\nauthor: A\n---\nbody\n"
+        started = time.perf_counter()
+        prepared = prepare_quarto_source(src)
+        assert time.perf_counter() - started < 5
+        assert _frontmatter(prepared.text) == {"author": "A"}
+        assert prepared.dropped_keys == ["title"]
+
+    def test_self_referencing_alias_is_dropped(self) -> None:
+        prepared = prepare_quarto_source("---\ntitle: &a [x, *a]\ntoc: true\n---\nbody\n")
+        assert _frontmatter(prepared.text) == {"toc": True}
+        assert prepared.dropped_keys == ["title"]
+
+    def test_aliased_scalars_are_kept(self) -> None:
+        prepared = prepare_quarto_source("---\ntitle: &t T\nsubtitle: *t\n---\nbody\n")
+        assert _frontmatter(prepared.text) == {"title": "T", "subtitle": "T"}
+        assert prepared.dropped_keys == []
+
+    def test_aliased_format_options_are_dropped(self) -> None:
+        prepared = prepare_quarto_source(
+            "---\nformat:\n  docx: &o {toc: true}\n  pptx: *o\n---\nbody\n"
+        )
+        assert prepared.dropped_keys == ["format"]
 
     def test_non_string_scalars_pass_through(self) -> None:
         prepared = prepare_quarto_source("---\ntitle: 5\ntoc: true\ntoc-depth: 2\n---\nbody\n")
@@ -418,6 +446,11 @@ _TOKENS = [
 ]
 
 
+_REFERENCE_YAML_RE = re.compile(
+    r"^(---)[ \t]*\n+(?![ \t]*\n+)[\W\w]*?\n+(?:---|\.\.\.)[ \t]*$", re.MULTILINE
+)
+
+
 def _reference_spans(pattern: re.Pattern[str], text: str) -> list[tuple[int, int]]:
     return [m.span() for m in pattern.finditer(text)]
 
@@ -433,6 +466,9 @@ class TestScannersMatchQuartoExpressions:
             assert _backtick_fence_spans(text) == _reference_spans(_REFERENCE_FENCE_RE, text), repr(
                 text
             )
+            assert _reference_spans(_YAML_BLOCK_RE, text) == _reference_spans(
+                _REFERENCE_YAML_RE, text
+            ), repr(text)
 
     @pytest.mark.parametrize(
         "text",
@@ -461,6 +497,13 @@ class TestLargeInputs:
     def test_preparation_time_grows_slowly(self, unit: str) -> None:
         """Unclosed openers are each looked at once, not rescanned to the end of the text."""
         body = "# t\n\n" + unit * (500_000 // len(unit))
+        started = time.perf_counter()
+        prepare_quarto_source(body)
+        assert time.perf_counter() - started < 10
+
+    def test_long_run_of_blank_lines_after_an_opener(self) -> None:
+        """A YAML opener with no closer is not retried at every length of a blank-line run."""
+        body = "# t\n\n---\nx" + "\n" * 500_000 + "y\n"
         started = time.perf_counter()
         prepare_quarto_source(body)
         assert time.perf_counter() - started < 10
