@@ -146,6 +146,22 @@ class TestDownloadForPage:
             dest = attachments_dir / entry.filename
             assert dest.resolve().is_relative_to(attachments_dir.resolve())
 
+    def test_git_control_file_name_is_skipped(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A body-referenced attachment named like a git control file is not written."""
+        atts = [_make_attachment(".gitignore"), _make_attachment("img.png")]
+        client = _make_client(atts, {".gitignore": b"*", "img.png": b"png"})
+        refs = [AttachmentRef(filename=".gitignore"), AttachmentRef(filename="img.png")]
+
+        with caplog.at_level("WARNING", logger="mdd.confluence.attachments"):
+            manifest = download_for_page(client, "123", refs, tmp_path, "Page")
+
+        assert [e.filename for e in manifest] == ["img.png"]
+        assert not (tmp_path / "Page-attachments" / ".gitignore").exists()
+        assert (tmp_path / "Page-attachments" / "img.png").exists()
+        assert "'.gitignore'" in caplog.text
+
     def test_per_attachment_failure_does_not_abort_page(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:

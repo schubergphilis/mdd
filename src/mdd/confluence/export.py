@@ -240,7 +240,11 @@ def _sync_attachments(
     page_name: str,
     attachment_refs: list[AttachmentRef],
 ) -> list[AttachmentManifestEntry]:
-    """Download body-referenced images then sync all attachments."""
+    """Download body-referenced images then sync all attachments.
+
+    ``page_name`` is the stem of the page's final ``.md`` path; the
+    attachments directory is ``<page_name>-attachments`` beside it.
+    """
     img_manifest: list[AttachmentManifestEntry] = []
     if attachment_refs:
         img_manifest = download_for_page(
@@ -468,10 +472,15 @@ def export_page(  # noqa: PLR0913
     page_name = sanitize(meta.title) if meta.title else f"page-{page_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Settle the final .md path first: the attachments directory is keyed on
+    # its stem, so two sibling pages whose titles sanitize to the same name
+    # get separate attachment directories as well as separate .md files.
+    out_path = disambiguate(out_dir / f"{page_name}.md", page_id)
+
     if skip_attachments:
         manifest: list[AttachmentManifestEntry] = []
     else:
-        manifest = _sync_attachments(ctx, page_name, attachment_refs)
+        manifest = _sync_attachments(ctx, out_path.stem, attachment_refs)
 
     page_url = _build_page_url(client, meta.space_key, page_id, meta.title, page_data)
     exported_dt = datetime.now(UTC).replace(microsecond=0)
@@ -496,8 +505,6 @@ def export_page(  # noqa: PLR0913
     )
     full_body = _compose_full_body(meta.title, markdown_body, export_header)
 
-    out_filename = f"{page_name}.md"
-    out_path = disambiguate(out_dir / out_filename, page_id)
     write_frontmatter(out_path, {"confluence": conf_fm}, f"\n{full_body}\n")
 
     # Pin mtime to exported_at so that sync's local-edit heuristic

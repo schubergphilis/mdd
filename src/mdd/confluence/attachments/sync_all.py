@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mdd.converters import converter_for as _registry_converter_for
 from mdd.utils.logging import get_logger
 
+from ._dest import safe_destination
 from ._types import AttachmentManifestEntry, AttachmentSyncSummary
 from .download import conversion_needed, hash_file
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from mdd.confluence.client import ConfluenceClient
     from mdd.converters.protocol import Converter
 
@@ -85,17 +87,6 @@ def _coerce_existing_manifest(
     return existing
 
 
-def _safe_destination(filename: str, attachments_dir: Path) -> Path | None:
-    """Return a path-traversal-safe destination, or None if the name is unsafe."""
-    safe_name = Path(filename).name
-    if not safe_name or safe_name in {".", ".."}:
-        return None
-    dest = attachments_dir / safe_name
-    if not dest.resolve().is_relative_to(attachments_dir.resolve()):
-        return None
-    return dest
-
-
 def _exceeds_size_limit(
     att: dict[str, Any],
     safe_name: str,
@@ -166,7 +157,7 @@ def _sync_one_attachment(
     if not filename:
         return None
 
-    dest = _safe_destination(filename, ctx.attachments_dir)
+    dest = safe_destination(filename, ctx.attachments_dir)
     if dest is None:
         return None
     safe_name = dest.name

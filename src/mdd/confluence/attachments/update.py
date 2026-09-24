@@ -30,7 +30,8 @@ def _resolve_attachment_path(
     bare filenames (the ``mdd confluence export-page`` convention) but
     falling back to ``working_dir`` for legacy/explicit relative paths.
 
-    Returns ``None`` for paths that escape the working directory.
+    Returns ``None`` for paths that escape the working directory or that pass
+    through a dot-prefixed component below it (``.git/config``, ``.env``).
     """
     candidates: list[Path] = []
     # A bare filename (no path separator) most likely targets the sibling
@@ -39,17 +40,23 @@ def _resolve_attachment_path(
         candidates.append((attachments_dir / src).resolve())
     candidates.append((working_dir / src).resolve())
 
-    for path in candidates:
-        if not path.is_relative_to(working_dir_resolved):
-            continue
+    in_scope = [p for p in candidates if _is_uploadable_path(p, working_dir_resolved)]
+    for path in in_scope:
         if path.exists():
             return path
     # Nothing on disk yet — return the first in-scope candidate so the caller
     # can warn with a meaningful path.
-    for path in candidates:
-        if path.is_relative_to(working_dir_resolved):
-            return path
-    return None
+    return in_scope[0] if in_scope else None
+
+
+def _is_uploadable_path(path: Path, working_dir_resolved: Path) -> bool:
+    """True when *path* lies under the working directory and no component of
+    the relative path starts with a dot (hidden files and directories such as
+    ``.git/`` or ``.env`` are never upload sources)."""
+    if not path.is_relative_to(working_dir_resolved):
+        return False
+    relative = path.relative_to(working_dir_resolved)
+    return not any(part.startswith(".") for part in relative.parts)
 
 
 def _resolve_unique_basenames(
@@ -69,8 +76,8 @@ def _resolve_unique_basenames(
         abs_path = _resolve_attachment_path(src, working_dir, working_dir_resolved, attachments_dir)
         if abs_path is None:
             log.warning(
-                "skipping attachment reference %r: resolved path "
-                "escapes the working directory (%s).",
+                "skipping attachment reference %r: resolved path escapes the "
+                "working directory (%s) or names a dot-prefixed file or directory.",
                 src,
                 working_dir_resolved,
             )

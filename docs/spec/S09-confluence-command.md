@@ -101,7 +101,11 @@ content-hash-named cache that a real push would produce identically.
 Filename collisions (two local files with the
 same basename) are a hard error — Confluence keys attachments by
 filename within a page. The v2 attachment endpoints are still maturing;
-the client falls back to v1 for multipart upload as needed.
+the client falls back to v1 for multipart upload as needed. A local
+reference is only an upload source when it resolves below the page's
+directory and no component of that relative path starts with a dot:
+`![x](.git/config)`, `![x](.env)` and `![x](sub/.hidden/a.png)` are
+skipped with a warning, `![x](img/a.png)` uploads.
 
 **Confidentiality.** `mdd confluence` commands consult the Confluence
 blacklist defined in [S07](S07-data-protection.md) for a blacklisted
@@ -195,10 +199,21 @@ oddities and redirect chains.
 `<>:"/\\|?*\n\t\r` with `-`, strip leading/trailing whitespace and
 dots, collapse runs of whitespace or `-`, truncate to 200 chars,
 fall back to `"untitled"` if empty. On collision (same sanitized title
-at the same level), append the page ID: `Title (12345).md`. Siblings
-are sorted by `position` then title for deterministic ordering across
-runs. Folders become directories only; only `type: "page"` nodes get a
-`.md` file.
+at the same level), append the page ID: `Title (12345).md`. The
+attachments directory is keyed on the final `.md` stem, so the
+colliding page gets `Title (12345)-attachments/` rather than sharing
+`Title-attachments/` with its sibling (deleting or renaming one page
+must not touch the other's files). Siblings are sorted by `position`
+then title for deterministic ordering across runs. Folders become
+directories only; only `type: "page"` nodes get a `.md` file.
+
+**Attachment names.** A remote attachment title is reduced to its
+basename before it is written under `<page-name>-attachments/`; empty,
+`.` and `..` are dropped. Names git reads as repository control files
+(`.git`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.mailmap`,
+compared case-insensitively) are skipped with a warning and left out of
+the manifest, so an attachment cannot change what git stages in the
+mirror.
 
 **Markdown ↔ storage XHTML.** Storage format is XHTML with `<ac:*>` and
 `<ri:*>` namespaced elements. Conversion goes through the document IR
@@ -208,8 +223,9 @@ markdown ([S30](S30-markdown-ir-conversion.md)), and back. Structured
 macros without a dedicated IR node fall through to the generic
 `ConfluenceMacro` carrier, which the markdown writer emits as a
 `:::confluence-macro {...}` fenced div — see S30 for the exact shape.
-`<ac:image>` references rewrite to `![X](<page-name>-attachments/X)` on
-export, and the reverse on import.
+`<ac:image>` references rewrite to `![X](confluence-attachment:X)` on
+export (a bare filename, resolved against `<page-name>-attachments/` on
+import), and the reverse on import.
 
 **Diff strategy for `update page`.** Re-render local md → storage XHTML,
 fetch current Confluence storage, normalize whitespace, unified diff to
