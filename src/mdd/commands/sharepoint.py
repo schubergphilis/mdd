@@ -179,6 +179,7 @@ def _print_sync_summary(summary: SyncRunSummary) -> None:
         "%d skipped (ignored), "
         "%d %s, "
         "%d skipped (corrupt), "
+        "%d office removed upstream, "
         "%d no-op, "
         "%d locked, "
         "%d errors.",
@@ -193,6 +194,7 @@ def _print_sync_summary(summary: SyncRunSummary) -> None:
         summary.pruned_ignored,
         pruned_label,
         summary.skipped_corrupt,
+        summary.office_removed,
         summary.no_op,
         summary.word_locked,
         len(summary.errors),

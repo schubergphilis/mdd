@@ -65,6 +65,15 @@ class PairAction(StrEnum):
     MD_ONLY = "md_only"
     """Only the .md exists — equivalent to FIRST_SYNC_MD_AUTHORITATIVE for doc-only case."""
 
+    OFFICE_REMOVED_UPSTREAM = "office_removed_upstream"
+    """The office file this ``.md`` was synced from is gone and the pair never
+    opted into md→office rendering → leave the ``.md`` alone, report it.
+
+    Without this the deletion would look like a first encounter of a
+    Markdown-only file and re-render the converter's output back into
+    SharePoint, which the pair's ``update_office: false`` explicitly forbids.
+    """
+
 
 @dataclass(frozen=True)
 class SyncState:
@@ -220,6 +229,16 @@ def read_sync_state(md_path: Path) -> SyncState:
     )
 
 
+def _classify_md_only(sync_state: SyncState) -> PairAction:
+    """Classify a ``.md`` whose office sibling is absent."""
+    if sync_state.office_sha256_at_sync is not None and not sync_state.update_office:
+        # Synced before from an office file that has since disappeared, and
+        # the pair never opted into rendering → not a publish candidate.
+        return PairAction.OFFICE_REMOVED_UPSTREAM
+    # First encounter of a Markdown-only file, or an opted-in pair.
+    return PairAction.FIRST_SYNC_MD_AUTHORITATIVE
+
+
 def classify_pair(
     docx_path: Path | None,
     md_path: Path | None,
@@ -273,8 +292,7 @@ def classify_pair(
         return PairAction.FIRST_SYNC_DOCX_AUTHORITATIVE
 
     if not docx_exists:
-        # Only .md file — first encounter
-        return PairAction.FIRST_SYNC_MD_AUTHORITATIVE
+        return _classify_md_only(sync_state)
 
     # Both files exist; check for sync block
     assert docx_path is not None  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction

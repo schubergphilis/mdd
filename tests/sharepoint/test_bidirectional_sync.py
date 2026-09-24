@@ -450,6 +450,48 @@ class TestSyncFolderBasic:
         assert summary.md_to_docx == 0
         assert summary.diverged == 0
 
+    def test_office_deleted_upstream_does_not_render_mirror_back(self, tmp_path: Path) -> None:
+        """Deleting the office file in SharePoint must not trigger a Quarto render.
+
+        The mirror .md holds converter output derived from the deleted
+        document. Re-publishing it would hand author-derived text to Quarto
+        with the ``update_office`` gate never having been opened.
+        """
+        import hashlib
+
+        site = tmp_path / "MySite"
+        site.mkdir()
+        output = tmp_path / "output"
+        output.mkdir()
+
+        body = "# converted\n"
+        md = output / "Report.docx.md"
+        md.write_text(
+            f"---\nsharepoint:\n  sync:\n"
+            f"    office_sha256_at_sync: {hashlib.sha256(b'old docx').hexdigest()}\n"
+            f"    md_sha256_at_sync: {hashlib.sha256(body.encode()).hexdigest()}\n"
+            f"    update_office: false\n"
+            f"---\n{body}",
+            encoding="utf-8",
+        )
+        before = md.read_text(encoding="utf-8")
+
+        mock_render = MagicMock()
+        with (
+            patch("mdd.sharepoint.sync._check_dirty"),
+            patch("mdd.utils.blacklist.check_sharepoint"),
+            patch("mdd.sharepoint.apply.actions.do_render", mock_render),
+        ):
+            summary = sync_folder(site, output_dir=output)
+
+        mock_render.assert_not_called()
+        assert not (site / "Report.docx").exists()
+        assert md.read_text(encoding="utf-8") == before
+        assert summary.office_removed == 1
+        assert summary.office_removed_paths == ["Report.docx.md"]
+        assert summary.first_sync_md == 0
+        assert summary.has_changes() is False
+
     def test_md_lands_in_output_not_source(self, tmp_path: Path) -> None:
         """Regression: --output must receive the .md, not the source folder.
 

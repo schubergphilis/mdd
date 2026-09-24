@@ -177,6 +177,29 @@ treated as a publish candidate: render via Quarto, write the
 Matches the symmetric "untracked local-authored .md becomes a new
 Confluence page" rule from [S14](S14-confluence-sync.md).
 
+The exception is a `.md` that *was* synced from an office file
+(its `sync` block records an `office_sha256_at_sync`) while
+`update_office` is still `false`. Its content is converter output,
+and the pair never opted into md→office rendering, so when the
+office file disappears upstream sync classifies the pair as
+`OFFICE_REMOVED_UPSTREAM`: nothing is rendered, the `.md` is left
+in place, and the run summary reports it. The user either deletes
+the `.md` to drop the pair or sets `update_office: true` to publish
+it back. Without this rule a deletion (or rename) in SharePoint
+would push the document's own text through Quarto unguarded.
+
+**Quarto sees presentation metadata only.** Before every render the
+Markdown is rewritten into a temporary copy: frontmatter is reduced
+to an allow-list of presentation keys (`title`, `subtitle`,
+`author`, `date`, `abstract`, `lang`, `toc*`, `number-sections`,
+and `format.<name>` options such as `reference-doc`), body lines
+consisting solely of `---` outside fenced code become `***`, and
+`{{< … >}}` shortcodes are escaped so they render literally. Quarto
+directives that run code or read files (`filters`,
+`metadata-files`, `bibliography`, `include-*`, `{{< include >}}`)
+therefore never take effect, whoever authored the file. Dropped keys
+are logged and surfaced as render warnings.
+
 **Office-only files.** `.docx`/`.pptx` files with no `.md` sibling
 go through the appropriate converter ([S16](S16-confluence-attachment-conversion.md) / [S11](S11-convert-pptx.md))
 to produce the `.md`, with the `sync` block written. Matches the
@@ -235,7 +258,8 @@ opts in to bidirectional sync. See "Diff table" above.
 
 **Pure diff function** classifies each pair into a `PairAction`
 enum (`NO_OP`, `DOCX_TO_MD`, `MD_TO_DOCX`, `SKIP_MD_UPDATE`,
-`DIVERGED`, `FIRST_SYNC_*`, `WORD_LOCKED`, `MD_ONLY`).
+`DIVERGED`, `FIRST_SYNC_*`, `WORD_LOCKED`, `MD_ONLY`,
+`OFFICE_REMOVED_UPSTREAM`).
 The apply layer dispatches to [S15](S15-converter-registry.md)'s
 converter / reverse-converter registries and writes atomically
 (`*.tmp → rename`).

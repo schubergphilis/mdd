@@ -125,6 +125,36 @@ def print_dry_run_plan(pairs: list[tuple[Path, Path]], *, read_only: bool) -> No
     sys.stdout.flush()
 
 
+_REPORT_ONLY_ACTIONS: frozenset[PairAction] = frozenset(
+    {PairAction.WORD_LOCKED, PairAction.NO_OP, PairAction.OFFICE_REMOVED_UPSTREAM}
+)
+
+
+def _apply_report_only(
+    action: PairAction, docx_path: Path, md_path: Path, *, summary: SyncRunSummary
+) -> None:
+    """Count an action that writes nothing on either side."""
+    if action == PairAction.WORD_LOCKED:
+        log.info(
+            "skipping %s: file open in Word (lock file present)",
+            docx_path.name,
+        )
+        summary.word_locked += 1
+        return
+    if action == PairAction.NO_OP:
+        summary.no_op += 1
+        return
+    log.warning(
+        "%s: office file %s no longer exists in SharePoint and the pair has "
+        "update_office: false; leaving the .md untouched. Delete the .md to "
+        "drop the pair, or set update_office: true to publish it back.",
+        md_path.name,
+        docx_path.name,
+    )
+    summary.office_removed += 1
+    summary.office_removed_paths.append(md_path.name)
+
+
 def apply_pair(  # noqa: PLR0911, PLR0913
     *,
     action: PairAction,
@@ -146,15 +176,8 @@ def apply_pair(  # noqa: PLR0911, PLR0913
         summary.skipped_read_only += 1
         summary.skipped_read_only_paths.append(docx_path.name)
         return
-    if action == PairAction.WORD_LOCKED:
-        log.info(
-            "skipping %s: file open in Word (lock file present)",
-            docx_path.name,
-        )
-        summary.word_locked += 1
-        return
-    if action == PairAction.NO_OP:
-        summary.no_op += 1
+    if action in _REPORT_ONLY_ACTIONS:
+        _apply_report_only(action, docx_path, md_path, summary=summary)
         return
     if action == PairAction.DOCX_TO_MD:
         apply_docx_to_md(docx_path, md_path, backup=backup, output_root=output_dir)

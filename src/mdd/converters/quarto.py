@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from mdd.converters.protocol import RenderResult
+from mdd.converters.quarto_source import prepare_quarto_source
+from mdd.utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 class QuartoNotFoundError(Exception):
@@ -61,8 +65,14 @@ def _render(
     """Run ``quarto render`` on *md_path* and write the result to *dest*.
 
     Quarto requires ``--output`` to be a filename (not an absolute path), so
-    we copy the source file into a temporary directory, render there, then
-    move the result to *dest*.
+    we write the source into a temporary directory, render there, then move
+    the result to *dest*.
+
+    The source is passed through :func:`prepare_quarto_source` first: the
+    Markdown was authored by whoever wrote the document or the mirror page,
+    so frontmatter is reduced to presentation keys and body constructs that
+    make Quarto read files or run code are neutralised. Dropped frontmatter
+    keys are logged and reported in ``RenderResult.warnings``.
 
     Args:
         md_path: Source Markdown file.
@@ -83,9 +93,15 @@ def _render(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        # Copy source into temp dir so relative references in the .md resolve
         tmp_src = tmp / md_path.name
-        shutil.copy2(md_path, tmp_src)
+        prepared = prepare_quarto_source(md_path.read_text(encoding="utf-8", errors="replace"))
+        tmp_src.write_text(prepared.text, encoding="utf-8")
+        if prepared.dropped_keys:
+            log.warning(
+                "%s: ignoring frontmatter keys not used for rendering: %s",
+                md_path.name,
+                ", ".join(prepared.dropped_keys),
+            )
 
         cmd: list[str] = [
             "quarto",
@@ -121,6 +137,10 @@ def _render(
         shutil.move(str(rendered), str(dest))
 
     warnings: list[str] = []
+    if prepared.dropped_keys:
+        warnings.append(
+            f"ignored frontmatter keys not used for rendering: {', '.join(prepared.dropped_keys)}"
+        )
     if result.stderr:
         for line in result.stderr.splitlines():
             stripped = line.strip()

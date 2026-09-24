@@ -332,12 +332,39 @@ class TestClassifyPairDiffTable:
         action = classify_pair(docx, md, sync_state=sync_state)
         assert action == PairAction.DIVERGED
 
-    def test_docx_nonexistent_with_sync_block_is_first_sync_md(self, tmp_path: Path) -> None:
+    def test_docx_nonexistent_with_opted_in_sync_block_is_first_sync_md(
+        self, tmp_path: Path
+    ) -> None:
         md = tmp_path / "Report.docx.md"
         md.write_text("# content", encoding="utf-8")
-        # Even with a non-empty sync state, missing docx → first_sync_md
-        action = classify_pair(None, md, sync_state=_sync_state())
+        # update_office: true → the user asked for md→office publishing
+        action = classify_pair(None, md, sync_state=_sync_state(update_office=True))
         assert action == PairAction.FIRST_SYNC_MD_AUTHORITATIVE
+
+    def test_docx_nonexistent_without_sync_block_is_first_sync_md(self, tmp_path: Path) -> None:
+        md = tmp_path / "Report.docx.md"
+        md.write_text("# content", encoding="utf-8")
+        action = classify_pair(None, md, sync_state=_sync_state(docx_sha=None, update_office=False))
+        assert action == PairAction.FIRST_SYNC_MD_AUTHORITATIVE
+
+    def test_docx_removed_upstream_with_closed_gate_is_not_rendered(self, tmp_path: Path) -> None:
+        """A previously synced pair whose office file vanished must not be re-published.
+
+        The .md was derived from the office file, so rendering it back would
+        recreate the document from converter output — exactly what
+        ``update_office: false`` forbids.
+        """
+        md = tmp_path / "Report.docx.md"
+        md.write_text("# content", encoding="utf-8")
+        action = classify_pair(None, md, sync_state=_sync_state(update_office=False))
+        assert action == PairAction.OFFICE_REMOVED_UPSTREAM
+
+    def test_docx_path_given_but_missing_with_closed_gate(self, tmp_path: Path) -> None:
+        md = tmp_path / "Report.docx.md"
+        md.write_text("# content", encoding="utf-8")
+        docx = tmp_path / "Report.docx"  # never created
+        action = classify_pair(docx, md, sync_state=_sync_state(update_office=False))
+        assert action == PairAction.OFFICE_REMOVED_UPSTREAM
 
 
 class TestClassifyPairUpdateOfficeGate:

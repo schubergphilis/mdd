@@ -15,6 +15,8 @@ from mdd.utils.logging import get_logger
 
 log = get_logger(__name__)
 
+_LEADING_YAML_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n|$)")
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
@@ -547,6 +549,10 @@ def _write_docx(src: Path, dst: Path) -> Path | None:
     body_stripped = body.lstrip("\n")
     parts.append(body_stripped)
     content = "\n".join(parts)
+    if _LEADING_YAML_DELIMITER_RE.match(content):
+        # A document whose first paragraph is ``---`` would otherwise turn its
+        # own text into the mirror file's frontmatter.
+        content = "\\" + content
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     tmp = dst.with_suffix(".md.tmp")
