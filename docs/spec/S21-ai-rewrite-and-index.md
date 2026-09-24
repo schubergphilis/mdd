@@ -86,9 +86,10 @@ only*)
 The pass-through is **enforced by extraction-and-restitch**, not
 by trusting the model. Protected regions are replaced with
 placeholder tokens before the model call and substituted back
-afterwards. If a placeholder is missing from the response, fail
-loudly (model hallucinated away a protected region; output is
-unsafe).
+afterwards. If a placeholder is missing from the response, the
+chunk is retried once with a correction (see **Placeholder retry**
+below); if the retry loses one too, fail loudly (model hallucinated
+away a protected region; output is unsafe).
 
 **Nothing to rewrite → `skipped`**
 
@@ -137,10 +138,11 @@ is split and rewritten chunk by chunk.
 - Chunks are rewritten **serially**, each as its own `chat()` call
   with its own cache key, so a re-run after a partial failure
   re-uses the chunks that already succeeded.
-- If any chunk comes back truncated, or the joined output has lost
-  a placeholder, **the whole file is refused**. A file half in the
-  new tone and half in the old is worse than a clear failure that
-  can be retried.
+- Each chunk's answer is checked for the placeholders that chunk
+  carried. If any chunk comes back truncated, or still lacks a
+  placeholder after its one retry, **the whole file is refused**. A
+  file half in the new tone and half in the old is worse than a
+  clear failure that can be retried.
 
 Trade-off, stated plainly: each chunk is rewritten without sight of
 the rest of the page, so the model cannot smooth out repetition
@@ -161,6 +163,37 @@ protected-region check passes happily when the model simply stopped
 before reaching the interesting part. [S20](S20-litellm-ai-client.md)
 additionally keeps truncated completions out of the cache, so a
 retry actually retries.
+
+**Placeholder retry**
+
+A dropped placeholder is usually per-request randomness, not a
+property of the page: the same input fails on one run and succeeds
+on the next. It clusters on pages where a placeholder is a large
+share of the input, since a bare token on its own line reads to the
+model as noise worth tidying away. So a chunk whose answer lacks
+one of its placeholders is re-sent once before the file is refused.
+
+- The retry re-sends the same chunk with a correction appended to
+  the user message, inside an `<mdd-correction>` block. The
+  correction names every missing placeholder token and says each
+  token must come back verbatim, alone on its own line, in its
+  original position.
+- **Exactly one retry per chunk.** If the retry's answer still
+  lacks any of the chunk's placeholders (not only the ones named in
+  the correction), or echoes the correction block back, the whole
+  file is refused and the failure dump holds the retry's output.
+- A truncated first answer is not retried: truncation is a budget
+  problem, and re-sending the same request hits the same cap. A
+  truncated retry is refused as truncated.
+- Each retry logs a warning naming the file, the chunk and the
+  missing tokens, so a run shows it happened; a silent retry would
+  hide a systematic prompt problem behind a success.
+- The retried request has a different user message, so it lands on
+  its own cache key. Neither attempt is cached unless its answer
+  keeps every placeholder the chunk carried (the client's `accept`
+  check, see [S20](S20-litellm-ai-client.md)), so a failed first
+  attempt is never replayed from cache on the next run.
+- Token and cost totals for the file include both attempts.
 
 **Failure dumps**
 
@@ -211,8 +244,10 @@ cheap signal that something went missing.
     no API call attempted.
   - `error` — the file was refused (truncation, lost placeholder,
     managed-elsewhere page under `--apply`, or an I/O failure).
-- End of run: the tally of all four statuses, the paths of any
-  failure dumps, then total tokens and estimated cost.
+- End of run: the tally of all four statuses, the placeholder
+  retry count (total retries, how many files needed one, and how
+  many of those still succeeded), the paths of any failure dumps,
+  then total tokens and estimated cost.
 
 **Output**
 - Files are processed serially, and the chunks of a single file

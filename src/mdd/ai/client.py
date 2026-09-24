@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import openai
 
@@ -20,6 +20,9 @@ from mdd.ai.models import (
 )
 from mdd.ai.retry import with_retry
 from mdd.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 log = get_logger(__name__)
 
@@ -117,7 +120,7 @@ class Client:
     # Public API
     # ------------------------------------------------------------------
 
-    def chat(
+    def chat(  # noqa: PLR0913
         self,
         *,
         system: str | None = None,
@@ -126,6 +129,7 @@ class Client:
         model: str | None = None,
         cache_key_extra: bytes = b"",
         max_tokens: int | None = None,
+        accept: Callable[[str], bool] | None = None,
     ) -> ChatResult:
         """Send a chat completion request, using the cache if available.
 
@@ -145,6 +149,11 @@ class Client:
             hash used by rewrites).
         max_tokens:
             Maximum completion tokens.  None uses the model default.
+        accept:
+            Optional check on the response text.  A response it rejects is
+            still returned, but is never written to the cache, and a cached
+            entry it rejects is ignored in favour of a live call.  Callers
+            use it to keep output they are going to refuse out of the cache.
 
         Returns
         -------
@@ -166,42 +175,26 @@ class Client:
         )
 
         # Cache check — purely local, no semaphore needed.
-        cached_entry = self._cache.get(cache_key)
-        if cached_entry is not None:
-            result = ChatResult(
-                text=cached_entry.text,
-                cached=True,
-                prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=None,
-                finish_reason=cached_entry.finish_reason,
-            )
+        cached = self._cached_result(cache_key, accept)
+        if cached is not None:
             log.debug(
                 "chat cache hit: model=%s task=%s key=%s chars=%d",
                 resolved_model,
                 task,
                 cache_key[:12],
-                len(result.text),
+                len(cached.text),
             )
-            self._summary.record_chat(result)
-            return result
+            self._summary.record_chat(cached)
+            return cached
 
         # Acquire the concurrency semaphore for the live API call.
         with self._sem:
             # Double-check cache after acquiring semaphore — another thread
             # may have filled it while we were waiting.
-            cached_entry = self._cache.get(cache_key)
-            if cached_entry is not None:
-                result = ChatResult(
-                    text=cached_entry.text,
-                    cached=True,
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    cost_usd=None,
-                    finish_reason=cached_entry.finish_reason,
-                )
-                self._summary.record_chat(result)
-                return result
+            cached = self._cached_result(cache_key, accept)
+            if cached is not None:
+                self._summary.record_chat(cached)
+                return cached
 
             log.debug(
                 "chat request: model=%s task=%s system_chars=%d user_chars=%d max_tokens=%s",
@@ -216,10 +209,35 @@ class Client:
                 messages=messages,
                 max_tokens=max_tokens,
                 cache_key=cache_key,
+                accept=accept,
             )
 
         self._summary.record_chat(result)
         return result
+
+    def _cached_result(
+        self,
+        cache_key: str,
+        accept: Callable[[str], bool] | None,
+    ) -> ChatResult | None:
+        """Return the cached response for *cache_key*, or None on a miss.
+
+        An entry that *accept* rejects counts as a miss.
+        """
+        entry = self._cache.get(cache_key)
+        if entry is None:
+            return None
+        if accept is not None and not accept(entry.text):
+            log.debug("chat cache entry %s rejected by caller; ignoring it", cache_key[:12])
+            return None
+        return ChatResult(
+            text=entry.text,
+            cached=True,
+            prompt_tokens=0,
+            completion_tokens=0,
+            cost_usd=None,
+            finish_reason=entry.finish_reason,
+        )
 
     @with_retry
     def _do_chat(
@@ -229,6 +247,7 @@ class Client:
         messages: list[dict[str, str]],
         max_tokens: int | None,
         cache_key: str,
+        accept: Callable[[str], bool] | None,
     ) -> ChatResult:
         """Execute one chat completion call (already inside the semaphore)."""
         oai = self._get_oai()
@@ -288,19 +307,21 @@ class Client:
             cost_usd=cost_usd,
             finish_reason=finish_reason,
         )
-        self._cache_unless_truncated(cache_key, resolved_model, result)
+        self._cache_if_usable(cache_key, resolved_model, result, accept)
         return result
 
-    def _cache_unless_truncated(
+    def _cache_if_usable(
         self,
         cache_key: str,
         resolved_model: str,
         result: ChatResult,
+        accept: Callable[[str], bool] | None,
     ) -> None:
-        """Store *result*, unless the model was cut off mid-answer.
+        """Store *result*, unless it was cut off or the caller rejects it.
 
         A truncated completion is a prefix of the real answer; caching it would
-        make every later run reproduce the same partial output from disk.
+        make every later run reproduce the same partial output from disk.  The
+        same holds for a response the caller is about to refuse.
         """
         if not is_complete(result.finish_reason):
             log.warning(
@@ -310,6 +331,9 @@ class Client:
                 result.finish_reason,
                 result.completion_tokens,
             )
+            return
+        if accept is not None and not accept(result.text):
+            log.debug("model %s response rejected by caller; response NOT cached", resolved_model)
             return
         self._cache.put(
             cache_key,

@@ -30,6 +30,8 @@ from mdd.utils.markdown_fences import iter_fenced_code_blocks
 from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from mdd.ai.client import Client
 
 log = get_logger(__name__)
@@ -379,6 +381,8 @@ class RewriteResult:
     cost_usd: float | None = None
     fail_path: Path | None = None
     """Where the rejected model output was dumped, if anywhere."""
+    placeholder_retries: int = 0
+    """How many chunks were re-sent because the model dropped a placeholder."""
 
 
 # Deliberately not ``.md``: a dump must not be picked up by the next
@@ -605,25 +609,106 @@ def _call_diagnostics(chat: ChatResult, sent: str) -> str:
     )
 
 
-def _stitch_or_reject(
+def _regions_in(chunk: str, regions: list[_Region]) -> list[_Region]:
+    """Return the protected regions whose placeholder was sent in *chunk*."""
+    return [region for region in regions if region.placeholder in chunk]
+
+
+def _missing_regions(text: str, regions: list[_Region]) -> list[_Region]:
+    """Return the protected regions whose placeholder is absent from *text*."""
+    return [region for region in regions if region.placeholder not in text]
+
+
+# Wraps the correction appended to a retried chunk, so the model can tell it
+# apart from the text it is asked to rewrite, and so an output that echoes the
+# correction back can be recognised and refused.
+_CORRECTION_OPEN = "<mdd-correction>"
+_CORRECTION_CLOSE = "</mdd-correction>"
+
+
+def _placeholder_correction(chunk: str, missing: list[_Region]) -> str:
+    """Return *chunk* with a correction naming the *missing* placeholder tokens."""
+    tokens = ", ".join(region.placeholder for region in missing)
+    return (
+        f"{chunk.rstrip()}\n\n"
+        f"{_CORRECTION_OPEN}\n"
+        "Your previous rewrite of the text above dropped these placeholder tokens: "
+        f"{tokens}.\n"
+        "Rewrite the text above again. Every placeholder token in it must appear in your "
+        "output verbatim, byte for byte, alone on its own line, in its original position. "
+        "Do not include this correction in your output.\n"
+        f"{_CORRECTION_CLOSE}\n"
+    )
+
+
+def _keeps_placeholders(regions: list[_Region]) -> Callable[[str], bool]:
+    """Return a check that a response kept every placeholder in *regions*.
+
+    It also refuses a response that echoes a correction block back, since that
+    text would otherwise end up in the rewritten page.
+    """
+
+    def check(text: str) -> bool:
+        return _CORRECTION_OPEN not in text and not _missing_regions(text, regions)
+
+    return check
+
+
+def _combine_attempts(first: ChatResult, retry: ChatResult) -> ChatResult:
+    """Return *retry*'s answer, carrying the token and cost totals of both calls."""
+    costs = [r.cost_usd for r in (first, retry) if r.cost_usd is not None]
+    return ChatResult(
+        text=retry.text,
+        cached=first.cached and retry.cached,
+        prompt_tokens=first.prompt_tokens + retry.prompt_tokens,
+        completion_tokens=first.completion_tokens + retry.completion_tokens,
+        cost_usd=sum(costs) if costs else None,
+        finish_reason=retry.finish_reason,
+    )
+
+
+def _chunk_label(index: int, total: int) -> tuple[str, str, str]:
+    """Return the (label, reason prefix, refusal scope) wording for one chunk."""
+    label = f"chunk {index} of {total}"
+    where = "" if total == 1 else f"On {label}: "
+    scope = "output" if total == 1 else "output for the whole file"
+    return label, where, scope
+
+
+def _reject_dropped_placeholders(
     path: Path,
     *,
     chat: ChatResult,
-    regions: list[_Region],
     sent: str,
-) -> str | RewriteResult:
-    """Return the stitched body, or a ``RewriteResult`` error if it is unusable.
-
-    The output is unusable when a protected-region placeholder did not come
-    back.  The rejected output is dumped for inspection rather than discarded.
-    """
-    try:
-        return stitch_protected(chat.text, regions)
-    except ValueError as exc:
-        diagnostics = (
-            _call_diagnostics(chat, sent) + "\n" + diagnose_placeholders(chat.text, regions)
+    regions: list[_Region],
+    index: int,
+    total: int,
+) -> RewriteResult:
+    """Refuse the whole file because a chunk lost a placeholder even after a retry."""
+    label, where, scope = _chunk_label(index, total)
+    missing = _missing_regions(chat.text, regions)
+    if missing:
+        detail = ", ".join(f"{r.placeholder!r} (kind={r.kind})" for r in missing)
+        problem = (
+            f"Protected-region placeholder(s) {detail} missing from the model's output, "
+            "also after one retry with a correction. The model likely removed or rewrote "
+            "a protected block."
         )
-        return _rejected(path, reason=str(exc), chat=chat, diagnostics=diagnostics)
+    else:
+        problem = (
+            "On its one retry, the model echoed the placeholder correction back into its output."
+        )
+    return _rejected(
+        path,
+        reason=f"{where}{problem} The rewrite is unsafe; refusing to produce {scope}.",
+        chat=chat,
+        diagnostics=(
+            f"failed at:  {label} (after retry)\n"
+            + _call_diagnostics(chat, sent)
+            + "\n"
+            + diagnose_placeholders(chat.text, regions)
+        ),
+    )
 
 
 def _chunk_cache_key(chunk: str, prompt_digest: bytes) -> bytes:
@@ -650,9 +735,7 @@ def _reject_truncated_chunk(
     is half in the new tone and half in the old is worse than a clear failure
     the operator can retry, so one bad chunk fails everything.
     """
-    label = f"chunk {index} of {total}"
-    where = "" if total == 1 else f"On {label}: "
-    scope = "output" if total == 1 else "output for the whole file"
+    label, where, scope = _chunk_label(index, total)
     return _rejected(
         path,
         reason=(
@@ -698,36 +781,103 @@ def _plan_chunks(path: Path, transformed_body: str) -> list[str]:
     return chunks
 
 
+@dataclass
+class _ChunkedRewrite:
+    """The joined model output for every chunk of one file."""
+
+    chat: ChatResult
+    placeholder_retries: int
+
+
+@dataclass(frozen=True)
+class _ChunkSender:
+    """Sends one user message for a file, keyed on that message for caching."""
+
+    client: Client
+    system_prompt: str
+    model: str | None
+    prompt_digest: bytes
+
+    def send(self, user: str, accept: Callable[[str], bool]) -> ChatResult:
+        return self.client.chat(
+            system=self.system_prompt,
+            user=user,
+            task="default",
+            model=self.model,
+            cache_key_extra=_chunk_cache_key(user, self.prompt_digest),
+            max_tokens=_MAX_OUTPUT_TOKENS,
+            accept=accept,
+        )
+
+
+def _retry_dropped_placeholders(  # noqa: PLR0913
+    path: Path,
+    sender: _ChunkSender,
+    *,
+    first: ChatResult,
+    chunk: str,
+    regions: list[_Region],
+    index: int,
+    total: int,
+) -> ChatResult | RewriteResult:
+    """Re-send *chunk* once, naming the placeholders the first answer dropped.
+
+    Returns the retry's answer, carrying the cost of both calls, or a
+    ``RewriteResult`` error when the retry is unusable too.  There is exactly
+    one retry: a model that drops a token twice is not going to be argued with.
+    """
+    missing = _missing_regions(first.text, regions)
+    log.warning(
+        "rewrite %s: chunk %d of %d dropped placeholder(s) %s; retrying once with a correction",
+        path,
+        index,
+        total,
+        ", ".join(region.placeholder for region in missing),
+    )
+    user = _placeholder_correction(chunk, missing)
+    accept = _keeps_placeholders(regions)
+    try:
+        retry = sender.send(user, accept)
+    except Exception as exc:
+        return RewriteResult(path=path, status="error", error=str(exc))
+
+    combined = _combine_attempts(first, retry)
+    if not is_complete(retry.finish_reason):
+        return _reject_truncated_chunk(path, chat=combined, chunk=user, index=index, total=total)
+    if not accept(retry.text):
+        return _reject_dropped_placeholders(
+            path, chat=combined, sent=user, regions=regions, index=index, total=total
+        )
+    log.info("rewrite %s: chunk %d of %d kept every placeholder on retry", path, index, total)
+    return combined
+
+
 def _rewrite_chunks(
     path: Path,
-    client: Client,
+    sender: _ChunkSender,
     *,
     chunks: list[str],
-    system_prompt: str,
-    model: str | None,
-    prompt_digest: bytes,
-) -> ChatResult | RewriteResult:
+    regions: list[_Region],
+) -> _ChunkedRewrite | RewriteResult:
     """Rewrite every chunk serially and return the concatenated result.
 
-    Returns a ``RewriteResult`` error instead if any chunk came back truncated:
-    the whole file is refused rather than half-rewritten.
+    Returns a ``RewriteResult`` error instead if any chunk came back truncated,
+    or lost a placeholder on both its first attempt and its one retry: the
+    whole file is refused rather than half-rewritten.
     """
     total = len(chunks)
     parts: list[str] = []
     results: list[ChatResult] = []
+    retries = 0
 
     for index, chunk in enumerate(chunks, start=1):
+        chunk_regions = _regions_in(chunk, regions)
         try:
-            chat = client.chat(
-                system=system_prompt,
-                user=chunk,
-                task="default",
-                model=model,
-                cache_key_extra=_chunk_cache_key(chunk, prompt_digest),
-                max_tokens=_MAX_OUTPUT_TOKENS,
-            )
+            chat = sender.send(chunk, _keeps_placeholders(chunk_regions))
         except Exception as exc:
-            return RewriteResult(path=path, status="error", error=str(exc))
+            return RewriteResult(
+                path=path, status="error", error=str(exc), placeholder_retries=retries
+            )
 
         log.debug(
             "rewrite %s: chunk %d of %d returned %d chars (sent %d, %+.1f%%), cached=%s, "
@@ -745,7 +895,27 @@ def _rewrite_chunks(
         )
 
         if not is_complete(chat.finish_reason):
-            return _reject_truncated_chunk(path, chat=chat, chunk=chunk, index=index, total=total)
+            refusal = _reject_truncated_chunk(
+                path, chat=chat, chunk=chunk, index=index, total=total
+            )
+            refusal.placeholder_retries = retries
+            return refusal
+
+        if _missing_regions(chat.text, chunk_regions):
+            retries += 1
+            retried = _retry_dropped_placeholders(
+                path,
+                sender,
+                first=chat,
+                chunk=chunk,
+                regions=chunk_regions,
+                index=index,
+                total=total,
+            )
+            if isinstance(retried, RewriteResult):
+                retried.placeholder_retries = retries
+                return retried
+            chat = retried
 
         # A model that trims a chunk's leading or trailing whitespace would
         # otherwise weld two lines together across the join.  With a single
@@ -755,7 +925,7 @@ def _rewrite_chunks(
         parts.append(chat.text if total == 1 else _restore_boundary_whitespace(chunk, chat.text))
         results.append(chat)
 
-    return _merge_chunk_results(parts, results)
+    return _ChunkedRewrite(chat=_merge_chunk_results(parts, results), placeholder_retries=retries)
 
 
 def _warn_if_shrunk(path: Path, body: str, rewritten_body: str) -> None:
@@ -933,35 +1103,36 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
 
     chunks = _plan_chunks(path, transformed_body)
 
-    outcome = _rewrite_chunks(
-        path,
-        client,
-        chunks=chunks,
+    sender = _ChunkSender(
+        client=client,
         system_prompt=system_prompt,
         model=model,
         prompt_digest=tone_digest + constraints_digest,
     )
+    outcome = _rewrite_chunks(path, sender, chunks=chunks, regions=regions)
     if isinstance(outcome, RewriteResult):
         return outcome
-    result = outcome
+    result = outcome.chat
+    retries = outcome.placeholder_retries
 
-    # Stitch the protected regions back once, over the joined output.
-    stitched = _stitch_or_reject(path, chat=result, regions=regions, sent=transformed_body)
-    if isinstance(stitched, RewriteResult):
-        return stitched
-    rewritten_body = stitched
+    # Stitch the protected regions back once, over the joined output.  Every
+    # chunk has already been checked for its own placeholders, so none is
+    # missing here.
+    rewritten_body = stitch_protected(result.text, regions)
 
     # Restore the source body's boundary whitespace to avoid whitespace-only churn.
     rewritten_body = _restore_boundary_whitespace(body, rewritten_body)
     _warn_if_shrunk(path, body, rewritten_body)
 
     if not frontmatter_block and _opens_with_frontmatter(rewritten_body):
-        return _rejected(
+        refusal = _rejected(
             path,
             reason="model output opens with a frontmatter block but the source has none",
             chat=result,
             diagnostics=_call_diagnostics(result, transformed_body),
         )
+        refusal.placeholder_retries = retries
+        return refusal
 
     rewritten_full = frontmatter_block + rewritten_body
 
@@ -969,6 +1140,7 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
     if apply:
         refusal = _refuse_managed_apply(path, rewritten_full=rewritten_full, chat=result)
         if refusal is not None:
+            refusal.placeholder_retries = retries
             return refusal
 
     # Determine output path and write atomically.
@@ -977,7 +1149,12 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
     try:
         atomic_write_text(out_path, rewritten_full)
     except OSError as exc:
-        return RewriteResult(path=path, status="error", error=f"Write failed: {exc}")
+        return RewriteResult(
+            path=path,
+            status="error",
+            error=f"Write failed: {exc}",
+            placeholder_retries=retries,
+        )
 
     return RewriteResult(
         path=path,
@@ -986,6 +1163,7 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
         prompt_tokens=result.prompt_tokens,
         completion_tokens=result.completion_tokens,
         cost_usd=result.cost_usd,
+        placeholder_retries=retries,
     )
 
 
@@ -1046,10 +1224,24 @@ def _log_fail_dumps(results: list[RewriteResult]) -> None:
         log.info("    %s", dump)
 
 
+def _log_placeholder_retries(results: list[RewriteResult]) -> None:
+    """Log how often a dropped placeholder forced a retry, and how many recovered."""
+    retried = [r for r in results if r.placeholder_retries > 0]
+    recovered = sum(1 for r in retried if r.status != "error")
+    log.info(
+        "  Placeholder retries: %d across %d of %d file(s), %d file(s) recovered.",
+        sum(r.placeholder_retries for r in retried),
+        len(retried),
+        len(results),
+        recovered,
+    )
+
+
 def print_run_summary(results: list[RewriteResult], client: Client) -> None:
     """Log a concise end-of-run summary."""
     summary = client.summary
     _log_status_counts(results)
+    _log_placeholder_retries(results)
     _log_fail_dumps(results)
     if summary.api_calls > 0:
         tokens = summary.prompt_tokens + summary.completion_tokens
