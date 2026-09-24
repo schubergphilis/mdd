@@ -65,7 +65,7 @@ These two settings are independent. Setting `extra="forbid"` does not change typ
 The new module is `src/mdd/utils/frontmatter.py`. Its public surface is intentionally small:
 
 - A **base class** — `class FrontmatterModel(BaseModel)` — that sets `model_config = ConfigDict(extra="forbid")` once. Every concrete model in the layer subclasses `FrontmatterModel` and inherits the strict-extras config; concrete models do not respecify it.
-- A **YAML decode helper** — `parse_yaml_mapping(text: str) -> Mapping[str, object] | None` — that handles the four "decoded into something that wasn't a mapping" cases (None, list, scalar, parse error) uniformly. Returns `None` on all of them rather than raising; callers decide whether a missing/non-mapping frontmatter is a soft "no metadata" or a hard error. "Parse error" includes the `RecursionError` PyYAML raises (instead of `YAMLError`) when the input nests deeper than the interpreter stack allows; such a block is treated as no frontmatter. The private frontmatter readers in `src/mdd/ai/index.py`, `src/mdd/ai/review.py`, `src/mdd/confluence/frontmatter.py` and `src/mdd/search/output.py` delegate to this helper (and `split_frontmatter`) so they share the contract.
+- A **YAML decode helper** — `parse_yaml_mapping(text: str) -> Mapping[str, object] | None` — that handles the four "decoded into something that wasn't a mapping" cases (None, list, scalar, parse error) uniformly. Returns `None` on all of them rather than raising; callers decide whether a missing/non-mapping frontmatter is a soft "no metadata" or a hard error. "Parse error" means any exception `yaml.safe_load` raises, not only `YAMLError`: PyYAML raises `RecursionError` when the input nests deeper than the interpreter stack allows, and its scalar constructors leak `ValueError`, `KeyError` and `AttributeError` on out-of-range dates (`2023-13-45`), integers over CPython's digit limit and bad `!!bool` / `!!int` / `!!timestamp` values. The helper only ever sees an in-memory string, so there is no I/O error to preserve and every such block is treated as no frontmatter. The private frontmatter readers in `src/mdd/ai/index.py`, `src/mdd/ai/review.py`, `src/mdd/confluence/frontmatter.py`, `src/mdd/search/output.py` and `src/mdd/utils/blacklist.py` delegate to this helper (and, except for `blacklist.py` which keeps its more lenient fence scan, `split_frontmatter`) so they share the contract.
 - A **`---`-delimited frontmatter splitter** — `split_frontmatter(text: str) -> tuple[str, str] | None` — that returns `(yaml_block, body)` or `None` when the text doesn't open with `---`. This consolidates the eight near-identical implementations currently in `src/mdd/sharepoint/diff.py`, `src/mdd/sharepoint/export.py`, `src/mdd/sharepoint/apply/sync_block.py`, `src/mdd/sharepoint/apply/actions.py`, and `src/mdd/confluence/state.py`.
 - A **JSON load helper** — `parse_json_mapping(text: str) -> Mapping[str, object] | None` — symmetric to `parse_yaml_mapping` for the API-response and on-disk-cache call sites.
 
@@ -174,7 +174,7 @@ def parse_yaml_mapping(text: str) -> Mapping[str, object] | None:
         return None
     try:
         parsed: Any = yaml.safe_load(text)
-    except yaml.YAMLError, RecursionError:
+    except Exception:  # PyYAML leaks RecursionError / ValueError / KeyError too
         return None
     if not isinstance(parsed, dict):
         return None
