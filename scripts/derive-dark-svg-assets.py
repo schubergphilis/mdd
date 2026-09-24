@@ -139,6 +139,10 @@ ACTIVE_ELEMENTS = frozenset(
 SCRIPT_SCHEMES = ("javascript:", "vbscript:")
 REFUSED_LINK_SCHEMES = (*SCRIPT_SCHEMES, "data:")
 
+# The one `data:` link a drawing may hold: an `<image>` embedding a raster in
+# a format that cannot carry markup of its own (so not `image/svg+xml`).
+RASTER_DATA_URL = re.compile(r"data:image/(?:png|jpeg|gif|webp)[;,]")
+
 # `onclick`, `onload`, `onmouseover`, ...: an event handler attribute.
 EVENT_HANDLER = re.compile(r"on[a-z]+")
 
@@ -164,10 +168,18 @@ def animation_problems(tag: str, value: str) -> list[str]:
     return []
 
 
+def is_embedded_raster(tag: str, name: str, value: str) -> bool:
+    """Whether this is an `<image>` link to a `data:` PNG, JPEG, GIF or WebP."""
+    compact = "".join(char for char in value if char > " ").lower()
+    return tag == "image" and name == "href" and RASTER_DATA_URL.match(compact) is not None
+
+
 def attribute_problems(tag: str, name: str, value: str) -> list[str]:
     """Describe what is wrong with one attribute of a `<tag>` element, if anything."""
     if EVENT_HANDLER.fullmatch(name):
         return [f"<{tag}> has an event handler attribute {name}"]
+    if is_embedded_raster(tag, name, value):
+        return []
     if url_scheme_in(value, REFUSED_LINK_SCHEMES if name == "href" else SCRIPT_SCHEMES):
         return [f"<{tag}> {name} links to a {value.strip()[:40]!r} URL"]
     if name == "attributename":
@@ -212,7 +224,8 @@ def check_no_active_content(svg: str, label: str) -> None:
     Both variants of every asset are copied into the documentation site, and
     other builds copy them onward from there. A drawing needs none of scripts,
     embedded foreign documents, event handler attributes, `javascript:` URLs,
-    `data:` links, animations that rewrite a link or an event handler, a
+    `data:` links other than an `<image>` embedding a PNG, JPEG, GIF or WebP
+    raster, animations that rewrite a link or an event handler, a
     DOCTYPE or a processing instruction, so any of them is refused outright
     rather than stripped.
     """
