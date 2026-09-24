@@ -20,67 +20,84 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _attachments_root(attachments_dir: Path) -> Path:
+    """Return the page's attachments directory with only its parent resolved.
+
+    The directory itself is deliberately not resolved: a symlinked
+    ``<stem>-attachments`` then fails the containment test in
+    :func:`_is_uploadable_path` instead of widening it to its target.
+    """
+    return attachments_dir.parent.resolve() / attachments_dir.name
+
+
 def _resolve_attachment_path(
     src: str,
     working_dir: Path,
-    working_dir_resolved: Path,
-    attachments_dir: Path | None,
+    attachments_root: Path,
 ) -> Path | None:
-    """Resolve *src* to an absolute path, preferring ``attachments_dir`` for
-    bare filenames (the ``mdd confluence export-page`` convention) but
-    falling back to ``working_dir`` for legacy/explicit relative paths.
+    """Resolve *src* to an absolute path inside the page's attachments directory.
 
-    Returns ``None`` for paths that escape the working directory or that pass
-    through a dot-prefixed component below it (``.git/config``, ``.env``).
+    A bare filename is tried in the attachments directory first (the
+    ``mdd confluence export-page`` convention), then relative to
+    *working_dir*, so ``<stem>-attachments/x.png`` as written by the
+    converters and the mermaid renderer resolves too.
+
+    Returns ``None`` when no candidate lies inside *attachments_root*, or
+    when the only candidates pass through a dot-prefixed component below it.
     """
     candidates: list[Path] = []
-    # A bare filename (no path separator) most likely targets the sibling
-    # ``<page>-attachments/`` directory; try that first.
-    if attachments_dir is not None and "/" not in src and "\\" not in src:
-        candidates.append((attachments_dir / src).resolve())
+    if "/" not in src and "\\" not in src:
+        candidates.append((attachments_root / src).resolve())
     candidates.append((working_dir / src).resolve())
 
-    in_scope = [p for p in candidates if _is_uploadable_path(p, working_dir_resolved)]
+    in_scope = [p for p in candidates if _is_uploadable_path(p, attachments_root)]
     for path in in_scope:
         if path.exists():
             return path
-    # Nothing on disk yet — return the first in-scope candidate so the caller
+    # Nothing on disk yet: return the first in-scope candidate so the caller
     # can warn with a meaningful path.
     return in_scope[0] if in_scope else None
 
 
-def _is_uploadable_path(path: Path, working_dir_resolved: Path) -> bool:
-    """True when *path* lies under the working directory and no component of
-    the relative path starts with a dot (hidden files and directories such as
-    ``.git/`` or ``.env`` are never upload sources)."""
-    if not path.is_relative_to(working_dir_resolved):
+def _is_uploadable_path(path: Path, attachments_root: Path) -> bool:
+    """True when *path* lies under the page's attachments directory and no
+    component of the relative path starts with a dot (hidden files and
+    directories such as ``.git/`` or ``.env`` are never upload sources)."""
+    if not path.is_relative_to(attachments_root):
         return False
-    relative = path.relative_to(working_dir_resolved)
+    relative = path.relative_to(attachments_root)
     return not any(part.startswith(".") for part in relative.parts)
+
+
+def _warn_skipped_reference(src: str, attachments_root: Path) -> None:
+    """Explain why *src* is not uploaded and how the operator can fix it."""
+    log.warning(
+        "skipping attachment reference %r: only files inside the page's own "
+        "attachments folder %s are uploaded, and never dot-prefixed files or "
+        "directories. To attach it, move the file into %s/ and reference it "
+        "by its file name.",
+        src,
+        attachments_root,
+        attachments_root.name,
+    )
 
 
 def _resolve_unique_basenames(
     local_srcs: list[str],
     working_dir: Path,
-    working_dir_resolved: Path,
-    attachments_dir: Path | None,
+    attachments_root: Path,
 ) -> dict[str, Path]:
     """Resolve each markdown image ref to an absolute path keyed by basename.
 
-    Drops paths that escape the working directory (with a stderr warning) and
-    raises ``AttachmentCollisionError`` when two different absolute paths
-    share the same basename.
+    Drops references outside the page's attachments directory (with a
+    warning) and raises ``AttachmentCollisionError`` when two different
+    absolute paths share the same basename.
     """
     resolved: dict[str, Path] = {}
     for src in local_srcs:
-        abs_path = _resolve_attachment_path(src, working_dir, working_dir_resolved, attachments_dir)
+        abs_path = _resolve_attachment_path(src, working_dir, attachments_root)
         if abs_path is None:
-            log.warning(
-                "skipping attachment reference %r: resolved path escapes the "
-                "working directory (%s) or names a dot-prefixed file or directory.",
-                src,
-                working_dir_resolved,
-            )
+            _warn_skipped_reference(src, attachments_root)
             continue
         basename = abs_path.name
         existing = resolved.get(basename)
@@ -92,13 +109,16 @@ def _resolve_unique_basenames(
     return resolved
 
 
-def _warn_missing_attachment(basename: str, abs_path: Path) -> None:
+def _warn_missing_attachment(basename: str, abs_path: Path, attachments_root: Path) -> None:
     """Emit the stderr warning used when a referenced attachment is absent."""
     log.warning(
         "attachment %r referenced in markdown but not found at %s: "
-        "skipping upload. The page may have a broken image reference after this update.",
+        "skipping upload. Only files inside the page's own attachments folder are "
+        "uploaded; if the file lives elsewhere, move the file into %s/. "
+        "The page may have a broken image reference after this update.",
         basename,
         abs_path,
+        attachments_root.name,
     )
 
 
@@ -109,7 +129,7 @@ def sync_attachments_for_update(  # noqa: PLR0913
     working_dir: Path,
     manifest: list[AttachmentManifestEntry],
     *,
-    attachments_dir: Path | None = None,
+    attachments_dir: Path,
     dry_run: bool = False,
 ) -> tuple[list[AttachmentManifestEntry], str]:
     """Sync local image attachments to a Confluence page.
@@ -125,10 +145,11 @@ def sync_attachments_for_update(  # noqa: PLR0913
     5. Return the updated manifest entries (unchanged entries preserved) and
        the body to render.
 
-    ``attachments_dir`` defaults to ``None``. When set (typically to
-    ``working_dir / "<page>-attachments"``), bare filenames in the markdown
-    are resolved there first — matching what ``mdd confluence export-page``
-    writes to disk. Falls back to ``working_dir`` for legacy refs.
+    ``attachments_dir`` is the page's own ``<stem>-attachments/`` directory
+    beside the markdown file. Only files inside it are uploaded: bare
+    filenames are looked up there first (what ``mdd confluence export-page``
+    writes to disk), other references are resolved against ``working_dir``
+    and must land inside it too. Anything else is skipped with a warning.
 
     With ``dry_run`` nothing is uploaded and no PNG is rasterized: every file
     that *would* be uploaded is logged with its size and hash instead, and the
@@ -151,16 +172,15 @@ def sync_attachments_for_update(  # noqa: PLR0913
     if not local_srcs:
         return list(manifest), body_md
 
-    resolved = _resolve_unique_basenames(
-        local_srcs, working_dir, working_dir.resolve(), attachments_dir
-    )
+    attachments_root = _attachments_root(attachments_dir)
+    resolved = _resolve_unique_basenames(local_srcs, working_dir, attachments_root)
 
     manifest_by_name: dict[str, AttachmentManifestEntry] = {e.filename: e for e in manifest}
     updated: dict[str, AttachmentManifestEntry] = dict(manifest_by_name)
 
     for basename, abs_path in resolved.items():
         if not abs_path.exists():
-            _warn_missing_attachment(basename, abs_path)
+            _warn_missing_attachment(basename, abs_path, attachments_root)
             continue
 
         sha256 = hashlib.sha256(abs_path.read_bytes()).hexdigest()

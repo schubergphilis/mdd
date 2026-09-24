@@ -775,3 +775,46 @@ class TestNoResolveLinksFlag:
             rc = cmd_confluence(["create-page", str(md_path), "--space", "S", "--no-resolve-links"])
         assert rc == 0
         assert create.call_args.kwargs["resolve_links"] is False
+
+
+class TestCreatePageAttachmentScope:
+    """Create uploads only files inside the page's own ``<stem>-attachments/``."""
+
+    def _run(self, md_path: Path) -> MagicMock:
+        mock_client = _make_mock_client()
+        with (
+            patch("mdd.confluence.create.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.create.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.create import create_page
+
+            assert create_page(md_path, _make_config(), space_key="SCRATCH") == 0
+        return mock_client
+
+    @pytest.mark.parametrize("src", ["diagram.png", "new-page-attachments/diagram.png"])
+    def test_file_in_attachments_folder_uploads(self, tmp_path: Path, src: str) -> None:
+        md_path = tmp_path / "new-page.md"
+        img = tmp_path / "new-page-attachments" / "diagram.png"
+        img.parent.mkdir()
+        img.write_bytes(b"\x89PNG")
+        _write_md(md_path, None, f"# New Page\n\n![d]({src})")
+
+        mock_client = self._run(md_path)
+
+        mock_client.upload_attachment.assert_called_once_with("99001", img)
+
+    @pytest.mark.parametrize("src", ["beside.png", "other-attachments/x.png", "other.md"])
+    def test_file_outside_attachments_folder_is_not_uploaded(
+        self, tmp_path: Path, src: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = tmp_path / "new-page.md"
+        target = tmp_path / src
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"local file")
+        _write_md(md_path, None, f"# New Page\n\n![d]({src})")
+
+        with caplog.at_level("WARNING", logger="mdd.confluence.attachments.update"):
+            mock_client = self._run(md_path)
+
+        mock_client.upload_attachment.assert_not_called()
+        assert "move the file into new-page-attachments/" in caplog.text

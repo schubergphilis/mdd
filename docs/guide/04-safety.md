@@ -57,7 +57,13 @@ injects into a Confluence page.
 
 **Attachments are upload-only.** Local images referenced from the body are
 uploaded, or re-uploaded as a new attachment version when their content
-hash changed. Attachments already on the page that your file does not
+hash changed. Only files inside the page's own `<name>-attachments/`
+folder are uploaded, on both `create-page` and `update-page` (and so on
+`sync-space` pushes). A reference to anything else (another page's file, a
+`configs/` file, a hidden file, or an image you placed next to the `.md`)
+is skipped with a warning; move the file into `<name>-attachments/` and
+reference it by its file name. This keeps a page body edited in
+Confluence from pulling other files in your mirror onto that page. Attachments already on the page that your file does not
 reference are left alone. `mdd`'s Confluence client issues no HTTP DELETE
 at all, so it cannot delete a page or an attachment. Archiving is a status
 change, and `mdd confluence unarchive-page` reverses it.

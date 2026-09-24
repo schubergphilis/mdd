@@ -480,6 +480,59 @@ class TestUpdatePageYes:
         assert "version: 4" in content
 
 
+class TestUpdatePageAttachmentScope:
+    """Update uploads only files inside the page's own ``<stem>-attachments/``."""
+
+    def _run(self, md_path: Path) -> MagicMock:
+        mock_client = _make_mock_client()
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            assert update_page(md_path, _make_config(), yes=True) == 0
+        return mock_client
+
+    def test_prefixed_path_in_attachments_folder_uploads(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        img = _write_local_image(md_path)
+        _write_md_file(
+            md_path, _make_frontmatter(), "## Changed\n\n![d](My-Page-attachments/diagram.png)"
+        )
+
+        mock_client = self._run(md_path)
+
+        mock_client.upload_attachment.assert_called_once_with("12345", img)
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "Sibling.md",
+            "Sibling/Child.md",
+            "Sibling-attachments/secret.pdf",
+            "configs/confluence.yaml",
+            "beside.png",
+        ],
+    )
+    def test_file_outside_attachments_folder_is_not_uploaded(
+        self, tmp_path: Path, src: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        target = tmp_path / src
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"local file")
+        _write_md_file(md_path, _make_frontmatter(), f"## Changed\n\n![d]({src})")
+
+        with caplog.at_level("WARNING", logger="mdd.confluence.attachments.update"):
+            mock_client = self._run(md_path)
+
+        mock_client.upload_attachment.assert_not_called()
+        mock_client.put_page.assert_called_once()
+        assert repr(src) in caplog.text
+        assert "move the file into My-Page-attachments/" in caplog.text
+
+
 class TestUpdatePageEmptyDiff:
     def test_no_changes_skips_put(self, tmp_path: Path) -> None:
         md_path = tmp_path / "My-Page.md"
