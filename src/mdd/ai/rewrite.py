@@ -26,7 +26,7 @@ import yaml  # pyright: ignore[reportMissingModuleSource]
 
 from mdd.ai.models import ChatResult, is_complete
 from mdd.utils.logging import get_logger
-from mdd.utils.markdown_fences import find_fenced_code_blocks
+from mdd.utils.markdown_fences import iter_fenced_code_blocks
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -69,24 +69,19 @@ class _SpanMatch:
 
 
 class _FencedBlockFinder:
-    """``re.Pattern``-like ``search`` over fenced code blocks.
+    """``re.Pattern``-like ``search`` for the next fenced code block.
 
-    The spans for the most recently seen text are cached so repeated
-    ``search`` calls while walking one document stay linear overall.
+    Like ``re.search(text, pos)`` it looks only at ``text[pos:]``, so a fence
+    opened before *pos* (inside frontmatter, say) does not carry over, and it
+    stops at the first block it finds rather than scanning the whole text.
     """
 
-    def __init__(self) -> None:
-        self._text: str | None = None
-        self._spans: list[tuple[int, int]] = []
-
     def search(self, text: str, pos: int = 0) -> _Span | None:
-        if text is not self._text:
-            self._text = text
-            self._spans = find_fenced_code_blocks(text)
-        for start, end in self._spans:
-            if start >= pos:
-                return _SpanMatch(text, start, end)
-        return None
+        span = next(iter_fenced_code_blocks(text, pos), None)
+        if span is None:
+            return None
+        start, end = span
+        return _SpanMatch(text, start, end)
 
 
 # Patterns that mark protected regions, in priority order.
@@ -140,6 +135,27 @@ class _Region:
     kind: str = "unknown"
 
 
+def _next_match(
+    cache: dict[str, _Span | None],
+    name: str,
+    pattern: re.Pattern[str] | _FencedBlockFinder,
+    text: str,
+    pos: int,
+) -> _Span | None:
+    """Return the first match of *pattern* starting at or after *pos*.
+
+    Reuses the cached match when it still lies ahead of *pos*; a cached
+    ``None`` means the pattern has no further matches anywhere.
+    """
+    if name not in cache:
+        cache[name] = pattern.search(text, pos)
+    else:
+        cached = cache[name]
+        if cached is not None and cached.start() < pos:
+            cache[name] = pattern.search(text, pos)
+    return cache[name]
+
+
 def extract_protected(text: str) -> tuple[str, list[_Region]]:
     """Replace protected regions in *text* with sequential placeholder tokens.
 
@@ -150,6 +166,10 @@ def extract_protected(text: str) -> tuple[str, list[_Region]]:
     idx = 0
     result_parts: list[str] = []
     pos = 0  # current scan position
+    # Next match per pattern from the last search. A match that starts at or
+    # after ``pos`` is still the next one, so each pattern walks the text once
+    # instead of rescanning the remainder for every region found.
+    next_matches: dict[str, _Span | None] = {}
 
     while pos < len(text):
         earliest_match: _Span | None = None
@@ -157,7 +177,7 @@ def extract_protected(text: str) -> tuple[str, list[_Region]]:
         earliest_kind = "unknown"
 
         for name, pattern in _PROTECTED_PATTERNS:
-            m = pattern.search(text, pos)
+            m = _next_match(next_matches, name, pattern, text, pos)
             if m and m.start() < earliest_start:
                 earliest_match = m
                 earliest_start = m.start()

@@ -11,6 +11,10 @@ carries nothing but whitespace.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
@@ -23,31 +27,46 @@ def _closes(line: str, fence: str) -> bool:
     return len(stripped) >= len(fence) and stripped == fence[0] * len(stripped)
 
 
-def find_fenced_code_blocks(text: str) -> list[tuple[int, int]]:
-    """Return ``[start, end)`` character spans of fenced code blocks in *text*.
+def iter_fenced_code_blocks(text: str, pos: int = 0) -> Iterator[tuple[int, int]]:
+    """Yield ``[start, end)`` character spans of fenced code blocks in order.
 
     Each span covers the opening fence line through the closing fence line,
     excluding the newline that ends the closing line. An unterminated fence
     runs to the end of the text.
+
+    Scanning starts at the first line boundary at or after *pos*: a fence
+    opener has to begin its line, so a partial line at *pos* cannot open one.
+    Lines before *pos* are not looked at, so a fence opened before *pos* does
+    not carry over. Consumers that only need the next block stop the generator
+    early and pay for the lines walked, not for the whole text.
     """
-    spans: list[tuple[int, int]] = []
+    if pos > 0 and text[pos - 1] != "\n":
+        nl = text.find("\n", pos)
+        if nl == -1:
+            return
+        pos = nl + 1
     fence: str | None = None
     start = 0
-    offset = 0
-    for line in text.splitlines(keepends=True):
-        body = line.rstrip("\r\n")
+    while pos < len(text):
+        nl = text.find("\n", pos)
+        end = len(text) if nl == -1 else nl + 1
+        body = text[pos:end].rstrip("\r\n")
         if fence is None:
             m = _FENCE_OPEN_RE.match(body)
             if m:
                 fence = m.group(1)
-                start = offset
+                start = pos
         elif _closes(body, fence):
-            spans.append((start, offset + len(body)))
+            yield (start, pos + len(body))
             fence = None
-        offset += len(line)
+        pos = end
     if fence is not None:
-        spans.append((start, len(text)))
-    return spans
+        yield (start, len(text))
+
+
+def find_fenced_code_blocks(text: str) -> list[tuple[int, int]]:
+    """Return every span ``iter_fenced_code_blocks`` yields for *text*."""
+    return list(iter_fenced_code_blocks(text))
 
 
 def blank_spans(text: str, spans: list[tuple[int, int]]) -> str:

@@ -242,3 +242,13 @@ class TestStripExportTitleH1Edges:
         elapsed = time.perf_counter() - start
         assert result == body
         assert elapsed < 1.0, f"H1 strip took {elapsed:.3f}s"
+
+    def test_long_run_of_hashes_without_newline_finishes_quickly(self) -> None:
+        import time
+
+        body = "# " + "#" * 200_000
+        start = time.perf_counter()
+        result = strip_export_title_h1(body, "My Page")
+        elapsed = time.perf_counter() - start
+        assert result == body
+        assert elapsed < 1.0, f"H1 strip took {elapsed:.3f}s"

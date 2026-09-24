@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import time
 
-from mdd.utils.markdown_fences import blank_spans, find_fenced_code_blocks, remove_spans
+from mdd.utils.markdown_fences import (
+    blank_spans,
+    find_fenced_code_blocks,
+    iter_fenced_code_blocks,
+    remove_spans,
+)
 
 
 class TestFindFencedCodeBlocks:
@@ -68,6 +73,34 @@ class TestFindFencedCodeBlocks:
         elapsed = time.perf_counter() - start
         assert len(spans) == 1
         assert elapsed < 1.0, f"fence scan took {elapsed:.3f}s"
+
+    def test_crlf_fence_closes(self) -> None:
+        text = "```\r\ncode\r\n```\r\nafter\r\n"
+        (span,) = find_fenced_code_blocks(text)
+        assert text[span[0] : span[1]] == "```\r\ncode\r\n```"
+
+
+class TestIterFencedCodeBlocksFromPos:
+    def test_pos_at_line_start_finds_block(self) -> None:
+        text = "x\n```\nc\n```\n"
+        assert list(iter_fenced_code_blocks(text, 2)) == [(2, 11)]
+
+    def test_partial_line_at_pos_cannot_open_a_fence(self) -> None:
+        text = "ab```\nc\n```\n"
+        assert list(iter_fenced_code_blocks(text, 2)) == [(8, 12)]
+        assert list(iter_fenced_code_blocks("x```", 1)) == []
+
+    def test_fence_opened_before_pos_does_not_carry_over(self) -> None:
+        text = "```\nx\n```\ncode\n```\n"
+        # From the start, the second fence line closes the first block.
+        assert list(iter_fenced_code_blocks(text)) == [(0, 9), (15, len(text))]
+        # From just after the first opener line, that line is not seen, so the
+        # second fence line opens a block that the third closes.
+        assert list(iter_fenced_code_blocks(text, 4)) == [(6, 18)]
+
+    def test_stops_early_when_only_the_first_block_is_wanted(self) -> None:
+        text = "```\na\n```\n" + "```x\n" * 1000
+        assert next(iter_fenced_code_blocks(text)) == (0, 9)
 
 
 class TestSpanHelpers:

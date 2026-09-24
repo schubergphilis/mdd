@@ -1185,3 +1185,28 @@ class TestProtectedRegionScaling:
         elapsed = time.perf_counter() - start
         assert stitch_protected(transformed, regions) == text
         assert elapsed < 1.0, f"extract_protected took {elapsed:.3f}s"
+
+    def test_fence_line_inside_frontmatter_does_not_shift_later_fences(self) -> None:
+        text = (
+            "---\ntitle: t\ndesc: |\n  ```\n---\n\n"
+            "Prose A\n\n```\ncode\n```\n\nProse B\n\n```\nmore\n```\n"
+        )
+        transformed, regions = extract_protected(text)
+        assert [r.kind for r in regions] == ["frontmatter", "fenced", "fenced"]
+        assert regions[1].original == "```\ncode\n```"
+        assert regions[2].original == "```\nmore\n```"
+        assert "Prose A" in transformed
+        assert "Prose B" in transformed
+        assert "code" not in transformed
+        assert stitch_protected(transformed, regions) == text
+
+    def test_many_short_regions_finish_quickly(self) -> None:
+        import time
+
+        text = ("```\n```\n" * 12_000) + ("| a |\n\nx\n" * 12_000)
+        start = time.perf_counter()
+        transformed, regions = extract_protected(text)
+        elapsed = time.perf_counter() - start
+        assert len(regions) == 24_000
+        assert transformed.count("__MDD_PROTECTED_") == 24_000
+        assert elapsed < 1.0, f"extract_protected took {elapsed:.3f}s"
