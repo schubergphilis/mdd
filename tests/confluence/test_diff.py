@@ -227,6 +227,17 @@ class TestSoftBreakInsensitivity:
         remote = template.format(title="it’s")
         assert unified_xhtml_diff(local, remote) == ""
 
+    def test_entity_changed_to_literal_inside_cdata_gives_diff(self) -> None:
+        template = (
+            '<ac:structured-macro ac:name="code"><ac:plain-text-body>'
+            "<![CDATA[{body}]]></ac:plain-text-body></ac:structured-macro>"
+        )
+        local = template.format(body="s = 'it’s'\n")
+        remote = template.format(body="s = 'it&#8217;s'\n")
+        result = unified_xhtml_diff(local, remote)
+        assert "-<ac:structured-macro" in result
+        assert "&#8217;" in result
+
     def test_whitespace_only_change_inside_pre_gives_diff(self) -> None:
         local = "<pre><code>x  =  1</code></pre>"
         remote = "<pre><code>x = 1</code></pre>"
