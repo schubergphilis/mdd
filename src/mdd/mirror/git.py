@@ -85,5 +85,35 @@ def _pull_and_push(path: Path) -> None:
         _ = run_git(["pull", "--rebase"], path, timeout=60)
         _ = run_git(["push"], path, timeout=60)
         return
+    current = _pushable_branch(path)
+    # ``--end-of-options`` keeps git from reading the remote or the branch
+    # name as an option, whatever the name looks like.
+    _ = run_git(["push", "-u", "--end-of-options", "origin", current], path, timeout=60)
+
+
+def _pushable_branch(path: Path) -> str:
+    """Return the checked-out branch name, or refuse one that cannot be pushed by name.
+
+    A detached HEAD has no branch to push. A name starting with ``-`` would
+    be read by ``git push`` as an option, and git itself refuses to create a
+    branch with such a name — but a ref like ``refs/heads/--mirror`` is still
+    valid and can arrive via a clone. Any other name that ``git
+    check-ref-format --branch`` rejects is refused too.
+    """
     current = run_git(["rev-parse", "--abbrev-ref", "HEAD"], path).stdout.strip()
-    _ = run_git(["push", "-u", "origin", current], path, timeout=60)
+    if current == "HEAD":
+        raise MirrorPushError(f"cannot push '{path}': HEAD is detached; check out a branch first")
+    if current.startswith("-") or not _is_valid_branch_name(current, path):
+        raise MirrorPushError(
+            f"cannot push '{path}': current branch name {current!r} is not a "
+            f"valid branch name; rename the branch first"
+        )
+    return current
+
+
+def _is_valid_branch_name(name: str, path: Path) -> bool:
+    try:
+        _ = run_git(["check-ref-format", "--branch", name], path, timeout=10)
+    except GitError:
+        return False
+    return True
