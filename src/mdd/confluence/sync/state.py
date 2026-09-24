@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.client import (
     MAX_PAGINATION_ITERATIONS,
+    ConfluenceClient,
     ConfluenceError,
     assert_relative_api_path,
 )
@@ -17,8 +18,6 @@ from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from mdd.confluence.client import ConfluenceClient
 
 log = get_logger(__name__)
 
@@ -206,12 +205,55 @@ def list_pages_for_sync(
     )
 
 
+def _is_valid_id(value: str, label: str) -> bool:
+    """Return True if *value* is safe to put in a request path; warn and return False if not."""
+    try:
+        ConfluenceClient._validate_id(value, label)  # pyright: ignore[reportPrivateUsage]
+    except ConfluenceError as exc:
+        log.warning("cross-space check skipped: %s", exc)
+        return False
+    return True
+
+
+def _space_label(client: ConfluenceClient, space_id: str) -> str:
+    """Return the key of space *space_id*, or the id itself when the key is unavailable."""
+    try:
+        space_data = client.get(f"/wiki/api/v2/spaces/{space_id}")
+    except ConfluenceError:
+        return space_id
+    key_raw: Any = space_data.get("key")  # pyright: ignore[reportAny]
+    return key_raw if isinstance(key_raw, str) and key_raw else space_id
+
+
+def _other_space_id(client: ConfluenceClient, page_id: str, current_space_id: str) -> str | None:
+    """Return the id of the space *page_id* now lives in, if it is not *current_space_id*."""
+    if not _is_valid_id(page_id, "page_id"):
+        return None
+    try:
+        page_data = client.get(
+            f"/wiki/api/v2/pages/{page_id}",
+            params={"include-version": "true"},
+        )
+    except ConfluenceError:
+        # 404 or other error → truly deleted/trashed
+        return None
+    page_space_id: Any = page_data.get("spaceId")  # pyright: ignore[reportAny]
+    if not isinstance(page_space_id, str) or not page_space_id:
+        return None
+    if page_space_id == current_space_id or not _is_valid_id(page_space_id, "spaceId"):
+        return None
+    return page_space_id
+
+
 def probe_cross_space(
     client: ConfluenceClient,
     page_ids: list[str],
     current_space_id: str,
 ) -> tuple[set[str], dict[str, str]]:
     """Probe pages that vanished from the tree to detect cross-space moves.
+
+    Page ids come from mirror frontmatter; an id that is not alphanumeric is
+    skipped with a warning and never sent to Confluence.
 
     Returns:
         Tuple of (cross_space_ids, dest_space_keys).
@@ -220,30 +262,11 @@ def probe_cross_space(
     dest_space_keys: dict[str, str] = {}
 
     for page_id in page_ids:
-        try:
-            page_data = client.get(
-                f"/wiki/api/v2/pages/{page_id}",
-                params={"include-version": "true"},
-            )
-        except ConfluenceError:
-            # 404 or other error → truly deleted/trashed
+        page_space_id = _other_space_id(client, page_id, current_space_id)
+        if page_space_id is None:
             continue
-
-        page_space_id: Any = page_data.get("spaceId")  # pyright: ignore[reportAny]
-        if isinstance(page_space_id, str) and page_space_id and page_space_id != current_space_id:
-            cross_space_ids.add(page_id)
-            # Try to get space key
-            try:
-                space_data = client.get(
-                    f"/wiki/api/v2/spaces/{page_space_id}",
-                )
-                key_raw: Any = space_data.get("key")  # pyright: ignore[reportAny]
-                if isinstance(key_raw, str) and key_raw:
-                    dest_space_keys[page_id] = key_raw
-                else:
-                    dest_space_keys[page_id] = page_space_id
-            except ConfluenceError:
-                dest_space_keys[page_id] = page_space_id
+        cross_space_ids.add(page_id)
+        dest_space_keys[page_id] = _space_label(client, page_space_id)
 
     return cross_space_ids, dest_space_keys
 

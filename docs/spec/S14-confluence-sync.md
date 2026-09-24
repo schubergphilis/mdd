@@ -133,7 +133,10 @@ For each `page_id` in either map:
 A page whose `space_id` differs between desired and local frontmatter
 is a **cross-space move** — detected by falling back to
 `GET /pages/{id}` for any page that vanished from the tree; if the
-response has a different `spaceId`, classify separately.
+response has a different `spaceId`, classify separately. The page id
+comes from mirror frontmatter, so it (and the returned `spaceId`) must
+be alphanumeric before it is put in a request path; an id that is not
+is skipped with a warning and no request is made.
 
 Sync also identifies **local-only events**: untracked local-authored
 files (publish-as-new) and local edits where `page_id` is present and
@@ -165,7 +168,13 @@ established by the previous one:
   first ancestor whose sibling `.md` has a `confluence.page_id` (or
   whose directory matches a Confluence folder) supplies the parent.
   Fall back to space root with a warning. Title fallback: frontmatter
-  `title` → first H1 → filename.
+  `title` → first H1 → filename. The new page is created in the synced
+  space: sync passes its own space key to the create step. A file whose
+  frontmatter `confluence.space_key` names a different space (compared
+  case-insensitively) is skipped, not created; the skip is logged as a
+  warning, listed in the run summary and in the commit message with the
+  file name and both space keys. `mdd confluence create-page` on its own
+  still takes the space from frontmatter when `--space` is not given.
 - **4e. Content edits — pulls** — per-page body fetch only for pages
   whose remote `version_number` advanced. Re-render storage → markdown,
   refresh metadata in frontmatter, run attachment sync.

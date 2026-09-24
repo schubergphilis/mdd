@@ -121,6 +121,8 @@ def apply_event_phases(
     pull_ctx: PullCtx,
     push_ctx: PushCtx,
     used_paths: set[Path],
+    *,
+    space_key: str,
 ) -> None:
     """Run every Step-4 phase that mutates the mirror or pushes to Confluence."""
     apply_renames_moves(
@@ -132,7 +134,9 @@ def apply_event_phases(
         pull_ctx.summary,
     )
     apply_archive_unarchive(events, mirror, pull_ctx.summary)
-    create_local_pages(events, push_ctx.config, pull_ctx.opts, pull_ctx.summary)
+    create_local_pages(
+        events, push_ctx.config, pull_ctx.opts, pull_ctx.summary, space_key=space_key
+    )
     create_remote_pages(events, pull_ctx)
     pull_content(events, mirror, pull_ctx)
     push_content(events, mirror, push_ctx)

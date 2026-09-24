@@ -216,7 +216,7 @@ def sync_space(
         get_managed_cfg=get_managed_cfg,
         record_managed_skip=record_managed_skip,
     )
-    apply_event_phases(events, mirror, pull_ctx, push_ctx, used_paths)
+    apply_event_phases(events, mirror, pull_ctx, push_ctx, used_paths, space_key=space_key)
 
     # Step 4i: office publishing.
     if opts.read_only:
