@@ -17,6 +17,8 @@ from mdd.confluence.attachments import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+_ATT = "Page-attachments"
+
 
 def _make_client(upload_response: dict[str, Any] | None = None) -> MagicMock:
     client = MagicMock()
@@ -33,14 +35,16 @@ def _write_file(path: Path, content: bytes) -> None:
 
 class TestSyncAttachmentsForUpdate:
     def test_new_file_triggers_upload(self, tmp_path: Path) -> None:
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         _write_file(img, b"PNG data")
 
         client = _make_client()
         body_md = "![diagram](image.png)"
         manifest: list[AttachmentManifestEntry] = []
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, manifest)
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, manifest, attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
         assert len(result) == 1
@@ -50,7 +54,7 @@ class TestSyncAttachmentsForUpdate:
     def test_dry_run_plans_without_uploading(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         _write_file(img, b"PNG data")
         sha = hashlib.sha256(b"PNG data").hexdigest()
 
@@ -59,7 +63,7 @@ class TestSyncAttachmentsForUpdate:
 
         with caplog.at_level("INFO", logger="mdd.confluence.attachments.update"):
             result, body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, [], dry_run=True
+                client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT, dry_run=True
             )
 
         client.upload_attachment.assert_not_called()
@@ -71,7 +75,7 @@ class TestSyncAttachmentsForUpdate:
     def test_dry_run_unchanged_file_is_not_planned(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         _write_file(img, b"PNG data")
         existing = AttachmentManifestEntry(
             filename="image.png", sha256=hashlib.sha256(b"PNG data").hexdigest(), version=2
@@ -80,7 +84,13 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client()
         with caplog.at_level("INFO", logger="mdd.confluence.attachments.update"):
             result, _ = sync_attachments_for_update(
-                client, "123", "![d](image.png)", tmp_path, [existing], dry_run=True
+                client,
+                "123",
+                "![d](image.png)",
+                tmp_path,
+                [existing],
+                attachments_dir=tmp_path / _ATT,
+                dry_run=True,
             )
 
         client.upload_attachment.assert_not_called()
@@ -89,7 +99,7 @@ class TestSyncAttachmentsForUpdate:
 
     def test_hash_matches_manifest_skips_upload(self, tmp_path: Path) -> None:
         data = b"unchanged image data"
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         _write_file(img, data)
 
         sha = hashlib.sha256(data).hexdigest()
@@ -98,14 +108,16 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client()
         body_md = "![diagram](image.png)"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [existing_entry])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [existing_entry], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         assert len(result) == 1
         assert result[0].sha256 == sha
 
     def test_hash_mismatch_uploads_new_version(self, tmp_path: Path) -> None:
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         new_data = b"updated image data"
         _write_file(img, new_data)
 
@@ -115,15 +127,17 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client({"results": [{"version": {"number": 2}}]})
         body_md = "![diagram](image.png)"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [existing_entry])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [existing_entry], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
         assert result[0].sha256 == hashlib.sha256(new_data).hexdigest()
         assert result[0].version == 2
 
     def test_basename_collision_raises_error(self, tmp_path: Path) -> None:
-        dir_a = tmp_path / "dir_a"
-        dir_b = tmp_path / "dir_b"
+        dir_a = tmp_path / _ATT / "dir_a"
+        dir_b = tmp_path / _ATT / "dir_b"
         img_a = dir_a / "image.png"
         img_b = dir_b / "image.png"
         _write_file(img_a, b"content A")
@@ -131,10 +145,12 @@ class TestSyncAttachmentsForUpdate:
 
         client = _make_client()
         # Both images have the same basename but different content
-        body_md = "![a](dir_a/image.png)\n![b](dir_b/image.png)"
+        body_md = f"![a]({_ATT}/dir_a/image.png)\n![b]({_ATT}/dir_b/image.png)"
 
         with pytest.raises(AttachmentCollisionError):
-            sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+            sync_attachments_for_update(
+                client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+            )
 
         # No upload should have happened
         client.upload_attachment.assert_not_called()
@@ -144,7 +160,9 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client()
         body_md = "No images here, just text."
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [existing])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [existing], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         assert len(result) == 1
@@ -154,7 +172,9 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client()
         body_md = "![logo](https://example.com/logo.png)"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         assert result == []
@@ -167,7 +187,9 @@ class TestSyncAttachmentsForUpdate:
         body_md = "![ghost](nonexistent.png)"
 
         with caplog.at_level("WARNING", logger="mdd.confluence.attachments.update"):
-            result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+            result, _ = sync_attachments_for_update(
+                client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+            )
 
         client.upload_attachment.assert_not_called()
         assert result == []
@@ -177,13 +199,15 @@ class TestSyncAttachmentsForUpdate:
         assert any(r.levelname == "WARNING" for r in caplog.records)
 
     def test_same_file_referenced_twice_uploaded_once(self, tmp_path: Path) -> None:
-        img = tmp_path / "image.png"
+        img = tmp_path / _ATT / "image.png"
         _write_file(img, b"data")
 
         client = _make_client()
         body_md = "![a](image.png)\n![b](image.png)"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         # Only one upload since same file
         client.upload_attachment.assert_called_once()
@@ -201,7 +225,9 @@ class TestSyncAttachmentsForUpdate:
         # Reference escapes working_dir via ../outside/secret.txt
         body_md = "![secret](../outside/secret.txt)"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         # The traversal reference must be silently skipped — no upload
         client.upload_attachment.assert_not_called()
@@ -220,7 +246,9 @@ class TestSyncAttachmentsForUpdate:
 
         client = _make_client()
         with caplog.at_level("WARNING", logger="mdd.confluence.attachments"):
-            result, _ = sync_attachments_for_update(client, "123", f"![x]({src})", tmp_path, [])
+            result, _ = sync_attachments_for_update(
+                client, "123", f"![x]({src})", tmp_path, [], attachments_dir=tmp_path / _ATT
+            )
 
         client.upload_attachment.assert_not_called()
         assert result == []
@@ -228,7 +256,7 @@ class TestSyncAttachmentsForUpdate:
 
     def test_dot_prefixed_bare_filename_is_skipped_in_attachments_dir(self, tmp_path: Path) -> None:
         """The attachments-dir fallback for bare names applies the same rule."""
-        att_dir = tmp_path / "page-attachments"
+        att_dir = tmp_path / _ATT
         _write_file(att_dir / ".env", b"local only")
 
         client = _make_client()
@@ -241,21 +269,25 @@ class TestSyncAttachmentsForUpdate:
 
     def test_nested_plain_path_still_uploads(self, tmp_path: Path) -> None:
         """Only dot-prefixed components are refused; ordinary subdirectories work."""
-        _write_file(tmp_path / "img" / "a.png", b"png")
+        _write_file(tmp_path / _ATT / "img" / "a.png", b"png")
 
         client = _make_client()
-        result, _ = sync_attachments_for_update(client, "123", "![x](img/a.png)", tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", f"![x]({_ATT}/img/a.png)", tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
-        client.upload_attachment.assert_called_once_with("123", tmp_path / "img" / "a.png")
+        client.upload_attachment.assert_called_once_with("123", tmp_path / _ATT / "img" / "a.png")
         assert [e.filename for e in result] == ["a.png"]
 
     def test_hidden_component_above_working_dir_is_allowed(self, tmp_path: Path) -> None:
         """A dot-prefixed directory above the page's directory is not the page's concern."""
         working_dir = tmp_path / ".hidden-root" / "space"
-        _write_file(working_dir / "a.png", b"png")
+        _write_file(working_dir / _ATT / "a.png", b"png")
 
         client = _make_client()
-        result, _ = sync_attachments_for_update(client, "123", "![x](a.png)", working_dir, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", "![x](a.png)", working_dir, [], attachments_dir=working_dir / _ATT
+        )
 
         client.upload_attachment.assert_called_once()
         assert [e.filename for e in result] == ["a.png"]
@@ -271,7 +303,9 @@ class TestSyncAttachmentsForUpdate:
             "at read time."
         )
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         assert result == []
@@ -291,7 +325,9 @@ class TestSyncAttachmentsForUpdate:
             "End of example."
         )
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         assert result == []
@@ -300,7 +336,7 @@ class TestSyncAttachmentsForUpdate:
 
     def test_image_ref_outside_code_still_detected(self, tmp_path: Path) -> None:
         """A real image reference outside any code context must still be scanned."""
-        img = tmp_path / "real.png"
+        img = tmp_path / _ATT / "real.png"
         _write_file(img, b"real data")
 
         client = _make_client()
@@ -309,7 +345,9 @@ class TestSyncAttachmentsForUpdate:
             "Here is a real one: ![hero](real.png)\n"
         )
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
         assert len(result) == 1
@@ -317,7 +355,7 @@ class TestSyncAttachmentsForUpdate:
 
     def test_reference_style_image_resolves_via_label(self, tmp_path: Path) -> None:
         """``![alt][label]`` resolves through the ``[label]: url`` definition."""
-        img = tmp_path / "architecture.png"
+        img = tmp_path / _ATT / "architecture.png"
         _write_file(img, b"diagram bytes")
 
         client = _make_client()
@@ -325,7 +363,9 @@ class TestSyncAttachmentsForUpdate:
             "See the system overview: ![architecture diagram][arch].\n\n[arch]: architecture.png\n"
         )
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
         assert len(result) == 1
@@ -333,13 +373,15 @@ class TestSyncAttachmentsForUpdate:
 
     def test_shortcut_reference_image_resolves_via_label(self, tmp_path: Path) -> None:
         """``![label]`` shortcut form resolves through the ``[label]: url`` definition."""
-        img = tmp_path / "diagram.svg"
+        img = tmp_path / _ATT / "diagram.svg"
         _write_file(img, b"<svg/>")
 
         client = _make_client()
         body_md = "Inline image: ![diagram].\n\n[diagram]: diagram.svg\n"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
         assert len(result) == 1
@@ -348,13 +390,15 @@ class TestSyncAttachmentsForUpdate:
     def test_confluence_attachment_link_triggers_upload(self, tmp_path: Path) -> None:
         """``[label](confluence-attachment:file.pdf)`` queues the sibling
         file for upload alongside ``![…](file.png)`` image references."""
-        pdf = tmp_path / "report.pdf"
+        pdf = tmp_path / _ATT / "report.pdf"
         _write_file(pdf, b"%PDF-1.4 stub")
 
         client = _make_client()
         body_md = "See [the report](confluence-attachment:report.pdf) for details.\n"
 
-        result, _ = sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        result, _ = sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", pdf)
         assert len(result) == 1
@@ -362,25 +406,29 @@ class TestSyncAttachmentsForUpdate:
 
     def test_confluence_attachment_link_with_extras_strips_them(self, tmp_path: Path) -> None:
         """Semicolon-delimited extras on the URI are not part of the filename."""
-        pdf = tmp_path / "spec.pdf"
+        pdf = tmp_path / _ATT / "spec.pdf"
         _write_file(pdf, b"%PDF")
 
         client = _make_client()
         body_md = "Spec: [v3](confluence-attachment:spec.pdf;version-at-save=3)\n"
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", pdf)
 
     def test_confluence_attachment_image_strips_scheme(self, tmp_path: Path) -> None:
         """``![alt](confluence-attachment:file.png)`` image refs queue for upload."""
-        img = tmp_path / "diagram.png"
+        img = tmp_path / _ATT / "diagram.png"
         _write_file(img, b"\x89PNG")
 
         client = _make_client()
         body_md = "![diagram](confluence-attachment:diagram.png)\n"
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
 
@@ -388,19 +436,21 @@ class TestSyncAttachmentsForUpdate:
         """The markdown title slot (``"width=320 align=left"``) is not part of the
         filename. Without this fix the scanner captures the whole paren content as
         a single ``src`` and warns about a non-existent file."""
-        img = tmp_path / "screenshot.png"
+        img = tmp_path / _ATT / "screenshot.png"
         _write_file(img, b"\x89PNG")
 
         client = _make_client()
         body_md = '![screenshot](confluence-attachment:screenshot.png "align=left width=320")\n'
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
 
     def test_confluence_attachment_image_with_extras_and_title(self, tmp_path: Path) -> None:
         """Both ``;extras`` on the URI and ``"title"`` slot must be stripped."""
-        img = tmp_path / "screenshot.png"
+        img = tmp_path / _ATT / "screenshot.png"
         _write_file(img, b"\x89PNG")
 
         client = _make_client()
@@ -409,13 +459,15 @@ class TestSyncAttachmentsForUpdate:
             '"align=left width=320")\n'
         )
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
 
     def test_confluence_attachment_image_url_decodes_filename(self, tmp_path: Path) -> None:
         """``%20`` etc. must be decoded so the filename matches the file on disk."""
-        img = tmp_path / "Screen Recording 2026-02-12 at 16.36.30.mov"
+        img = tmp_path / _ATT / "Screen Recording 2026-02-12 at 16.36.30.mov"
         _write_file(img, b"MOV")
 
         client = _make_client()
@@ -423,7 +475,9 @@ class TestSyncAttachmentsForUpdate:
             "![rec](confluence-attachment:Screen%20Recording%202026-02-12%20at%2016.36.30.mov)\n"
         )
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_called_once_with("123", img)
 
@@ -452,7 +506,9 @@ class TestSyncAttachmentsForUpdate:
         client = _make_client()
         body_md = "![alt][missing-label]\n"
 
-        sync_attachments_for_update(client, "123", body_md, tmp_path, [])
+        sync_attachments_for_update(
+            client, "123", body_md, tmp_path, [], attachments_dir=tmp_path / _ATT
+        )
 
         client.upload_attachment.assert_not_called()
         captured = capsys.readouterr()

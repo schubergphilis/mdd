@@ -102,10 +102,24 @@ Filename collisions (two local files with the
 same basename) are a hard error — Confluence keys attachments by
 filename within a page. The v2 attachment endpoints are still maturing;
 the client falls back to v1 for multipart upload as needed. A local
-reference is only an upload source when it resolves below the page's
-directory and no component of that relative path starts with a dot:
-`![x](.git/config)`, `![x](.env)` and `![x](sub/.hidden/a.png)` are
-skipped with a warning, `![x](img/a.png)` uploads.
+reference is only an upload source when it resolves inside the page's own
+`<stem>-attachments/` directory, in both `create` and `update` (and so in
+`sync-space` pushes), and no component of the path below that directory
+starts with a dot. A bare filename is looked up in `<stem>-attachments/`
+first, and a path is resolved against the page's directory, so for
+`Page.md` both `![x](a.png)` and `![x](Page-attachments/a.png)` upload
+`Page-attachments/a.png`. Everything else is skipped with a warning that
+names the reference and tells the operator to move the file into
+`<stem>-attachments/`: another page's `.md` or `-attachments/` files,
+`configs/*.yaml`, a hand-placed `diagram.png` or `img/a.png` beside the
+`.md`, `.env`, and any path through a symlink leading out of the directory
+(a symlinked `<stem>-attachments/` itself included). The rule sits at the
+upload step rather than in the Markdown writer because an exported body
+can carry a path in several places a remote author controls (image `src`
+and attachment filenames, raw inline HTML, macro parameters, image alt
+text), and the scanner cannot tell those apart from a local edit. Every
+producer `mdd` ships already writes into `<stem>-attachments/`: export,
+the Office and PDF converters, and the mermaid renderer.
 
 **Confidentiality.** `mdd confluence` commands consult the Confluence
 blacklist defined in [S07](S07-data-protection.md) for a blacklisted

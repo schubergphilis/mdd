@@ -188,7 +188,8 @@ class TestPartialFrontmatterCompleteness:
 
     def test_put_failure_partial_frontmatter_includes_attachments(self, tmp_path: Path) -> None:
         """When PUT fails after attachment sync, manifest must be in frontmatter."""
-        img = tmp_path / "diagram.png"
+        img = tmp_path / "page-attachments" / "diagram.png"
+        img.parent.mkdir()
         img.write_bytes(b"PNG data")
 
         md = tmp_path / "page.md"

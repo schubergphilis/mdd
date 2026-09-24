@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     import pytest
 
+_ATT = "Page-attachments"
 _SVG_CONVERTER = "mdd.confluence.attachments.svg_publish.SvgToPngConverter"
 
 
@@ -52,9 +53,9 @@ def _make_fake_converter(png_path: Path, png_data: bytes) -> MagicMock:
 
 class TestSvgImageRasterization:
     def test_plain_markdown_image_svg_is_rasterized_and_uploaded(self, tmp_path: Path) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
-        png = tmp_path / "diagram.svg.png"
+        png = tmp_path / _ATT / "diagram.svg.png"
         png_data = b"\x89PNG fake bytes"
 
         client = _make_client()
@@ -63,7 +64,12 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER, return_value=fake_converter):
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         fake_converter.convert.assert_called_once_with(svg)
@@ -80,9 +86,9 @@ class TestSvgImageRasterization:
         assert rewritten_body == "![diagram](confluence-attachment:diagram.svg.png)"
 
     def test_confluence_attachment_svg_image_is_rasterized(self, tmp_path: Path) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
-        png = tmp_path / "diagram.svg.png"
+        png = tmp_path / _ATT / "diagram.svg.png"
         fake_converter = _make_fake_converter(png, b"png bytes")
 
         client = _make_client()
@@ -90,15 +96,20 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER, return_value=fake_converter):
             _manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         assert rewritten_body == "![diagram](confluence-attachment:diagram.svg.png)"
 
     def test_extras_and_title_preserved_on_rewrite(self, tmp_path: Path) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
-        png = tmp_path / "diagram.svg.png"
+        png = tmp_path / _ATT / "diagram.svg.png"
         fake_converter = _make_fake_converter(png, b"png bytes")
 
         client = _make_client()
@@ -106,7 +117,12 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER, return_value=fake_converter):
             _manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         assert rewritten_body == (
@@ -116,7 +132,7 @@ class TestSvgImageRasterization:
     def test_dry_run_rewrites_body_without_rasterizing_or_uploading(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
 
         client = _make_client()
@@ -128,12 +144,18 @@ class TestSvgImageRasterization:
             caplog.at_level("INFO", logger="mdd.confluence.attachments.svg_publish"),
         ):
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, [], dry_run=True
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
+                dry_run=True,
             )
 
         converter_cls.assert_not_called()
         client.upload_attachment.assert_not_called()
-        assert not (tmp_path / "diagram.svg.png").exists()
+        assert not (tmp_path / _ATT / "diagram.svg.png").exists()
         assert rewritten_body == "![diagram](confluence-attachment:diagram.svg.png)"
         # Only the raw SVG is planned; the PNG entry appears on the real run.
         assert [e.filename for e in manifest] == ["diagram.svg"]
@@ -146,7 +168,13 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER) as converter_cls:
             _manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, [], dry_run=True
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
+                dry_run=True,
             )
 
         converter_cls.assert_not_called()
@@ -155,7 +183,7 @@ class TestSvgImageRasterization:
     def test_svg_link_is_not_rasterized(self, tmp_path: Path) -> None:
         """A plain (non-image) attachment link is a deliberate download
         reference to the source file — it must not be rewritten to the PNG."""
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
 
         client = _make_client()
@@ -163,7 +191,12 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER) as converter_cls:
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         converter_cls.assert_not_called()
@@ -173,7 +206,7 @@ class TestSvgImageRasterization:
         client.upload_attachment.assert_called_once_with("123", svg)
 
     def test_non_svg_images_are_unaffected(self, tmp_path: Path) -> None:
-        img = tmp_path / "photo.png"
+        img = tmp_path / _ATT / "photo.png"
         _write_file(img, b"png bytes")
 
         client = _make_client()
@@ -181,7 +214,12 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER) as converter_cls:
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         converter_cls.assert_not_called()
@@ -189,7 +227,7 @@ class TestSvgImageRasterization:
         assert len(manifest) == 1
 
     def test_rasterization_failure_leaves_raw_svg_ref(self, tmp_path: Path, caplog: Any) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
 
         client = _make_client()
@@ -203,7 +241,12 @@ class TestSvgImageRasterization:
             caplog.at_level("WARNING", logger="mdd.confluence.attachments.svg_publish"),
         ):
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, []
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [],
+                attachments_dir=tmp_path / _ATT,
             )
 
         # Raw SVG still uploaded via the normal (pre-existing) path.
@@ -214,9 +257,9 @@ class TestSvgImageRasterization:
         assert any("rsvg-convert exploded" in r.getMessage() for r in caplog.records)
 
     def test_png_hash_matches_manifest_skips_reupload(self, tmp_path: Path) -> None:
-        svg = tmp_path / "diagram.svg"
+        svg = tmp_path / _ATT / "diagram.svg"
         _write_file(svg, b"<svg/>")
-        png = tmp_path / "diagram.svg.png"
+        png = tmp_path / _ATT / "diagram.svg.png"
         png_data = b"stable png bytes"
         fake_converter = _make_fake_converter(png, png_data)
 
@@ -232,7 +275,12 @@ class TestSvgImageRasterization:
 
         with patch(_SVG_CONVERTER, return_value=fake_converter):
             manifest, rewritten_body = sync_attachments_for_update(
-                client, "123", body_md, tmp_path, [existing_svg, existing_png]
+                client,
+                "123",
+                body_md,
+                tmp_path,
+                [existing_svg, existing_png],
+                attachments_dir=tmp_path / _ATT,
             )
 
         # Both hashes match the cache: no upload at all.

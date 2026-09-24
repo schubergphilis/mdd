@@ -281,6 +281,7 @@ def _sync_attachments(
             body_stripped,
             md_path.parent,
             [],
+            attachments_dir=md_path.parent / f"{md_path.stem}-attachments",
         )
     except (ConfluenceError, AttachmentCollisionError, OSError) as exc:
         _abort_with_recovery_hint(f"attachment sync: {exc}", page_id)
