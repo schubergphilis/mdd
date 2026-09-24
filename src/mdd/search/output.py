@@ -16,6 +16,7 @@ Two paths share the same parsing/grouping:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -327,15 +328,32 @@ def _relative_display_path(path: Path, mirror: MirrorRoot | None) -> str:
     return str(path)
 
 
+# C0 controls except TAB (\x09), DEL, and C1 controls. LF/CR never appear in a
+# single rg line, so they are neutralised too.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]")
+_CONTROL_PLACEHOLDER = "\ufffd"
+
+
+def neutralise_controls(text: str) -> str:
+    """Replace terminal control characters in *text* with U+FFFD.
+
+    Mirror content is printed verbatim in human mode, so a line containing
+    an escape sequence would otherwise be interpreted by the terminal. Each
+    control character maps to exactly one placeholder, so submatch offsets
+    computed on the original string remain valid.
+    """
+    return _CONTROL_CHARS_RE.sub(_CONTROL_PLACEHOLDER, text)
+
+
 def _format_file_header_lines(fm: FileMatches, color: Color) -> list[str]:
     """Return the header block (display path + optional title) for one file."""
-    display_path = _relative_display_path(fm.path, fm.mirror)
+    display_path = neutralise_controls(_relative_display_path(fm.path, fm.mirror))
     header = color.path(display_path)
     if fm.page_id:
-        header += "  " + color.meta(f"(page {fm.page_id})")
+        header += "  " + color.meta(f"(page {neutralise_controls(fm.page_id)})")
     lines = [header]
     if fm.title:
-        lines.append(f"{color.meta('  Title:')} {fm.title}")
+        lines.append(f"{color.meta('  Title:')} {neutralise_controls(fm.title)}")
     return lines
 
 
@@ -409,7 +427,7 @@ def _highlight_match_text(text: str, subs: tuple[Submatch, ...], color: Color) -
 def _format_match_line(match: RgMatch, color: Color) -> str:
     """Return the single ``  Lnn:  text`` line for one match."""
     label = color.line_number(f"L{match.line_number}")
-    text, subs = _truncate_line(match.line_text, match.submatches)
+    text, subs = _truncate_line(neutralise_controls(match.line_text), match.submatches)
     body = _highlight_match_text(text, subs, color)
     return f"  {label}:  {body}"
 

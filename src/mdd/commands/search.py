@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from mdd.search.color import Color
 from mdd.search.filters import filter_blacklisted
-from mdd.search.output import StreamingFormatter, write_output
+from mdd.search.output import StreamingFormatter, neutralise_controls, write_output
 from mdd.search.roots import MirrorRoot, resolve_roots
 from mdd.search.sources import SOURCES, known_types_hint
 from mdd.utils.logging import get_logger
@@ -123,6 +123,11 @@ def _terminate_proc(proc: subprocess.Popen[str]) -> None:
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
+
+
+def _neutralise_stderr(stderr: str) -> str:
+    """Strip rg's stderr and neutralise control characters, keeping line breaks."""
+    return "\n".join(neutralise_controls(line) for line in stderr.strip().split("\n"))
 
 
 def _drain_stderr(proc: subprocess.Popen[str]) -> str:
@@ -240,7 +245,7 @@ def _run_sort_mode(  # noqa: PLR0913
     """Buffered/sorted path: run rg to completion, then format grouped output."""
     returncode, stdout, stderr = _run_buffered(cmd)
     if returncode == 2:
-        log.error("ripgrep failed:\n%s", stderr.strip())
+        log.error("ripgrep failed:\n%s", _neutralise_stderr(stderr))
         return 1
     count = write_output(
         stdout,
@@ -279,7 +284,7 @@ def _run_stream_mode(  # noqa: PLR0913
     # (otherwise the user already saw partial results — the error was probably
     # a per-file decoding hiccup, not a fatal failure).
     if returncode == 2 and consumer.count == 0:
-        log.error("ripgrep failed:\n%s", stderr.strip())
+        log.error("ripgrep failed:\n%s", _neutralise_stderr(stderr))
         return 1
     if consumer.count == 0 and not json_mode:
         print(f"No matches found for {query!r}")  # noqa: T201  # program output

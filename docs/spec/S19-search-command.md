@@ -82,6 +82,15 @@ display, keeping the matched span roughly centered. `…` is inserted
 on whichever side(s) had content elided. The ANSI-highlighted span
 still wraps the original matched text. The JSON output preserves
 the full line in `snippet`.
+
+**Control characters (human output only)**
+
+Human output replaces terminal control characters in matched line
+text, titles, page ids, display paths and passed-through `rg` error
+text with `U+FFFD` (one placeholder per character, so highlight
+offsets are unaffected). Tabs are kept. C0 controls other than tab,
+`DEL` and C1 controls (`U+0080`..`U+009F`) are all replaced. JSON
+output is unaffected: `json.dumps` already escapes them.
 - `--exclude-blacklisted` filters out content from blacklisted
   ([S07](S07-data-protection.md)) spaces / sites. Off by default — local search is
   unrestricted because the user already has the content on disk;

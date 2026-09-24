@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from pathlib import Path
 
 from mdd.search.color import Color
@@ -19,6 +20,7 @@ from mdd.search.output import (
     _truncate_line,  # pyright: ignore[reportPrivateUsage]
     format_human,
     format_json,
+    neutralise_controls,
 )
 from mdd.search.roots import MirrorRoot
 
@@ -741,3 +743,99 @@ class TestTruncateLine:
         sf.consume(rg_line)
         record = json.loads(stream.getvalue().strip())
         assert record["snippet"] == long_text
+
+
+# ---------------------------------------------------------------------------
+# Control characters in human output
+# ---------------------------------------------------------------------------
+
+
+_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+class TestControlCharacterNeutralisation:
+    CLEAR_LINE = "\x1b[2K"
+    C1_CSI = "\x9b"
+    OSC8 = "\x1b]8;;https://example.invalid\x07link\x1b]8;;\x07"
+
+    def test_neutralise_controls_keeps_length_and_tab(self) -> None:
+        raw = "a\x00b\tc\x7fd\x9fe"
+        out = neutralise_controls(raw)
+        assert out == "a�b\tc�d�e"
+        assert len(out) == len(raw)
+
+    def test_match_line_has_no_control_characters(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        line = f"before {self.CLEAR_LINE}{self.C1_CSI}{self.OSC8} target after"
+        f.write_text(line + "\n")
+        # rg reports byte offsets; the C1 byte above is two bytes in UTF-8.
+        start = len(line[: line.index("target")].encode())
+        rg_line = _make_rg_json_line(str(f), 1, line, submatches=[(start, start + len("target"))])
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=True))
+        # Only mdd's own SGR sequences may remain once stripped; no other controls.
+        without_sgr = _SGR_RE.sub("", out)
+        assert not re.search(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]", without_sgr)
+        assert self.OSC8 not in out
+        # mdd's own SGR colouring and the submatch highlight are intact.
+        assert "\x1b[1;31mtarget\x1b[0m" in out
+        assert "\x1b[32mL1\x1b[0m" in out
+        assert "before " in out
+        assert " after" in out
+
+    def test_match_line_without_color_has_no_control_characters(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        line = f"x{self.CLEAR_LINE}y"
+        f.write_text(line + "\n")
+        rg_line = _make_rg_json_line(str(f), 1, line)
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=False))
+        assert "\x1b" not in out
+        assert "x\ufffd[2Ky" in out
+
+    def test_title_and_page_id_are_neutralised(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        f.write_text(
+            '---\ntitle: "Hello\\e[2KWorld"\nconfluence:\n  page_id: "4\\e[1m2"\n---\n\n# Body\n'
+        )
+        rg_line = _make_rg_json_line(str(f), 7, "# Body")
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=False))
+        assert "\x1b" not in out
+        assert "Hello�[2KWorld" in out
+        assert "(page 4�[1m2)" in out
+
+    def test_display_path_is_neutralised(self, tmp_path: Path) -> None:
+        f = tmp_path / "pa\x1b[2Kge.md"
+        f.write_text("# Body\n")
+        rg_line = _make_rg_json_line(str(f), 1, "# Body")
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=False))
+        assert "\x1b" not in out
+        assert "confluence/ENGINEERING/pa�[2Kge.md" in out
+
+    def test_streaming_output_is_neutralised(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        f.write_text('---\ntitle: "T\\e[2K"\n---\n\n# Body\n')
+        line = f"# Bo{self.CLEAR_LINE}dy"
+        stream = io.StringIO()
+        sf = StreamingFormatter(
+            [_confluence_root(tmp_path)],
+            json_mode=False,
+            include_frontmatter=False,
+            total_limit=10,
+            stream=stream,
+            color=Color(enabled=True),
+        )
+        sf.consume(_make_rg_json_line(str(f), 5, line, submatches=[(2, 4)]))
+        out = stream.getvalue()
+        assert "\x1b[2K" not in out
+        assert "T�[2K" in out
+        assert "\x1b[1;31mBo\x1b[0m�[2Kdy" in out
+
+    def test_json_mode_keeps_raw_characters(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        f.write_text('---\ntitle: "T\\e[2K"\n---\n\n# Body\n')
+        line = f"# Bo{self.CLEAR_LINE}dy"
+        rg_line = _make_rg_json_line(str(f), 5, line)
+        out = format_json(rg_line, [_confluence_root(tmp_path)])
+        record = json.loads(out)
+        assert record["snippet"] == line
+        assert record["title"] == "T\x1b[2K"
+        assert "�" not in out
