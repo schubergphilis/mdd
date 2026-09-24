@@ -90,7 +90,7 @@ src/mdd/confluence/ir/
 | `<ol>` | `OrderedList(start=...)` | `start` preserved verbatim. |
 | `<li>` | `ListItem` | |
 | `<blockquote>` | `BlockQuote` | |
-| `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | `Table` / `TableRow` / `TableCell` | `colspan` / `rowspan` carried natively. `<th>` in body rows becomes a cell with an attribute marker. |
+| `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | `Table` / `TableRow` / `TableCell` | `colspan` / `rowspan` carried natively, read as bounded ints: non-numeric values count as 1, numeric values are clamped to `1..1000` (the source attribute string itself still rides in `attributes`). `<th>` in body rows becomes a cell with an attribute marker. |
 | `<hr/>` | `HorizontalRule` | |
 | `<br/>` | `LineBreak` | |
 | `<strong>`, `<b>` | `Strong` | |
@@ -127,6 +127,20 @@ For elements not in the table above, the reader:
 3. **Never silently drops** content — even unknown wrappers
    serialise their children inside the raw block so text remains
    diff-visible.
+
+The same fallback applies to **excessive nesting**: a block nested more
+than 64 container levels deep (`MAX_BLOCK_DEPTH` in
+`elements/block.py`) is emitted verbatim as a `RawBlock` instead of being
+descended into, with a `FallbackEmitted` reason naming the depth. The
+reader and every normalisation pass recurse once per level, so the bound
+keeps a page of arbitrary nesting inside the interpreter's recursion
+limit; no real page comes near it.
+
+Entity references are substituted with Private Use Area markers before
+lxml sees the body (so the writer can re-emit `&hellip;` rather than
+`…`). One marker is allocated per *distinct* entity string, so the
+number of markers is bounded by the HTML5 named-entity table, not by
+how often a page repeats `&nbsp;`.
 
 The block-vs-inline decision is made by a small per-element
 "context" table: e.g. `<ac:structured-macro>` is treated as inline

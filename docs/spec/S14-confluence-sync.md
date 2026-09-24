@@ -225,7 +225,7 @@ the previous push must have succeeded.
 - **Always-on full reconcile.** No CQL incremental, no side-car state. Performance is fine at the space sizes we see.
 - **Dirty working tree refuses.** If `git status --porcelain` reports uncommitted changes in the output directory, sync aborts. No `--allow-dirty` escape hatch — manual edits and sync writes must not be commit-mixed.
 - **First sync of an empty clone is a normal sync.** No special `--initial` flag; every page classifies as "new (Confluence → mirror)".
-- **Best-effort partial failure.** Each operation in a try block; on failure sync records the error, skips, and continues. Commit covers what succeeded; exit code is 1 if anything failed. Next run picks up unfinished work cleanly (idempotent).
+- **Best-effort partial failure.** Each operation in a try block; on failure sync records the error, skips, and continues. Commit covers what succeeded; exit code is 1 if anything failed. Next run picks up unfinished work cleanly (idempotent). This holds for *any* exception raised while handling one page, on both the pull and the push side: a remote body the storage reader or markdown renderer cannot process is recorded as a per-page failure (with a logged traceback) and the remaining pages, deletions and the commit still run.
 - **Manually-managed files are sacred.** A `.md` without `confluence.page_id` and without local-authored-publishable shape is never deleted, moved, or rewritten.
 - **`--head`.** Caps the desired-state map (default 10) for testing.
 - **`--dry-run`.** Computes the full plan and prints the would-be summary without touching files, the working tree, or Confluence. Exit 0.

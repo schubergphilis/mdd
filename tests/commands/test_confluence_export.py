@@ -182,6 +182,29 @@ class TestExportPage:
         err = capsys.readouterr().err
         assert "Confluence" in err or "API" in err
 
+    def test_export_page_body_that_fails_to_parse_returns_1(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A parse or render failure on the page body is reported as a
+        clean error with a non-zero exit, not a traceback out of the CLI."""
+        mock_client = _make_mock_client()
+        mock_config = _make_config()
+
+        with (
+            patch("mdd.commands.confluence.load_config", return_value=mock_config),
+            patch("mdd.commands.confluence.ConfluenceClient", return_value=mock_client),
+            patch(
+                "mdd.confluence.export.parse_confluence_storage",
+                side_effect=RecursionError("maximum recursion depth exceeded"),
+            ),
+        ):
+            result = cmd_confluence(["export-page", "12345", "--output", str(tmp_path)])
+
+        assert result == 1
+        err = capsys.readouterr().err
+        assert "export 12345 failed" in err
+        assert not list(tmp_path.glob("*.md"))
+
 
 class TestNotImplementedSubcommands:
     def test_create_page_missing_file_returns_1(self, capsys: pytest.CaptureFixture[str]) -> None:

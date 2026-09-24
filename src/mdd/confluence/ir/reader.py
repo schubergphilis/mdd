@@ -78,23 +78,34 @@ def _resolve_entity_char(name: str) -> str | None:
 
 
 class _PuaAllocator:
-    """Allocate Unicode PUA codepoints in order. Each allocation records the
-    original entity string so the writer can later restore it verbatim."""
+    """Allocate one Unicode PUA codepoint per *distinct* entity string.
+
+    Each allocation records the original entity string so the writer can
+    later restore it verbatim. Repeated references to the same entity
+    (``&nbsp;`` in every cell of a large table) share a single marker, so the
+    number of codepoints consumed is bounded by the size of the HTML5
+    named-entity table (~2,200 names), well inside the ~6,400-slot PUA range.
+    """
 
     def __init__(self) -> None:
         self.next_codepoint = _PUA_START
         self.mapping: dict[str, str] = {}
+        self._by_entity: dict[str, str] = {}
 
     def allocate(self, entity_str: str) -> str:
+        existing = self._by_entity.get(entity_str)
+        if existing is not None:
+            return existing
         if self.next_codepoint > _PUA_END:
             raise ValueError(
-                f"too many entity references in source "
+                f"too many distinct entity references in source "
                 f"({self.next_codepoint - _PUA_START}); "
                 "preserving-mode PUA budget exhausted"
             )
         pua = chr(self.next_codepoint)
         self.next_codepoint += 1
         self.mapping[pua] = entity_str
+        self._by_entity[entity_str] = pua
         return pua
 
 
@@ -137,7 +148,8 @@ def _substitute_entities_with_pua_markers(
     xhtml: str,
 ) -> tuple[str, dict[str, str]]:
     """Substitute every HTML5 entity reference (and XML-predefined entities in
-    element text) with a unique Unicode Private Use Area marker char.
+    element text) with a Unicode Private Use Area marker char, one distinct
+    marker per distinct entity string.
 
     Returns ``(substituted_text, pua_to_entity)`` where ``pua_to_entity[chr]``
     is the original entity string (e.g. ``"&hellip;"``, ``"&quot;"``). The

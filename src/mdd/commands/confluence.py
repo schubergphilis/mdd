@@ -220,6 +220,9 @@ def _run_export_page(ns: argparse.Namespace) -> int:
             return 1
         except (BlacklistError, BlacklistConfigError) as exc:
             return _handle_blacklist_error(exc)
+        except Exception as exc:
+            log.exception("export %s failed: %s", page_id, exc)
+            return 1
 
     log.info("Exported: %s", out_path)
     return 0
