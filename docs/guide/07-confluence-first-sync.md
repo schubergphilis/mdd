@@ -224,8 +224,8 @@ mdd confluence sync-space SCRATCH --output ~/mirrors/SCRATCH
 Without `--read-only`, that run creates pages from local files carrying a
 `space_key` and no `page_id`, pushes local edits back, and does it all
 without prompting. It only creates pages in the space it syncs: a file
-whose `space_key` names another space is skipped and listed in the run
-summary. Read the dry-run plan every time until you trust it.
+whose `space_key` names another space, or whose `parent_id` is a page
+outside it, is skipped and listed in the run summary. Read the dry-run plan every time until you trust it.
 
 ## Failure modes you will actually hit
 

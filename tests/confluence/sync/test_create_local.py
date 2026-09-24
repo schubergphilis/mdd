@@ -6,9 +6,10 @@ import logging
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+from mdd.confluence.client import ConfluenceError
 from mdd.confluence.config import ConfluenceConfig
 from mdd.confluence.sync._types import SyncOptions, SyncSummary
-from mdd.confluence.sync.pull import create_local_pages
+from mdd.confluence.sync.pull import CreateScope, create_local_pages
 from mdd.confluence.sync_diff import EventKind, SyncEvent
 
 if TYPE_CHECKING:
@@ -28,6 +29,13 @@ def _candidate(tmp_path: Path, name: str, space_key: str) -> Path:
     return md
 
 
+def _scope(space_key: str = "MDDTEST", parent_space_id: str = "111") -> CreateScope:
+    """A scope for space id ``111`` whose client reports every parent in *parent_space_id*."""
+    client = MagicMock()
+    client.get_page.return_value = {"id": "42", "spaceId": parent_space_id}
+    return CreateScope(client=client, space_key=space_key, space_id="111")
+
+
 def _new_event(md: Path) -> SyncEvent:
     return SyncEvent(kind=EventKind.NEW, page_id="", current_path=str(md))
 
@@ -37,9 +45,7 @@ class TestCreateLocalPages:
         md = _candidate(tmp_path, "a.md", "mddtest")
         summary = SyncSummary()
         with patch("mdd.confluence.sync.pull.create_page", return_value=0) as create:
-            create_local_pages(
-                [_new_event(md)], _CONFIG, SyncOptions(), summary, space_key="MDDTEST"
-            )
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=_scope())
 
         create.assert_called_once_with(md, _CONFIG, space_key="MDDTEST")
         assert summary.new_pushed == 1
@@ -54,19 +60,17 @@ class TestCreateLocalPages:
             caplog.at_level(logging.WARNING, logger="mdd.confluence.sync.pull"),
             patch("mdd.confluence.sync.pull.create_page") as create,
         ):
-            create_local_pages(
-                [_new_event(md)], _CONFIG, SyncOptions(), summary, space_key="MDDTEST"
-            )
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=_scope())
 
         create.assert_not_called()
         assert summary.new_pushed == 0
         assert summary.failures == []
         assert summary.create_skipped_other_space == [
-            "x.md: names space HR, synced space is MDDTEST"
+            "x.md: names space 'HR', synced space is MDDTEST"
         ]
         assert "x.md" in caplog.text
         assert "'HR'" in caplog.text
-        assert "'MDDTEST'" in caplog.text
+        assert "MDDTEST" in caplog.text
 
     def test_read_only_creates_nothing(self, tmp_path: Path) -> None:
         md = _candidate(tmp_path, "a.md", "MDDTEST")
@@ -77,7 +81,7 @@ class TestCreateLocalPages:
                 _CONFIG,
                 SyncOptions(read_only=True),
                 summary,
-                space_key="MDDTEST",
+                scope=_scope(),
             )
         create.assert_not_called()
         assert summary.create_skipped_other_space == []
@@ -86,9 +90,7 @@ class TestCreateLocalPages:
         md = _candidate(tmp_path, "a.md", "MDDTEST")
         summary = SyncSummary()
         with patch("mdd.confluence.sync.pull.create_page", return_value=1):
-            create_local_pages(
-                [_new_event(md)], _CONFIG, SyncOptions(), summary, space_key="MDDTEST"
-            )
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=_scope())
         assert summary.failures == ["create a.md: create_page returned 1"]
 
     def test_unreadable_file_is_recorded_as_failure(self, tmp_path: Path) -> None:
@@ -96,7 +98,7 @@ class TestCreateLocalPages:
         summary = SyncSummary()
         with patch("mdd.confluence.sync.pull.create_page") as create:
             create_local_pages(
-                [_new_event(missing)], _CONFIG, SyncOptions(), summary, space_key="MDDTEST"
+                [_new_event(missing)], _CONFIG, SyncOptions(), summary, scope=_scope()
             )
         create.assert_not_called()
         assert len(summary.failures) == 1
@@ -109,8 +111,63 @@ class TestCreateLocalPages:
             SyncEvent(kind=EventKind.NEW, page_id="", current_path=None),
         ]
         with patch("mdd.confluence.sync.pull.create_page") as create:
-            create_local_pages(events, _CONFIG, SyncOptions(), SyncSummary(), space_key="X")
+            create_local_pages(events, _CONFIG, SyncOptions(), SyncSummary(), scope=_scope("X"))
         create.assert_not_called()
+
+
+class TestCreateLocalPagesParent:
+    def test_parent_in_other_space_is_skipped(self, tmp_path: Path) -> None:
+        md = _candidate(tmp_path, "x.md", "MDDTEST")
+        summary = SyncSummary()
+        scope = _scope(parent_space_id="999")
+        with patch("mdd.confluence.sync.pull.create_page") as create:
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=scope)
+
+        create.assert_not_called()
+        scope.client.get_page.assert_called_once_with("42")  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+        assert summary.failures == []
+        assert summary.create_skipped_other_space == [
+            "x.md: parent '42' is not in the synced space MDDTEST"
+        ]
+
+    def test_parent_folder_in_synced_space_is_accepted(self, tmp_path: Path) -> None:
+        md = _candidate(tmp_path, "a.md", "MDDTEST")
+        client = MagicMock()
+        client.get_page.side_effect = ConfluenceError("404")
+        client.get_folder.return_value = {"id": "42", "spaceId": "111"}
+        scope = CreateScope(client=client, space_key="MDDTEST", space_id="111")
+        summary = SyncSummary()
+        with patch("mdd.confluence.sync.pull.create_page", return_value=0) as create:
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=scope)
+
+        create.assert_called_once_with(md, _CONFIG, space_key="MDDTEST")
+        assert summary.create_skipped_other_space == []
+
+    def test_parent_that_cannot_be_found_is_skipped(self, tmp_path: Path) -> None:
+        md = _candidate(tmp_path, "a.md", "MDDTEST")
+        client = MagicMock()
+        client.get_page.side_effect = ConfluenceError("404")
+        client.get_folder.side_effect = ConfluenceError("404")
+        scope = CreateScope(client=client, space_key="MDDTEST", space_id="111")
+        summary = SyncSummary()
+        with patch("mdd.confluence.sync.pull.create_page") as create:
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=scope)
+
+        create.assert_not_called()
+        assert summary.create_skipped_other_space == [
+            "a.md: parent '42' is not in the synced space MDDTEST"
+        ]
+
+    def test_no_parent_needs_no_lookup(self, tmp_path: Path) -> None:
+        md = tmp_path / "a.md"
+        md.write_text("---\nconfluence:\n  space_key: MDDTEST\n---\n# a\n", encoding="utf-8")
+        scope = _scope()
+        summary = SyncSummary()
+        with patch("mdd.confluence.sync.pull.create_page", return_value=0) as create:
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=scope)
+
+        create.assert_called_once_with(md, _CONFIG, space_key="MDDTEST")
+        scope.client.get_page.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
 
 
 class TestSummaryCreateSkippedSection:
@@ -128,7 +185,3 @@ class TestSummaryCreateSkippedSection:
         summary = SyncSummary()
         summary.create_skipped_other_space.append("x.md: names space HR, synced space is TEST")
         assert not summary.has_changes()
-
-
-def test_client_mock_unused() -> None:
-    assert isinstance(MagicMock(), MagicMock)

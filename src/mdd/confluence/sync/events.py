@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from mdd.confluence.client import ConfluenceClient
 
     from ._types import SyncOptions, SyncSummary
+    from .pull import CreateScope
 
 
 def upgrade_metadata_to_push(events: list[SyncEvent], locally_edited: set[str]) -> list[SyncEvent]:
@@ -122,7 +123,7 @@ def apply_event_phases(
     push_ctx: PushCtx,
     used_paths: set[Path],
     *,
-    space_key: str,
+    create_scope: CreateScope,
 ) -> None:
     """Run every Step-4 phase that mutates the mirror or pushes to Confluence."""
     apply_renames_moves(
@@ -135,7 +136,11 @@ def apply_event_phases(
     )
     apply_archive_unarchive(events, mirror, pull_ctx.summary)
     create_local_pages(
-        events, push_ctx.config, pull_ctx.opts, pull_ctx.summary, space_key=space_key
+        events,
+        push_ctx.config,
+        pull_ctx.opts,
+        pull_ctx.summary,
+        scope=create_scope,
     )
     create_remote_pages(events, pull_ctx)
     pull_content(events, mirror, pull_ctx)
