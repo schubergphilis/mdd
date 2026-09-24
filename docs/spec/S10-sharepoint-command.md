@@ -120,6 +120,12 @@ sharepoint:
       output_dir: ./output/academy
 ```
 
+`sharepoint.sites.<name>.output_dir` is the local mirror root that
+`mdd search` reads as a search root (see [S19](S19-search-command.md)).
+`mdd sharepoint sync-*` does not read it: the sync commands take the output
+directory from `--output` or the site-to-repo mapping below. The key is
+accepted here so one `configs/sharepoint.yaml` serves both commands.
+
 Site→repo mapping (committed to git):
 
 ```yaml
