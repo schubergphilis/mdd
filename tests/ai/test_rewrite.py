@@ -1166,3 +1166,22 @@ class TestRewriteIntegration:
         assert result.status == "rewritten"
         assert result.output_path is not None
         assert result.output_path.exists()
+
+
+class TestProtectedRegionScaling:
+    def test_unterminated_fence_protects_rest_of_document(self) -> None:
+        text = "Prose\n\n```\nnever closed\nmore code\n"
+        transformed, regions = extract_protected(text)
+        assert len(regions) == 1
+        assert regions[0].original == "```\nnever closed\nmore code\n"
+        assert transformed == "Prose\n\n__MDD_PROTECTED_0__"
+
+    def test_many_fence_openers_finish_quickly(self) -> None:
+        import time
+
+        text = "```x\n" * 40_000
+        start = time.perf_counter()
+        transformed, regions = extract_protected(text)
+        elapsed = time.perf_counter() - start
+        assert stitch_protected(transformed, regions) == text
+        assert elapsed < 1.0, f"extract_protected took {elapsed:.3f}s"

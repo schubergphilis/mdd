@@ -413,3 +413,53 @@ class TestRunReview:
         )
         with pytest.raises(ValueError, match="Not a directory"):
             run_review(cfg, self._make_client())
+
+
+class TestDocUpdatedAt:
+    def test_nested_confluence_updated_at_is_used_before_body_scan(self) -> None:
+        from datetime import UTC, datetime
+
+        content = "Body says updated 2010-01-01"
+        fm: dict[str, object] = {"confluence": {"updated_at": "2026-04-01T10:00:00Z"}}
+        now = datetime(2026, 5, 8, tzinfo=UTC)
+        stale, date_str = _is_stale(content, fm, now, 365)
+        assert stale is False
+        assert date_str == "2026-04-01"
+
+    def test_iso_datetime_value_is_parsed(self) -> None:
+        from datetime import UTC, datetime
+
+        fm: dict[str, object] = {"updated_at": "2026-05-11T20:55:05.817Z"}
+        now = datetime(2026, 5, 20, tzinfo=UTC)
+        stale, date_str = _is_stale("", fm, now, 365)
+        assert stale is False
+        assert date_str == "2026-05-11"
+
+    def test_body_cue_date_is_found(self) -> None:
+        from datetime import UTC, datetime
+
+        content = "# Doc\n\nLast reviewed on 2020-03-04 by someone.\n"
+        now = datetime(2026, 5, 8, tzinfo=UTC)
+        stale, date_str = _is_stale(content, {}, now, 365)
+        assert stale is True
+        assert date_str == "2020-03-04"
+
+    def test_body_cue_far_from_date_is_ignored(self) -> None:
+        from datetime import UTC, datetime
+
+        content = "updated " + "x" * 100 + " 2020-03-04"
+        now = datetime(2026, 5, 8, tzinfo=UTC)
+        stale, _ = _is_stale(content, {}, now, 365)
+        assert stale is False
+
+    def test_many_cue_words_finish_quickly(self) -> None:
+        import time
+        from datetime import UTC, datetime
+
+        content = "updated " * 25_000
+        now = datetime(2026, 5, 8, tzinfo=UTC)
+        start = time.perf_counter()
+        stale, _ = _is_stale(content, {}, now, 365)
+        elapsed = time.perf_counter() - start
+        assert stale is False
+        assert elapsed < 1.0, f"body date scan took {elapsed:.3f}s"

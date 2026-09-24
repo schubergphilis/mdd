@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 import urllib.parse
 
+from mdd.utils.markdown_fences import blank_spans, find_fenced_code_blocks
+
 _IMG_REF_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 # A plain markdown link with a ``confluence-attachment:`` target rides
 # the same upload path as an image: the sibling file must be attached
@@ -22,7 +24,7 @@ _REF_DEF_RE = re.compile(
     r"^ {0,3}\[([^\]]+)\]:\s*<?([^\s<>]+)>?(?:\s+[\"'(].*?[\"')])?\s*$",
     re.MULTILINE,
 )
-_FENCE_RE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})")
+_BACKTICK_RUN_RE = re.compile(r"`+")
 
 
 def collect_ref_defs(body_md: str) -> dict[str, str]:
@@ -39,6 +41,32 @@ def collect_ref_defs(body_md: str) -> dict[str, str]:
     return defs
 
 
+def _blank_inline_code(text: str) -> str:
+    """Blank inline code spans with a single left-to-right pass over backtick runs.
+
+    CommonMark: a run of *n* backticks opens a code span that is closed by the
+    next run of exactly *n* backticks; a run with no such partner is literal
+    text. Precomputing "next run of the same length" makes each opener O(1).
+    """
+    runs = [(m.start(), m.end()) for m in _BACKTICK_RUN_RE.finditer(text)]
+    next_same: list[int | None] = [None] * len(runs)
+    last_by_len: dict[int, int] = {}
+    for i in range(len(runs) - 1, -1, -1):
+        length = runs[i][1] - runs[i][0]
+        next_same[i] = last_by_len.get(length)
+        last_by_len[length] = i
+    spans: list[tuple[int, int]] = []
+    i = 0
+    while i < len(runs):
+        j = next_same[i]
+        if j is None:
+            i += 1
+            continue
+        spans.append((runs[i][0], runs[j][1]))
+        i = j + 1
+    return blank_spans(text, spans)
+
+
 def strip_code_for_scan(body_md: str) -> str:
     """Return body_md with fenced code blocks and inline code spans blanked out.
 
@@ -47,36 +75,8 @@ def strip_code_for_scan(body_md: str) -> str:
     so the upload scanner must ignore them. Code regions are replaced with
     whitespace rather than removed so line/column offsets stay aligned.
     """
-    lines = body_md.splitlines(keepends=True)
-    out: list[str] = []
-    fence: str | None = None
-    for line in lines:
-        if fence is None:
-            m = _FENCE_RE.match(line)
-            if m:
-                fence = m.group("fence")[0] * len(m.group("fence"))
-                out.append(" " * len(line.rstrip("\n")) + line[len(line.rstrip("\n")) :])
-                continue
-            out.append(line)
-        else:
-            stripped = line.lstrip(" ")
-            if stripped.startswith(fence[0]) and stripped.rstrip("\n").rstrip() == fence:
-                fence = None
-            out.append(" " * len(line.rstrip("\n")) + line[len(line.rstrip("\n")) :])
-    text = "".join(out)
-
-    # Blank out inline code spans. CommonMark allows multi-backtick delimiters
-    # (e.g. ``code with ` inside``); match the longest delimiter first so the
-    # short-form regex doesn't gobble half of a long-form span.
-    def _blank(match: re.Match[str]) -> str:
-        return " " * len(match.group(0))
-
-    for n in (3, 2, 1):
-        ticks = "`" * n
-        esc = re.escape(ticks)
-        pattern = re.compile(rf"{esc}(?!`)(.+?)(?<!`){esc}(?!`)", re.DOTALL)
-        text = pattern.sub(_blank, text)
-    return text
+    text = blank_spans(body_md, find_fenced_code_blocks(body_md))
+    return _blank_inline_code(text)
 
 
 def split_url_and_title(paren_content: str) -> str:

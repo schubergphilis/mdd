@@ -51,10 +51,13 @@ log = get_logger(__name__)
 # Config
 # ---------------------------------------------------------------------------
 
+# The gap between the cue word and the date is bounded and stops at a line
+# break so a body full of cue words without dates scans in linear time.
 _AGE_PATTERN = re.compile(
-    r"(?:as of|last reviewed|updated)[^\d]*(\d{4}[-/]\d{2}[-/]\d{2})", re.IGNORECASE
+    r"(?:as of|last reviewed|updated)[^\d\n]{0,40}(\d{4}[-/]\d{2}[-/]\d{2})", re.IGNORECASE
 )
-_DATE_RE = re.compile(r"\b(\d{4})[-/](\d{2})[-/](\d{2})\b")
+# The day may be followed directly by a time part (``2026-04-01T10:00:00Z``).
+_DATE_RE = re.compile(r"\b(\d{4})[-/](\d{2})[-/](\d{2})(?!\d)")
 
 
 @dataclass
@@ -138,8 +141,12 @@ def _parse_date_str(date_val: Any) -> datetime | None:  # pyright: ignore[report
 
 def _doc_updated_at(content: str, fm: dict[str, Any]) -> datetime | None:
     """Return the best guess at when this document was last updated."""
-    for key in ("updated_at", "last_modified", "date"):
-        val: Any = fm.get(key)  # pyright: ignore[reportAny]
+    confluence: Any = fm.get("confluence")  # pyright: ignore[reportAny]
+    candidates: list[Any] = []
+    if isinstance(confluence, dict):
+        candidates.append(confluence.get("updated_at"))  # pyright: ignore[reportUnknownMemberType]
+    candidates.extend(fm.get(key) for key in ("updated_at", "last_modified", "date"))  # pyright: ignore[reportAny]
+    for val in candidates:  # pyright: ignore[reportAny]
         if val is not None:
             dt = _parse_date_str(val)
             if dt is not None:
