@@ -26,13 +26,14 @@ def read_span_attr(node: Any, name: str) -> int:
     """Read a ``colspan``/``rowspan`` attribute as a bounded positive int.
 
     Missing, empty or non-numeric values fall back to 1; numeric values are
-    clamped to ``[_SPAN_MIN, _SPAN_MAX]``. A digit string longer than the
-    maximum has is clamped without ever reaching ``int()``, so arbitrarily
-    long attribute values cost nothing to read.
+    clamped to ``[_SPAN_MIN, _SPAN_MAX]``. A digit string with more
+    significant digits than the maximum is clamped without ever reaching
+    ``int()``, so arbitrarily long attribute values cost nothing to read.
     """
     raw = (node.get(name) or "").strip()
     if not raw.isascii() or not raw.isdigit():
         return _SPAN_MIN
+    raw = raw.lstrip("0") or "0"
     if len(raw) > len(str(_SPAN_MAX)):
         return _SPAN_MAX
     return min(max(int(raw), _SPAN_MIN), _SPAN_MAX)
