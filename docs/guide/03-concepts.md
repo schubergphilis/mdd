@@ -142,7 +142,8 @@ Three states follow from what the block contains:
   sync pair.
 - **Publish candidate.** No `page_id`, but a `confluence.space_key` is
   present. The next sync creates this as a new Confluence page in the
-  synced space. If the `space_key` names another space, sync skips the
+  synced space. If the `space_key` names another space, or the
+  `parent_id` is not a page or folder in the synced space, sync skips the
   file and reports it instead.
 - **Manually managed.** Anything else, including a file with no
   frontmatter at all. Sync never deletes, moves or rewrites it.

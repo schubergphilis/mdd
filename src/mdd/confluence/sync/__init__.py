@@ -45,7 +45,7 @@ from .finalize import (
 )
 from .mddignore import filter_desired
 from .office_publish import OfficePublishCtx, run_office_publish
-from .pull import PullCtx
+from .pull import CreateScope, PullCtx
 from .push import PushCtx
 from .state import build_parent_path_map, fetch_desired_state
 
@@ -216,7 +216,8 @@ def sync_space(
         get_managed_cfg=get_managed_cfg,
         record_managed_skip=record_managed_skip,
     )
-    apply_event_phases(events, mirror, pull_ctx, push_ctx, used_paths, space_key=space_key)
+    create_scope = CreateScope(client=client, space_key=space_key, space_id=space_id)
+    apply_event_phases(events, mirror, pull_ctx, push_ctx, used_paths, create_scope=create_scope)
 
     # Step 4i: office publishing.
     if opts.read_only:

@@ -171,9 +171,11 @@ established by the previous one:
   `title` → first H1 → filename. The new page is created in the synced
   space: sync passes its own space key to the create step. A file whose
   frontmatter `confluence.space_key` names a different space (compared
-  case-insensitively) is skipped, not created; the skip is logged as a
-  warning, listed in the run summary and in the commit message with the
-  file name and both space keys. `mdd confluence create-page` on its own
+  case-insensitively), or whose `confluence.parent_id` is not a page or
+  folder in the synced space (checked with `GET /pages/{id}`, then
+  `GET /folders/{id}`, before anything is created), is skipped, not
+  created; the skip is logged as a warning, listed in the run summary and
+  in the commit message with the file name and the reason. `mdd confluence create-page` on its own
   still takes the space from frontmatter when `--space` is not given.
 - **4e. Content edits — pulls** — per-page body fetch only for pages
   whose remote `version_number` advanced. Re-render storage → markdown,
