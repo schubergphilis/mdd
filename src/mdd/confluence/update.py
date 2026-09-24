@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.attachments import (
@@ -218,6 +219,26 @@ def _record_attachment_manifest(
         return
     _set_attachment_manifest(conf_block, manifest)
     write_frontmatter(md_path, frontmatter, body_md)
+
+
+class PushOutcome(Enum):
+    """What a push did to the remote page."""
+
+    PUSHED = "pushed"
+    """A new page version was sent."""
+    ATTACHMENTS_ONLY = "attachments-only"
+    """Attachments were uploaded; the page body got no new version."""
+    NO_CHANGE = "no-change"
+    """Local and remote already matched; nothing was sent."""
+    NOT_PUSHED = "not-pushed"
+    """Dry run, or the operator declined the confirmation prompt."""
+    FAILED = "failed"
+    """An error, conflict or managed-page refusal stopped the push."""
+
+    @property
+    def sent_changes(self) -> bool:
+        """True when Confluence received a new page version or attachment."""
+        return self in {PushOutcome.PUSHED, PushOutcome.ATTACHMENTS_ONLY}
 
 
 class _UpdateAbort(Exception):
@@ -482,7 +503,7 @@ def _push_page(  # noqa: PLR0913
     allow_empty: bool,
     allow_shrink: bool,
     resolve_links: bool = True,
-) -> int:
+) -> PushOutcome:
     """Run the post-fetch lifecycle: safety checks, render, diff, PUT, frontmatter."""
     remote_version = _get_remote_version(page_data)
     _check_no_remote_advance(remote_version, spec.local_version)
@@ -514,17 +535,17 @@ def _push_page(  # noqa: PLR0913
     )
     diff = _print_diff_or_noop(body_xhtml, remote_storage)
     if dry_run:
-        return 0
+        return PushOutcome.NOT_PUSHED
     if not diff and not attachments_pending:
         # The file matches the remote page, so it is no longer a local edit.
         # Pin mtime rather than restamping exported_at, so the file content
         # stays untouched.
         pin_mtime_to_exported_at(md_path, frontmatter)
-        return 0
+        return PushOutcome.NO_CHANGE
     if not diff:
         log.info("Only attachments changed; the page body will not get a new version.")
     if not _confirm_push(yes=yes):
-        return 0
+        return PushOutcome.NOT_PUSHED
 
     synced = _sync_attachments(client, spec, body_stripped, md_path, dry_run=False)
     if synced is None:
@@ -534,7 +555,7 @@ def _push_page(  # noqa: PLR0913
         # Only attachments changed; the page body itself needs no new version.
         _record_attachment_manifest(md_path, frontmatter, body_md, updated_manifest)
         pin_mtime_to_exported_at(md_path, frontmatter)
-        return 0
+        return PushOutcome.ATTACHMENTS_ONLY
     body_xhtml = _render_body_xhtml(
         md_path, body_stripped, remote_storage, resolve_links=resolve_links
     )
@@ -552,10 +573,10 @@ def _push_page(  # noqa: PLR0913
         updated_manifest=updated_manifest,
         client=client,
     )
-    return 0
+    return PushOutcome.PUSHED
 
 
-def update_page(  # noqa: PLR0913
+def update_page_outcome(  # noqa: PLR0913
     md_path: Path,
     config: ConfluenceConfig,
     *,
@@ -566,8 +587,8 @@ def update_page(  # noqa: PLR0913
     allow_shrink: bool = False,
     managed_config: ManagedConfig | None = None,
     resolve_links: bool = True,
-) -> int:
-    """Update a Confluence page from a local Markdown file.
+) -> PushOutcome:
+    """Update a Confluence page from a local Markdown file and say what happened.
 
     Args:
         md_path:        Path to the local ``.md`` file.
@@ -583,7 +604,8 @@ def update_page(  # noqa: PLR0913
                         before rendering.
 
     Returns:
-        0 on success or no-op; 1 on error, conflict, or managed-page refusal.
+        The :class:`PushOutcome`; ``FAILED`` on error, conflict, or
+        managed-page refusal.
     """
     try:
         frontmatter, body_md = _read_local(md_path)
@@ -608,5 +630,38 @@ def update_page(  # noqa: PLR0913
                 allow_shrink=allow_shrink,
                 resolve_links=resolve_links,
             )
-    except _UpdateAbort as abort:
-        return abort.rc
+    except _UpdateAbort:
+        return PushOutcome.FAILED
+
+
+def update_page(  # noqa: PLR0913
+    md_path: Path,
+    config: ConfluenceConfig,
+    *,
+    dry_run: bool = False,
+    message: str = "Updated via mdd",
+    yes: bool = False,
+    allow_empty: bool = False,
+    allow_shrink: bool = False,
+    managed_config: ManagedConfig | None = None,
+    resolve_links: bool = True,
+) -> int:
+    """Update a Confluence page from a local Markdown file.
+
+    Takes the same arguments as :func:`update_page_outcome`.
+
+    Returns:
+        0 on success or no-op; 1 on error, conflict, or managed-page refusal.
+    """
+    outcome = update_page_outcome(
+        md_path,
+        config,
+        dry_run=dry_run,
+        message=message,
+        yes=yes,
+        allow_empty=allow_empty,
+        allow_shrink=allow_shrink,
+        managed_config=managed_config,
+        resolve_links=resolve_links,
+    )
+    return 1 if outcome is PushOutcome.FAILED else 0

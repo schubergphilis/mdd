@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.sync_diff import EventKind, SyncEvent
-from mdd.confluence.update import update_page
+from mdd.confluence.update import PushOutcome, update_page_outcome
 from mdd.utils.logging import get_logger
 
 from .renames import resolve_path_after_rename
@@ -57,12 +57,16 @@ def _push_one(
         ctx.summary.failures.append(f"push managed-check {page_id}: {exc}")
         return
     try:
-        rc = update_page(current_path, ctx.config, yes=True, managed_config=ctx.get_managed_cfg())
-        if rc == 0:
+        outcome = update_page_outcome(
+            current_path, ctx.config, yes=True, managed_config=ctx.get_managed_cfg()
+        )
+        if outcome.sent_changes:
             ctx.summary.content_pushed += 1
             log.info("push: %s", current_path.name)
+        elif outcome is PushOutcome.FAILED:
+            ctx.summary.failures.append(f"push {page_id}: update_page failed")
         else:
-            ctx.summary.failures.append(f"push {page_id}: update_page returned {rc}")
+            log.info("push skipped: %s (%s)", current_path.name, outcome.value)
     except Exception as exc:
         log.exception("push %s: %s", page_id, exc)
         ctx.summary.failures.append(f"push {page_id}: {exc}")
