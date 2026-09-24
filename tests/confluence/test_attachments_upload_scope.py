@@ -132,6 +132,24 @@ class TestOutOfScopeReferencesAreNotUploaded:
         assert repr(src) in caplog.text
         assert "move the file into Page-attachments/" in caplog.text
 
+    @pytest.mark.parametrize(
+        "src", [".", "Page-attachments", "Page-attachments/", "sub", "confluence-attachment:sub"]
+    )
+    def test_directory_reference_is_skipped_and_sync_continues(
+        self, mirror: Path, src: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        (mirror / "Page-attachments" / "sub").mkdir()
+        client = _make_client()
+
+        with caplog.at_level("WARNING", logger=_LOGGER):
+            filenames = _sync(client, f"![d]({src})\n\n![x](ok.png)", mirror)
+
+        client.upload_attachment.assert_called_once_with(
+            "123", (mirror / "Page-attachments" / "ok.png").resolve()
+        )
+        assert filenames == ["ok.png"]
+        assert any(r.levelname == "WARNING" for r in caplog.records)
+
     def test_attachment_link_outside_folder_is_skipped(self, mirror: Path) -> None:
         client = _make_client()
 

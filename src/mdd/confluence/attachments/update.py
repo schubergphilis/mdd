@@ -62,11 +62,18 @@ def _resolve_attachment_path(
 def _is_uploadable_path(path: Path, attachments_root: Path) -> bool:
     """True when *path* lies under the page's attachments directory and no
     component of the relative path starts with a dot (hidden files and
-    directories such as ``.git/`` or ``.env`` are never upload sources)."""
+    directories such as ``.git/`` or ``.env`` are never upload sources).
+
+    A path that exists but is not a regular file (the attachments directory
+    itself, a subdirectory) is not an upload source either; a path that does
+    not exist yet stays in scope so the caller can warn that it is missing.
+    """
     if not path.is_relative_to(attachments_root):
         return False
     relative = path.relative_to(attachments_root)
-    return not any(part.startswith(".") for part in relative.parts)
+    if any(part.startswith(".") for part in relative.parts):
+        return False
+    return path.is_file() or not path.exists()
 
 
 def _warn_skipped_reference(src: str, attachments_root: Path) -> None:
