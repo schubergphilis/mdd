@@ -24,6 +24,7 @@ import shutil
 import sys
 from pathlib import Path
 from xml.etree import ElementTree
+from xml.parsers import expat
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ASSETS = REPO_ROOT / "assets"
@@ -116,12 +117,27 @@ def check_well_formed(svg: str, label: str) -> None:
     parse(svg, label)
 
 
-# Elements that run code or embed a foreign document, compared lower-cased.
-ACTIVE_ELEMENTS = frozenset({"script", "foreignobject"})
+# Elements that run code or embed a foreign document, compared lower-cased and
+# in any namespace: an XHTML `<iframe>` loads even where SVG would not draw it.
+ACTIVE_ELEMENTS = frozenset(
+    {
+        "script",
+        "foreignobject",
+        "handler",
+        "listener",
+        "iframe",
+        "frame",
+        "embed",
+        "object",
+        "applet",
+    }
+)
 
-# URL schemes a link may not use. Browsers drop whitespace and control
-# characters from a URL before reading its scheme, so the check does too.
-REFUSED_SCHEMES = ("javascript:", "data:")
+# URL schemes no attribute may hold, and the wider set a link may not use.
+# Browsers drop whitespace and control characters from a URL before reading
+# its scheme, so the check does too.
+SCRIPT_SCHEMES = ("javascript:", "vbscript:")
+REFUSED_LINK_SCHEMES = (*SCRIPT_SCHEMES, "data:")
 
 # `onclick`, `onload`, `onmouseover`, ...: an event handler attribute.
 EVENT_HANDLER = re.compile(r"on[a-z]+")
@@ -132,20 +148,30 @@ def local_name(name: str) -> str:
     return name.rsplit("}", 1)[-1].lower()
 
 
-def url_scheme_refused(value: str) -> bool:
-    """Whether `value`, read as a URL, uses one of REFUSED_SCHEMES."""
+def url_scheme_in(value: str, schemes: tuple[str, ...]) -> bool:
+    """Whether `value`, read as a URL, uses one of `schemes`."""
     compact = "".join(char for char in value if char > " ").lower()
-    return compact.startswith(REFUSED_SCHEMES)
+    return compact.startswith(schemes)
+
+
+def animation_problems(tag: str, value: str) -> list[str]:
+    """Describe what is wrong with an `attributeName` naming `value`, if anything."""
+    target = value.strip().lower().rsplit(":", 1)[-1]
+    if target == "href":
+        return [f"<{tag}> animates a link target"]
+    if EVENT_HANDLER.fullmatch(target):
+        return [f"<{tag}> animates the event handler attribute {target}"]
+    return []
 
 
 def attribute_problems(tag: str, name: str, value: str) -> list[str]:
     """Describe what is wrong with one attribute of a `<tag>` element, if anything."""
     if EVENT_HANDLER.fullmatch(name):
         return [f"<{tag}> has an event handler attribute {name}"]
-    if name == "href" and url_scheme_refused(value):
-        return [f"<{tag}> links to a {value.strip()[:40]!r} URL"]
-    if name == "attributename" and value.strip().lower().rsplit(":", 1)[-1] == "href":
-        return [f"<{tag}> animates a link target"]
+    if url_scheme_in(value, REFUSED_LINK_SCHEMES if name == "href" else SCRIPT_SCHEMES):
+        return [f"<{tag}> {name} links to a {value.strip()[:40]!r} URL"]
+    if name == "attributename":
+        return animation_problems(tag, value)
     return []
 
 
@@ -158,18 +184,41 @@ def element_problems(element: ElementTree.Element) -> list[str]:
     return problems
 
 
+def declaration_problems(svg: str) -> list[str]:
+    """Describe the DOCTYPE and processing instructions in `svg`, which ElementTree drops.
+
+    A drawing needs neither. A processing instruction can attach an XSLT
+    stylesheet that runs when the file is opened on its own, and a DOCTYPE can
+    declare entities that hide markup from a reader of the source.
+    """
+    problems: list[str] = []
+
+    def on_doctype(name: str, _system_id: str | None, _public_id: str | None, _subset: int) -> None:
+        problems.append(f"has a <!DOCTYPE {name}> declaration")
+
+    def on_processing_instruction(target: str, _data: str) -> None:
+        problems.append(f"has a <?{target}?> processing instruction")
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = on_doctype
+    parser.ProcessingInstructionHandler = on_processing_instruction
+    parser.Parse(svg, True)
+    return problems
+
+
 def check_no_active_content(svg: str, label: str) -> None:
     """Fail if the SVG could run code when a browser displays it.
 
     Both variants of every asset are copied into the documentation site, and
     other builds copy them onward from there. A drawing needs none of scripts,
-    embedded foreign documents, event handler attributes, `javascript:` or
-    `data:` links, or animations that rewrite a link, so any of them is refused
-    outright rather than stripped.
+    embedded foreign documents, event handler attributes, `javascript:` URLs,
+    `data:` links, animations that rewrite a link or an event handler, a
+    DOCTYPE or a processing instruction, so any of them is refused outright
+    rather than stripped.
     """
-    problems = [
-        problem for element in parse(svg, label).iter() for problem in element_problems(element)
-    ]
+    root = parse(svg, label)
+    problems = declaration_problems(svg)
+    problems.extend(problem for element in root.iter() for problem in element_problems(element))
     if problems:
         raise SystemExit(
             f"{label} contains content that runs code, which an SVG asset must not:\n"
