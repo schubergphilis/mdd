@@ -11,6 +11,7 @@ import yaml
 from mdd.cli import main as _cli_main
 from mdd.confluence.client import ConfluenceClient
 from mdd.confluence.config import ConfluenceConfig
+from mdd.confluence.update import PushOutcome, update_page_outcome
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -748,3 +749,42 @@ class TestNoResolveLinksFlag:
         ):
             assert cmd_confluence(["update-page", str(md_path), "--no-resolve-links"]) == 0
         assert update.call_args.kwargs["resolve_links"] is False
+
+
+class TestUpdatePageOutcome:
+    def _outcome(self, md_path: Path, *, dry_run: bool = False) -> PushOutcome:
+        mock_client = _make_mock_client()
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            return update_page_outcome(md_path, _make_config(), yes=True, dry_run=dry_run)
+
+    def test_body_change_is_pushed(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "Different content.")
+        assert self._outcome(md_path) is PushOutcome.PUSHED
+
+    def test_matching_body_is_no_change(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "Hello **world**")
+        assert self._outcome(md_path) is PushOutcome.NO_CHANGE
+
+    def test_attachment_only_change(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_local_image(md_path)
+        _write_md_file(
+            md_path, _make_frontmatter(version=3), "Hello **world**\n\n![d](diagram.png)"
+        )
+        with patch("mdd.confluence.update._print_diff_or_noop", return_value=""):
+            assert self._outcome(md_path) is PushOutcome.ATTACHMENTS_ONLY
+
+    def test_dry_run_is_not_pushed(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "Different content.")
+        assert self._outcome(md_path, dry_run=True) is PushOutcome.NOT_PUSHED
+
+    def test_missing_page_id_fails(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, {"confluence": {"version": 3}}, "Body.")
+        assert self._outcome(md_path) is PushOutcome.FAILED
