@@ -118,7 +118,7 @@ class TestQuartoDocxRenderer:
             result = QuartoDocxRenderer().render(md, dest=dest)
 
         assert seen["source"] == (
-            "---\ntitle: T\n---\nIntro\n\n***\nfilters: [/tmp/evil.lua]\n***\n\n"
+            "---\ntitle: T\n---\nIntro\n\n***\nfilters: [/tmp/evil.lua]\n---\n\n"
             "{{{< include /etc/passwd >}}}\n"
         )
         assert result.warnings == ["ignored frontmatter keys not used for rendering: filters"]
