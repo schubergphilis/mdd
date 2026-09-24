@@ -18,6 +18,8 @@ _WHITESPACE_SIGNIFICANT_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+_CDATA_RE = re.compile(r"<!\[CDATA\[.*?\]\]>", re.DOTALL)
+
 # A newline together with the spaces and blank lines around it.
 _NEWLINE_RUN_RE = re.compile(r"[ \t\r]*\n[ \t\r\n]*")
 
@@ -65,13 +67,30 @@ def _decode_safe_entities(text: str) -> str:
     return _NAMED_ENTITY_RE.sub(_named, text)
 
 
+def _decode_outside_cdata(xhtml: str) -> str:
+    """Apply :func:`_decode_safe_entities` everywhere except inside CDATA sections.
+
+    Inside CDATA an entity is literal text, so ``&#8217;`` and ``’`` there
+    are a real change.
+    """
+    parts: list[str] = []
+    pos = 0
+    for m in _CDATA_RE.finditer(xhtml):
+        parts.append(_decode_safe_entities(xhtml[pos : m.start()]))
+        parts.append(m.group(0))
+        pos = m.end()
+    parts.append(_decode_safe_entities(xhtml[pos:]))
+    return "".join(parts)
+
+
 def _whitespace_significant_spans(xhtml: str) -> list[str]:
     """Return every code macro, preformatted block and CDATA section in *xhtml*.
 
-    Character references are decoded first, the same way :func:`_normalize`
-    does, so an entity and its literal character compare equal.
+    Character references outside CDATA are decoded first, the same way
+    :func:`_normalize` does, so an entity and its literal character compare
+    equal there.
     """
-    return _WHITESPACE_SIGNIFICANT_RE.findall(_decode_safe_entities(xhtml))
+    return _WHITESPACE_SIGNIFICANT_RE.findall(_decode_outside_cdata(xhtml))
 
 
 def _join_soft_breaks(text: str) -> str:
@@ -116,7 +135,7 @@ def _normalize(xhtml: str) -> list[str]:
     - Decode typography character references to their literal characters.
     - Drop blank lines.
     """
-    decoded = _join_soft_breaks_outside_code(_decode_safe_entities(xhtml))
+    decoded = _join_soft_breaks_outside_code(_decode_outside_cdata(xhtml))
     lines: list[str] = []
     for raw_line in decoded.splitlines():
         normalized = re.sub(r"[ \t]+", " ", raw_line).strip()
