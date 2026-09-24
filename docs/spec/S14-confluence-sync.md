@@ -233,10 +233,11 @@ forge this ends up on is a wiring decision, not part of this spec:
   `git push -u origin <branch>`. It does not fetch or rebase first, so
   if the remote branch already has commits git rejects the push as
   non-fast-forward; a backend may rebase before pushing. It refuses to push from a detached
-  HEAD, or when the branch name starts with `-` or fails
+  HEAD, or when the branch name starts with `-` or `+` or fails
   `git check-ref-format --branch`, and it passes `--end-of-options`
   before the remote and branch, so a branch name is never read as a
-  `git push` option.
+  `git push` option. (`+main` is a valid branch name, but `git push`
+  would read it as a forced refspec.)
 
 If `--push` is passed but the run produced no commit and the mirror
 was already a git repo (truly nothing to do), sync skips the push —

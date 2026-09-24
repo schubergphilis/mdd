@@ -97,16 +97,18 @@ def _pushable_branch(path: Path) -> str:
     A detached HEAD has no branch to push. A name starting with ``-`` would
     be read by ``git push`` as an option, and git itself refuses to create a
     branch with such a name — but a ref like ``refs/heads/--mirror`` is still
-    valid and can arrive via a clone. Any other name that ``git
-    check-ref-format --branch`` rejects is refused too.
+    valid and can arrive via a clone. A name starting with ``+`` is a valid
+    branch name, but ``git push`` reads it as a forced refspec (``+main``
+    force-updates ``main``), which ``--end-of-options`` does not prevent. Any
+    other name that ``git check-ref-format --branch`` rejects is refused too.
     """
     current = run_git(["rev-parse", "--abbrev-ref", "HEAD"], path).stdout.strip()
     if current == "HEAD":
         raise MirrorPushError(f"cannot push '{path}': HEAD is detached; check out a branch first")
-    if current.startswith("-") or not _is_valid_branch_name(current, path):
+    if current.startswith(("-", "+")) or not _is_valid_branch_name(current, path):
         raise MirrorPushError(
-            f"cannot push '{path}': current branch name {current!r} is not a "
-            f"valid branch name; rename the branch first"
+            f"cannot push '{path}': current branch name {current!r} cannot be "
+            f"pushed by name; rename the branch first"
         )
     return current
 
