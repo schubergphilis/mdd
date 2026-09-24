@@ -9,7 +9,11 @@ from unittest.mock import MagicMock, patch
 from mdd.confluence.client import ConfluenceError
 from mdd.confluence.config import ConfluenceConfig
 from mdd.confluence.sync._types import SyncOptions, SyncSummary
-from mdd.confluence.sync.pull import CreateScope, create_local_pages
+from mdd.confluence.sync.pull import (
+    CreateScope,
+    _short_error,  # pyright: ignore[reportPrivateUsage]
+    create_local_pages,
+)
 from mdd.confluence.sync_diff import EventKind, SyncEvent
 
 if TYPE_CHECKING:
@@ -143,11 +147,32 @@ class TestCreateLocalPagesParent:
         create.assert_called_once_with(md, _CONFIG, space_key="MDDTEST")
         assert summary.create_skipped_other_space == []
 
-    def test_parent_that_cannot_be_found_is_skipped(self, tmp_path: Path) -> None:
+    def test_parent_that_cannot_be_looked_up_is_skipped_with_the_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         md = _candidate(tmp_path, "a.md", "MDDTEST")
         client = MagicMock()
-        client.get_page.side_effect = ConfluenceError("404")
-        client.get_folder.side_effect = ConfluenceError("404")
+        client.get_page.side_effect = ConfluenceError("HTTP 403 Forbidden\nresponse body")
+        client.get_folder.side_effect = ConfluenceError("HTTP 404 Not Found")
+        scope = CreateScope(client=client, space_key="MDDTEST", space_id="111")
+        summary = SyncSummary()
+        with (
+            caplog.at_level(logging.WARNING, logger="mdd.confluence.sync.pull"),
+            patch("mdd.confluence.sync.pull.create_page") as create,
+        ):
+            create_local_pages([_new_event(md)], _CONFIG, SyncOptions(), summary, scope=scope)
+
+        create.assert_not_called()
+        assert summary.failures == []
+        assert summary.create_skipped_other_space == [
+            "a.md: could not look up parent '42': HTTP 403 Forbidden"
+        ]
+        assert "could not look up parent '42'" in caplog.text
+
+    def test_parent_page_without_space_id_is_not_in_synced_space(self, tmp_path: Path) -> None:
+        md = _candidate(tmp_path, "a.md", "MDDTEST")
+        client = MagicMock()
+        client.get_page.return_value = {"id": "42"}
         scope = CreateScope(client=client, space_key="MDDTEST", space_id="111")
         summary = SyncSummary()
         with patch("mdd.confluence.sync.pull.create_page") as create:
@@ -185,3 +210,13 @@ class TestSummaryCreateSkippedSection:
         summary = SyncSummary()
         summary.create_skipped_other_space.append("x.md: names space HR, synced space is TEST")
         assert not summary.has_changes()
+
+
+class TestShortError:
+    def test_long_message_is_cut(self) -> None:
+        note = _short_error(ConfluenceError("x" * 500))
+        assert len(note) == 120
+        assert note.endswith("…")
+
+    def test_empty_message_falls_back_to_type_name(self) -> None:
+        assert _short_error(ConfluenceError("")) == "ConfluenceError"
