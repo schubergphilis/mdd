@@ -12,11 +12,17 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def has_control_characters(name: str) -> bool:
+    """Return True if *name* contains any control character (including newline)."""
+    return any(ord(ch) < 32 or ord(ch) == 127 for ch in name)
+
+
 def find_stale_files(directory: Path, extension: str) -> list[Path]:
     """Find files that need PDF export.
 
     A file needs export if no corresponding PDF exists or the source is newer.
-    Excludes symlinks and files in the 'templates' directory.
+    Excludes symlinks and files in the 'templates' directory. Files whose
+    name contains control characters are skipped with a warning.
     """
     stale_files: list[Path] = []
 
@@ -24,6 +30,9 @@ def find_stale_files(directory: Path, extension: str) -> list[Path]:
         if source_path.is_symlink():
             continue
         if source_path.parent.name == "templates":
+            continue
+        if has_control_characters(source_path.name):
+            log.warning("Skipping %r: file name contains control characters", source_path.name)
             continue
 
         pdf_path = Path(str(source_path) + ".pdf")
@@ -35,12 +44,24 @@ def find_stale_files(directory: Path, extension: str) -> list[Path]:
 
 
 def export_to_pdf_via_applescript(source_path: Path, applescript: str, app_name: str) -> bool:
-    """Export a file to PDF using an Office app via AppleScript."""
+    """Export a file to PDF using an Office app via AppleScript.
+
+    *applescript* must define an ``on run argv`` handler; the resolved source
+    path and the PDF path are passed as ``argv`` items 1 and 2. The ``--``
+    separator stops osascript from reading the paths as options.
+    """
     try:
         pdf_path = Path(str(source_path) + ".pdf")
 
         _ = subprocess.run(
-            ["osascript", "-e", applescript],
+            [
+                "osascript",
+                "-e",
+                applescript,
+                "--",
+                str(source_path.resolve()),
+                str(pdf_path.resolve()),
+            ],
             capture_output=True,
             text=True,
             check=True,
