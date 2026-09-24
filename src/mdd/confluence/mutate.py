@@ -676,8 +676,9 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
             page_data = _preflight(client, page_state, repo_dir, opts)
             parent_data = _fetch_page(client, new_parent_id)
             _check_same_space(page_state, parent_data)
+            remote_title, _space_key = _prompt_identity(page_state, page_data)
             preview = (
-                f'Move: "{page_state.title}" (page {page_state.page_id})\n'
+                f'Move: "{remote_title}" (page {page_state.page_id})\n'
                 f"      to parent {_remote_title(parent_data)!r} (page {new_parent_id})"
             )
             if not _prompt(preview, yes=opts.yes):
@@ -685,9 +686,11 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")
                 return 0
+            # Move keeps the title Confluence has; the local title may be
+            # stale and must not rename the page as a side effect.
             result = client.put_page(
                 page_state.page_id,
-                page_state.title,
+                remote_title,
                 _extract_storage_body(page_data),
                 page_state.version + 1,
                 opts.message or "Moved via mdd",

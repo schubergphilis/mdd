@@ -346,7 +346,10 @@ v1 fallback in `confluence.client` per [S09](S09-confluence-command.md))
   these params with sensible defaults to avoid breaking
   `update_page`'s call site.
 - **Move**: same extended PUT with new `parentId`, unchanged
-  title / body / status.
+  title / body / status. As for rename, "unchanged" means the
+  values fetched during pre-flight: the frontmatter title is never
+  sent, so a stale local title cannot rename the page as a side
+  effect of a move.
 - **Archive**: prefer the v2 archive endpoint
   (`POST /wiki/api/v2/pages/{id}/archive` or the equivalent
   current path — confirm at implementation time and centralise
