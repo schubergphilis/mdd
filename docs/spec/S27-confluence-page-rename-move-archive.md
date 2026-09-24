@@ -309,7 +309,13 @@ edits and mdd-managed git operations must not commit-mix.
 **Confirmation.** Each command prints a one-line preview of the
 planned mutation and prompts for confirmation, mirroring
 [S09](S09-confluence-command.md)'s `update-page` posture
-(Confluence is shared state). `--yes` skips the prompt;
+(Confluence is shared state). The preview names the page by the
+title (and space key, when the response carries one) that
+Confluence returned during pre-flight, not by the frontmatter
+copy: the frontmatter may be stale or edited, and the prompt
+describes what will happen on Confluence. When the remote title
+differs from the frontmatter title, a warning is logged before
+the prompt so the drift is visible. `--yes` skips the prompt;
 `--dry-run` skips both the prompt and the actual call. Examples:
 ```
 Rename: "Old Title" -> "New Title"
@@ -328,7 +334,10 @@ Proceed? [y/N]
 v1 fallback in `confluence.client` per [S09](S09-confluence-command.md))
 - **Rename**: `PUT /wiki/api/v2/pages/{id}` with current
   `version.number+1`, new `title`, unchanged body, status, and
-  `parentId`. Body must be re-sent because v2's PUT requires a
+  `parentId`. "Unchanged" means the values fetched from
+  Confluence during pre-flight; the frontmatter `parent_id` is
+  never sent, so a stale local parent cannot reparent the page
+  as a side effect of a rename. Body must be re-sent because v2's PUT requires a
   full page representation; fetch current storage XHTML as part
   of the operation. The existing `ConfluenceClient.put_page()`
   already accepts `body_xhtml`; **extend it to accept optional
