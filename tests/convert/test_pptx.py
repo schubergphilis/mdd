@@ -289,6 +289,69 @@ class TestConvertPptxUntitled:
         assert "## Slide 2" in content
 
 
+def _make_pptx_picture_in_title_slot(tmp_path: Path, picture: bytes) -> Path:
+    """Build a one-slide .pptx whose layout puts a picture placeholder at idx 0.
+
+    Starts from the default "Picture with Caption" layout, drops its title
+    placeholder and renumbers the picture placeholder to idx 0, so
+    ``slide.shapes.title`` returns a ``PlaceholderPicture`` once filled.
+    """
+    import pptx  # pyright: ignore[reportMissingModuleSource]
+
+    prs: Any = pptx.Presentation()  # pyright: ignore[reportAny]
+    layout: Any = next(  # pyright: ignore[reportAny]
+        lay
+        for lay in prs.slide_layouts  # pyright: ignore[reportAny]
+        if lay.name == "Picture with Caption"  # pyright: ignore[reportAny]
+    )
+    for ph in list(layout.placeholders):  # pyright: ignore[reportAny]
+        if ph.placeholder_format.idx == 0:  # pyright: ignore[reportAny]
+            ph.element.getparent().remove(ph.element)  # pyright: ignore[reportAny]
+    for ph in layout.placeholders:  # pyright: ignore[reportAny]
+        if ph.placeholder_format.idx == 1:  # pyright: ignore[reportAny]
+            ph.element.ph.set("idx", "0")  # pyright: ignore[reportAny]
+
+    slide: Any = prs.slides.add_slide(layout)  # pyright: ignore[reportAny]
+    slide.placeholders[0].insert_picture(io.BytesIO(picture))
+
+    path = tmp_path / "test.pptx"
+    prs.save(str(path))
+    return path
+
+
+class TestConvertPptxPictureInTitlePlaceholder:
+    def test_fixture_puts_picture_in_title_slot(self, tmp_path: Path) -> None:
+        import pptx  # pyright: ignore[reportMissingModuleSource]
+        from pptx.shapes.placeholder import (  # pyright: ignore[reportMissingModuleSource]
+            PlaceholderPicture,
+        )
+
+        src = _make_pptx_picture_in_title_slot(tmp_path, _minimal_png())
+        prs: Any = pptx.Presentation(str(src))  # pyright: ignore[reportAny]
+        assert isinstance(prs.slides[0].shapes.title, PlaceholderPicture)
+
+    def test_falls_back_to_slide_n_heading(self, tmp_path: Path) -> None:
+        from mdd.convert.pptx import convert_pptx
+
+        src = _make_pptx_picture_in_title_slot(tmp_path, _minimal_png())
+        dst = tmp_path / "test.pptx.md"
+        convert_pptx(src, dst)
+        content = dst.read_text()
+        assert "## Slide 1" in content
+
+    def test_picture_written_and_linked(self, tmp_path: Path) -> None:
+        from mdd.convert.pptx import convert_pptx
+
+        src = _make_pptx_picture_in_title_slot(tmp_path, _minimal_png())
+        dst = tmp_path / "test.pptx.md"
+        convert_pptx(src, dst)
+        attachments = tmp_path / "test.pptx-attachments"
+        files = list(attachments.iterdir())
+        assert len(files) == 1
+        content = dst.read_text()
+        assert f"![](test.pptx-attachments/{files[0].name})" in content
+
+
 class TestConvertPptxTable:
     def test_simple_table_as_markdown(self, tmp_path: Path) -> None:
         from mdd.convert.pptx import convert_pptx
