@@ -9,9 +9,25 @@
 `src/mdd/convert/images.py` is the shared image writer used by the `.docx`
 and `.pptx` converters (S03, S11) and, transitively, by `mdd sharepoint sync`
 (S18). Its single entry point, `write_image`, takes an extracted image blob
-plus its declared format and writes a content-addressed file
-(`image_<sha1(written_bytes)[:16]>.<ext>`) into the document's attachments
-directory, returning a relative path the markdown body links to.
+plus the format the container declared for it (the `[Content_Types].xml`
+media type in `.docx`, `python-pptx`'s `Image.ext` in `.pptx`) and writes a
+content-addressed file (`image_<sha1(written_bytes)[:16]>.<ext>`) into the
+document's attachments directory, returning a relative path the markdown body
+links to.
+
+The declared format is a hint, not the truth: the per-format policy below is
+keyed on the format the **bytes actually have**. `write_image` identifies every
+blob from its header first, using only the PNG, JPEG, GIF, TIFF and BMP
+decoders (every later Pillow decode is restricted to the format so identified),
+and the on-disk extension follows that result. A JPEG declared as `image/png`
+is written as `.jpg`; a blob none of those decoders recognises is **dropped**
+through the existing dropped-image summary, never committed to disk under an
+image extension. WMF/EMF, which Pillow does not read, are the one exception:
+they are accepted for rasterization only when the container declared them as
+WMF/EMF **and** the bytes carry a metafile signature (placeable WMF
+`D7 CD C6 9A`, standard WMF header `01 00 09 00`/`02 00 09 00`, or `" EMF"` at
+byte offset 40). Bytes that fail that check never reach the external
+rasterizer.
 
 The pipeline already applied a per-format policy that had never been captured
 in a spec (it shipped incrementally under a plan):
@@ -40,6 +56,12 @@ of bytes at zero quality cost.
   lossless; this requirement forbids any future "optimization" that is not.)
 - Any decode/encode failure MUST fall back to writing the original blob
   unchanged. Image optimization MUST NEVER lose or corrupt the picture.
+- The pipeline branch and the on-disk extension MUST be chosen from the
+  identified format of the bytes, not the declared one. A blob that none of the
+  supported decoders identifies (and, for declared WMF/EMF, that carries no
+  metafile signature) MUST be dropped via `on_drop` and MUST NOT be written.
+  Every Pillow decode MUST be restricted with `formats=` to the identified
+  format so that no other registered decoder is ever consulted.
 - JPEG and GIF pass-through MUST remain **byte-verbatim**. mdd MUST NOT
   re-encode existing JPEGs (that is lossy and compounds generation loss) and
   MUST NOT re-encode GIFs (animation-unsafe).
@@ -78,8 +100,12 @@ of bytes at zero quality cost.
 
 ## Implementation Notes
 
-- Code: `src/mdd/convert/images.py` (`_optimize_png_lossless`, `_reencode_png`).
-  Tests: `tests/convert/test_images.py`.
+- Code: `src/mdd/convert/images.py` (`_optimize_png_lossless`, `_reencode_png`;
+  format identification in `_sniff_format`, `_sniff_metafile_format` and
+  `_effective_format`). Tests: `tests/convert/test_images.py`.
+- The drop reason reported for an unidentifiable blob is the *declared* format
+  (that is all that is known about it); for an identified-but-unsupported
+  format such as BMP it is the identified one.
 - The pre-existing tests that asserted verbatim PNG pass-through
   (`test_passthrough_writes_bytes_verbatim`,
   `test_in_spec_png_passes_through_unchanged`) are updated to assert
