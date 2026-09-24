@@ -64,6 +64,19 @@ def test_plain_drawing_with_links_passes() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "href",
+    [
+        pytest.param('href="data:image/png;base64,AAAA"', id="png"),
+        pytest.param('xlink:href="DATA:image/JPEG;base64,AAAA"', id="jpeg-upper"),
+        pytest.param('href=" data:image/webp,AAAA"', id="webp-spaced"),
+        pytest.param('href="data:image/gif;base64,AAAA"', id="gif"),
+    ],
+)
+def test_embedded_raster_image_passes(href: str) -> None:
+    check(svg(f"<image {href}/>"))
+
+
 def test_xml_declaration_passes() -> None:
     check('<?xml version="1.0" encoding="UTF-8"?>' + svg("<rect/>"))
 
@@ -106,6 +119,17 @@ def test_xml_declaration_passes() -> None:
         ),
         pytest.param(
             svg('<image xlink:href="DATA:text/html,x"/>'), "links to a", id="xlink-href-data"
+        ),
+        pytest.param(
+            svg('<a href="data:image/png;base64,AAAA"><text>x</text></a>'),
+            "links to a",
+            id="raster-data-outside-image",
+        ),
+        pytest.param(
+            svg('<use href="data:image/png;base64,AAAA"/>'), "links to a", id="raster-data-use"
+        ),
+        pytest.param(
+            svg('<image href="data:image/pngx,AAAA"/>'), "links to a", id="raster-lookalike"
         ),
         pytest.param(
             svg('<a><set attributeName="href" to="javascript:go()"/></a>'),
