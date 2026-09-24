@@ -321,6 +321,32 @@ class TestWriteImageWmfRasterize:
         assert not (tmp_path / "att").exists()
 
     @pytest.mark.parametrize(
+        "blob",
+        [
+            # PDF header with " EMF" planted at byte offset 40.
+            b"%PDF-1.4\n%" + b"\x00" * 30 + b" EMF" + b"\x00" * 40,
+            # Binary EPS header (C5 D0 D3 C6) with " EMF" planted at byte offset 40.
+            b"\xc5\xd0\xd3\xc6" + b"\x00" * 36 + b" EMF" + b"%!PS-Adobe-3.0\n",
+        ],
+    )
+    def test_emf_signature_alone_is_not_a_metafile(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blob: bytes
+    ) -> None:
+        """A foreign file with " EMF" at offset 40 lacks the EMR_HEADER type and is dropped."""
+        from mdd.convert import images as images_mod
+        from mdd.convert.images import write_image
+
+        def _boom(_blob: bytes, _fmt: str) -> bytes:
+            raise AssertionError("rasterizer must not run for a non-metafile")
+
+        monkeypatch.setattr(images_mod, "_rasterize_to_png", _boom)
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", blob, "emf", cache={}, on_drop=dropped.append)
+        assert result is None
+        assert dropped == ["EMF"]
+        assert not (tmp_path / "att").exists()
+
+    @pytest.mark.parametrize(
         ("blob", "declared", "expected_ext"),
         [
             (_FAKE_WMF, "wmf", "wmf"),
@@ -536,6 +562,61 @@ class TestWriteImageIdentifiesByContent:
         result = write_image(tmp_path / "att", _FAKE_WMF, "png", cache={}, on_drop=dropped.append)
         assert result is None
         assert dropped == ["PNG"]
+
+    @pytest.mark.parametrize("declared", ["png", "tiff"])
+    def test_header_over_pixel_limit_is_dropped_not_raised(
+        self, tmp_path: Path, declared: str
+    ) -> None:
+        """A PNG header claiming 200000x200000 pixels is dropped; Pillow's limit stays on."""
+        from PIL import Image
+
+        from mdd.convert.images import write_image
+
+        assert Image.MAX_IMAGE_PIXELS is not None
+        bomb = _png_with_header(200_000, 200_000)
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", bomb, declared, cache={}, on_drop=dropped.append)
+        assert result is None
+        assert dropped == [declared.upper()]
+        assert not (tmp_path / "att").exists()
+
+    def test_multi_picture_jpeg_passes_through_as_jpg(self, tmp_path: Path) -> None:
+        """An MPO (multi-picture JPEG) is a JPEG stream and is written verbatim as .jpg."""
+        import io as _io
+
+        from PIL import Image
+
+        from mdd.convert.images import write_image
+
+        first = Image.new("RGB", (8, 8), color=(1, 2, 3))
+        second = Image.new("RGB", (8, 8), color=(4, 5, 6))
+        buf = _io.BytesIO()
+        first.save(buf, format="MPO", save_all=True, append_images=[second])
+        mpo = buf.getvalue()
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", mpo, "jpeg", cache={}, on_drop=dropped.append)
+        assert result is not None
+        assert result.rel_path.suffix == ".jpg"
+        assert (tmp_path / "att" / result.rel_path).read_bytes() == mpo
+        assert dropped == []
+
+
+def _png_with_header(width: int, height: int) -> bytes:
+    """A syntactically valid PNG whose IHDR declares *width* x *height* pixels."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(kind + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(b"\x00" * 4))
+        + chunk(b"IEND", b"")
+    )
 
 
 def _tiff_blob(colour: tuple[int, int, int] = (128, 64, 200)) -> bytes:

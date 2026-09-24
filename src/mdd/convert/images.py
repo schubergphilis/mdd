@@ -91,8 +91,13 @@ _PILLOW_FORMAT: dict[str, str] = {
 # recognised by hand before the external rasteriser is invoked.
 _WMF_PLACEABLE_MAGIC = b"\xd7\xcd\xc6\x9a"
 _WMF_HEADER_MAGICS: tuple[bytes, ...] = (b"\x01\x00\x09\x00", b"\x02\x00\x09\x00")
+_EMF_HEADER_RECORD_TYPE = b"\x01\x00\x00\x00"
 _EMF_SIGNATURE = b" EMF"
 _EMF_SIGNATURE_OFFSET = 40
+
+# Pillow reports a multi-picture JPEG (MPO) under its own format name, but
+# the bytes are a plain JPEG stream and are handled as one.
+_SNIFF_ALIASES: dict[str, str] = {"mpo": "jpeg"}
 
 
 @dataclass(frozen=True)
@@ -181,7 +186,7 @@ def _probe_size(blob: bytes, pillow_format: str) -> tuple[int, int] | None:
     try:
         with Image.open(io.BytesIO(blob), formats=[pillow_format]) as img:
             return img.size  # pyright: ignore[reportAny, reportReturnType]
-    except OSError, ValueError, UnidentifiedImageError:
+    except OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError:
         return None
 
 
@@ -190,7 +195,9 @@ def _sniff_format(blob: bytes) -> str | None:
 
     Returns the lowercased Pillow format name (``png``, ``jpeg``, ``gif``,
     ``tiff``, ``bmp``) or ``None`` when none of them recognises the blob.
-    Only the header is parsed; pixel data is not decoded.
+    Only the header is parsed; pixel data is not decoded. A header whose
+    declared pixel count exceeds Pillow's decompression-bomb limit is
+    treated as unidentified.
     """
     # lazy: Pillow ~1.2s cold-import; load only when we actually identify a blob
     from PIL import (  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
@@ -201,17 +208,28 @@ def _sniff_format(blob: bytes) -> str | None:
     try:
         with Image.open(io.BytesIO(blob), formats=_SNIFF_FORMATS) as img:
             detected: str | None = img.format  # pyright: ignore[reportAny]
-    except OSError, ValueError, UnidentifiedImageError:
+    except OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError:
         return None
-    return detected.lower() if detected else None
+    if not detected:
+        return None
+    lowered = detected.lower()
+    return _SNIFF_ALIASES.get(lowered, lowered)
 
 
 def _sniff_metafile_format(blob: bytes) -> str | None:
-    """Return ``"wmf"`` / ``"emf"`` when *blob* carries that signature, else None."""
+    """Return ``"wmf"`` / ``"emf"`` when *blob* carries that signature, else None.
+
+    EMF requires both the EMR_HEADER record type at offset 0 and the
+    ``" EMF"`` signature at offset 40, so a foreign file that merely has
+    those four bytes at offset 40 is not accepted.
+    """
     if blob.startswith(_WMF_PLACEABLE_MAGIC) or blob.startswith(_WMF_HEADER_MAGICS):
         return "wmf"
     end = _EMF_SIGNATURE_OFFSET + len(_EMF_SIGNATURE)
-    if blob[_EMF_SIGNATURE_OFFSET:end] == _EMF_SIGNATURE:
+    if (
+        blob.startswith(_EMF_HEADER_RECORD_TYPE)
+        and blob[_EMF_SIGNATURE_OFFSET:end] == _EMF_SIGNATURE
+    ):
         return "emf"
     return None
 
