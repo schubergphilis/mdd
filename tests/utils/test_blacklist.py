@@ -369,6 +369,22 @@ class TestDetectSourceSystem:
         system, _identifier = detect_source_system(tmp_path)
         assert system == SourceSystem.SHAREPOINT
 
+    def test_frontmatter_fallback_skips_unloadable_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A block PyYAML cannot load is skipped; the next file still decides."""
+        fail_result = _make_git_fail()
+
+        def fake_run(*args: Any, **kwargs: Any) -> MagicMock:
+            return fail_result
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        (tmp_path / "a.md").write_text("---\nx: " + "[" * 2000 + "\n---\n\n# A\n")
+        (tmp_path / "b.md").write_text("---\ndate: 2023-13-45\n---\n\n# B\n")
+        (tmp_path / "c.md").write_text("---\nconfluence:\n  space: TESTSPACE\n---\n\n# C\n")
+        system, _identifier = detect_source_system(tmp_path)
+        assert system == SourceSystem.CONFLUENCE
+
     def test_frontmatter_mdd_source_none(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

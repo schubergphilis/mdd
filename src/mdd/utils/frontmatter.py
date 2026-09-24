@@ -78,15 +78,19 @@ def parse_yaml_mapping(text: str) -> Mapping[str, object] | None:
     decoded list, decoded scalar.  Callers that want a hard error on
     "expected a mapping" should validate the return and raise.
 
-    PyYAML raises ``RecursionError`` rather than ``YAMLError`` when the
-    input nests deeper than the interpreter stack allows; that counts
-    as a parse error here.
+    PyYAML does not wrap every failure in ``YAMLError``: it raises
+    ``RecursionError`` when the input nests deeper than the interpreter
+    stack allows, and its scalar constructors leak ``ValueError``,
+    ``KeyError`` and ``AttributeError`` on out-of-range dates, oversized
+    integers and bad ``!!bool`` / ``!!int`` / ``!!timestamp`` values.
+    The input is an in-memory string, so any exception from
+    ``safe_load`` is a parse error and yields ``None``.
     """
     if not text.strip():
         return None
     try:
         parsed: Any = yaml.safe_load(text)  # pyright: ignore[reportAny]
-    except yaml.YAMLError, RecursionError:
+    except Exception:
         return None
     if not isinstance(parsed, dict):
         return None

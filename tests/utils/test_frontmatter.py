@@ -112,6 +112,25 @@ class TestParseYamlMapping:
         # PyYAML gives up with RecursionError rather than YAMLError here.
         assert parse_yaml_mapping(DEEPLY_NESTED_YAML) is None
 
+    def test_deeply_nested_mapping_returns_none(self) -> None:
+        assert parse_yaml_mapping("x: " + "{a: " * 2000) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("date: 2023-13-45", id="out-of-range-date"),
+            pytest.param("when: 2023-01-01 25:00:00", id="out-of-range-time"),
+            pytest.param("n: " + "1" * 5000, id="oversized-int"),
+            pytest.param("flag: !!bool maybe", id="bad-bool-tag"),
+            pytest.param("n: !!int abc", id="bad-int-tag"),
+            pytest.param("ts: !!timestamp later", id="bad-timestamp-tag"),
+        ],
+    )
+    def test_constructor_failures_return_none(self, text: str) -> None:
+        # PyYAML's scalar constructors raise ValueError / KeyError /
+        # AttributeError for these instead of a YAMLError.
+        assert parse_yaml_mapping(text) is None
+
 
 # ---------------------------------------------------------------------------
 # parse_json_mapping

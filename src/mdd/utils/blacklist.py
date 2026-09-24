@@ -7,9 +7,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
-import yaml
-
 from mdd.utils.config import ConfigError, find_blacklist_files, load_yaml
+from mdd.utils.frontmatter import parse_yaml_mapping
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -270,11 +269,8 @@ def _read_frontmatter(md_file: Path) -> dict[str, Any] | None:
     end = text.find("\n---", 3)
     if end == -1:
         return None
-    try:
-        parsed: Any = yaml.safe_load(text[3:end])
-    except yaml.YAMLError:
-        return None
-    return parsed if isinstance(parsed, dict) else None  # pyright: ignore[reportUnknownVariableType]
+    parsed = parse_yaml_mapping(text[3:end])
+    return dict(parsed) if parsed is not None else None
 
 
 def _detect_from_frontmatter_dict(fm: dict[str, Any]) -> tuple[SourceSystem, str | None] | None:
