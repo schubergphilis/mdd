@@ -826,3 +826,45 @@ class TestTokenRefreshOn401:
             pytest.raises(ConfluenceError, match="401"),
         ):
             client.get("/test")
+
+
+class TestErrorTextNeutralised:
+    """Response text quoted in an error cannot drive the terminal."""
+
+    _BODY = "bad\x1b[2K\x9b1A\x1b]0;t\x07\u202erequest"
+    _SHOWN = "bad\ufffd[2K\ufffd1A\ufffd]0;t\ufffd\ufffdrequest"
+
+    def _response(self, status_code: int) -> MagicMock:
+        resp = _mock_response(status_code)
+        resp.text = self._BODY
+        resp.headers = httpx.Headers()
+        return resp
+
+    def _assert_neutralised(self, exc: ConfluenceError) -> None:
+        message = str(exc)
+        assert not any(c in message for c in "\x1b\x9b\x07\u202e")
+        assert self._SHOWN in message
+
+    @pytest.mark.parametrize("status_code", [400, 503])
+    def test_request_error(self, status_code: int) -> None:
+        client = _make_client()
+        with (
+            patch("mdd.confluence.client.time.sleep"),
+            patch.object(httpx.Client, "request", return_value=self._response(status_code)),
+            pytest.raises(ConfluenceError, match=str(status_code)) as exc_info,
+        ):
+            client.get("/test")
+        self._assert_neutralised(exc_info.value)
+
+    @pytest.mark.parametrize("status_code", [400, 503])
+    def test_upload_error(self, tmp_path: Path, status_code: int) -> None:
+        client = _make_client()
+        f = tmp_path / "image.png"
+        f.write_bytes(b"\x89PNG")
+        with (
+            patch("mdd.confluence.client.time.sleep"),
+            patch.object(httpx.Client, "request", return_value=self._response(status_code)),
+            pytest.raises(ConfluenceError, match=str(status_code)) as exc_info,
+        ):
+            client.upload_attachment("page123", f)
+        self._assert_neutralised(exc_info.value)

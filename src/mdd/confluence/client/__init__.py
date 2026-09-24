@@ -23,6 +23,7 @@ import httpx
 from mdd.utils.http_trace import format_body, make_event_hooks, trace_bodies_enabled
 from mdd.utils.logging import TRACE, get_logger
 from mdd.utils.retry import backoff_for_response, jittered_delay, should_retry
+from mdd.utils.terminal import neutralise_controls
 
 from .errors import ConfluenceError
 from .paths import assert_relative_api_path, rest_attachment_download_path
@@ -54,6 +55,16 @@ class PutPageOptions:
 
 
 log = get_logger(__name__)
+
+
+def _http_error(method: str, path: str, response: httpx.Response) -> ConfluenceError:
+    """Build the error for a failed request, quoting the start of the response body.
+
+    The body is server text that may echo page content, so control characters
+    in it are neutralised before it can reach a terminal.
+    """
+    snippet = neutralise_controls(response.text[:200])
+    return ConfluenceError(f"{method} {path} failed with {response.status_code}: {snippet}")
 
 
 # 5 attempts total: 1 initial + 4 retries.
@@ -217,13 +228,9 @@ class ConfluenceClient:
 
             if not should_retry(response):
                 # 4xx (other than 429 / 401-retried): no retry
-                raise ConfluenceError(
-                    f"{method} {path} failed with {response.status_code}: {response.text[:200]}"
-                )
+                raise _http_error(method, path, response)
 
-            last_exc = ConfluenceError(
-                f"{method} {path} failed with {response.status_code}: {response.text[:200]}"
-            )
+            last_exc = _http_error(method, path, response)
             if delay is None:
                 break
             time.sleep(backoff_for_response(response, delay))
@@ -515,13 +522,9 @@ class ConfluenceClient:
                 return result  # pyright: ignore[reportReturnType, reportUnknownVariableType]
 
             if not should_retry(response):
-                raise ConfluenceError(
-                    f"POST {path} failed with {response.status_code}: {response.text[:200]}"
-                )
+                raise _http_error("POST", path, response)
 
-            last_exc = ConfluenceError(
-                f"POST {path} failed with {response.status_code}: {response.text[:200]}"
-            )
+            last_exc = _http_error("POST", path, response)
             if delay is None:
                 break
             time.sleep(backoff_for_response(response, delay))

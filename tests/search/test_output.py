@@ -20,7 +20,6 @@ from mdd.search.output import (
     _truncate_line,  # pyright: ignore[reportPrivateUsage]
     format_human,
     format_json,
-    neutralise_controls,
 )
 from mdd.search.roots import MirrorRoot
 
@@ -757,20 +756,6 @@ class TestControlCharacterNeutralisation:
     CLEAR_LINE = "\x1b[2K"
     C1_CSI = "\x9b"
     OSC8 = "\x1b]8;;https://example.invalid\x07link\x1b]8;;\x07"
-
-    def test_neutralise_controls_keeps_length_and_tab(self) -> None:
-        raw = "a\x00b\tc\x7fd\x9fe"
-        out = neutralise_controls(raw)
-        assert out == "a�b\tc�d�e"
-        assert len(out) == len(raw)
-
-    def test_neutralise_controls_replaces_bidi_overrides_only(self) -> None:
-        # Explicit embedding/override/isolate controls are replaced; implicit
-        # right-to-left text and the LRM/RLM marks pass through.
-        raw = "a\u202eb\u2066c\u2069d\u200e\u05d0"
-        out = neutralise_controls(raw)
-        assert out == "a�b�c�d\u200e\u05d0"
-        assert len(out) == len(raw)
 
     def test_highlight_spans_control_inside_submatch_with_multibyte_prefix(
         self, tmp_path: Path

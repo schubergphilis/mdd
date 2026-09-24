@@ -41,6 +41,7 @@ from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.ir import reattach
 from mdd.markdown.ir import parse_markdown
 from mdd.utils.logging import get_logger
+from mdd.utils.terminal import neutralise_lines
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -434,10 +435,14 @@ def _render_body_xhtml(
 
 
 def _print_diff_or_noop(body_xhtml: str, remote_storage: str) -> str:
-    """Print the diff (or no-op note) and return the diff string for the caller."""
+    """Print the diff (or no-op note) and return the diff string for the caller.
+
+    The printed copy has control characters neutralised, since both sides
+    carry page content; the returned diff is the unmodified text.
+    """
     diff = unified_xhtml_diff(body_xhtml, remote_storage)
     if diff:
-        log.info("%s", diff)
+        log.info("%s", neutralise_lines(diff))
         return diff
     if body_xhtml != remote_storage:
         log.info("local and remote differ only in whitespace (no update needed).")
@@ -467,7 +472,11 @@ class _PushPreview:
 
 
 def _push_summary(preview: _PushPreview) -> str:
-    """Render the target line plus a one-line change count for the push."""
+    """Render the target line plus a one-line change count for the push.
+
+    Titles and the space key come from Confluence and the mirror, so
+    control characters in them are neutralised.
+    """
     remote = preview.remote
     lines = [f'Update: "{remote.title}" (page {remote.page_id}) in space {remote.space_label}']
     if preview.new_title != remote.title:
@@ -480,7 +489,7 @@ def _push_summary(preview: _PushPreview) -> str:
         lines.append("  page body: unchanged")
     if preview.attachments_pending:
         lines.append("  attachments: changes will be uploaded")
-    return "\n".join(lines)
+    return neutralise_lines("\n".join(lines))
 
 
 def _show_push_summary(preview: _PushPreview) -> None:

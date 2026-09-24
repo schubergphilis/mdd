@@ -2,23 +2,26 @@
 
 Loads the config file of every registered root source (see
 :mod:`mdd.search.sources`) and extracts the ``output_dir`` value for each
-configured space / site / repo. Missing directories are reported via
+configured space / site / repo. Missing directories are logged as
 warnings; they are not errors — the user may not have cloned every mirror
 locally.
 """
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mdd.search.sources import RootSource, registered_root_sources
 from mdd.utils.config import ConfigError, load_yaml_plain_text
+from mdd.utils.logging import get_logger
+from mdd.utils.terminal import neutralise_controls
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -102,9 +105,10 @@ def roots_for_source(source: RootSource, config_path: Path | None = None) -> lis
             continue
         p = Path(output_dir_raw).expanduser()
         if not p.exists():
-            warnings.warn(
-                f"{source.label} mirror root does not exist locally, skipping: {p}",
-                stacklevel=2,
+            log.warning(
+                "%s mirror root does not exist locally, skipping: %s",
+                source.label,
+                neutralise_controls(str(p)),
             )
             continue
         roots.append(
@@ -185,7 +189,10 @@ def resolve_roots(
                     )
                 )
             else:
-                warnings.warn(f"Extra search path does not exist, skipping: {ep}", stacklevel=2)
+                log.warning(
+                    "Extra search path does not exist, skipping: %s",
+                    neutralise_controls(str(ep)),
+                )
 
     # Remove excluded paths
     if exclude_paths:

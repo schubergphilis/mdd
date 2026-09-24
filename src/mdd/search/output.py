@@ -16,7 +16,6 @@ Two paths share the same parsing/grouping:
 from __future__ import annotations
 
 import json
-import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 from mdd.search.color import NO_COLOR, Color
 from mdd.search.filters import frontmatter_line_range, is_frontmatter_line
 from mdd.utils.frontmatter import parse_yaml_mapping
+from mdd.utils.terminal import neutralise_controls
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -326,25 +326,6 @@ def _relative_display_path(path: Path, mirror: MirrorRoot | None) -> str:
         except ValueError:
             pass
     return str(path)
-
-
-# C0 controls except TAB (\x09), DEL, C1 controls, and the explicit bidi
-# embedding/override/isolate controls (U+202A..U+202E, U+2066..U+2069), which
-# reorder how a terminal displays the rest of the line. LF/CR never appear in
-# a single rg line, so they are neutralised too.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f\u202a-\u202e\u2066-\u2069]")
-_CONTROL_PLACEHOLDER = "\ufffd"
-
-
-def neutralise_controls(text: str) -> str:
-    """Replace terminal control and bidi override characters in *text* with U+FFFD.
-
-    Mirror content is printed verbatim in human mode, so a line containing
-    an escape sequence would otherwise be interpreted by the terminal. Each
-    control character maps to exactly one placeholder, so submatch offsets
-    computed on the original string remain valid.
-    """
-    return _CONTROL_CHARS_RE.sub(_CONTROL_PLACEHOLDER, text)
 
 
 def _format_file_header_lines(fm: FileMatches, color: Color) -> list[str]:

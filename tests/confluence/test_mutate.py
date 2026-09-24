@@ -759,6 +759,77 @@ class TestPromptVisibleByDefault:
         mock_client.archive_page.assert_not_called()
 
 
+# ESC CSI erase line, C1 CSI cursor up, OSC window title, right-to-left override.
+_CONTROLS = "\x1b[2K\x9b1A\x1b]0;t\x07\u202e"
+_RAW_CONTROL_CHARS = "\x1b\x9b\x07\u202e"
+_NEUTRALISED = "\ufffd[2K\ufffd1A\ufffd]0;t\ufffd\ufffd"
+
+
+class TestPromptNeutralisesControls:
+    """Titles in the confirmation preview cannot drive the terminal."""
+
+    def _hostile_remote(self) -> dict[str, Any]:
+        remote = dict(_REMOTE_PAGE)
+        remote["title"] = f"Old{_CONTROLS}Title"
+        return remote
+
+    @pytest.mark.parametrize("action", ["rename", "move", "archive", "unarchive"])
+    def test_remote_title_in_preview(
+        self, repo: Path, capsys: pytest.CaptureFixture[str], action: str
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(
+            page_response=self._hostile_remote(),
+            parent_response=_parent_response("99999", f"New{_CONTROLS}Parent"),
+        )
+        opts = MutateOptions(config=_make_config(), managed_config=_empty_managed())
+        seen_before_question: list[str] = []
+
+        def _answer(_question: str) -> str:
+            seen_before_question.append(capsys.readouterr().err)
+            return "n"
+
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.mutate.sys.stdin") as mock_stdin,
+            patch("builtins.input", side_effect=_answer),
+        ):
+            mock_stdin.isatty.return_value = True
+            rc = _run_action(action, md_path, opts)
+
+        assert rc == 0
+        (shown,) = seen_before_question
+        assert not any(c in shown for c in _RAW_CONTROL_CHARS)
+        assert f'"Old{_NEUTRALISED}Title"' in shown
+        assert "space ENG" in shown
+
+    def test_yes_logs_neutralised_preview_and_warning(
+        self, repo: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(page_response=self._hostile_remote())
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        assert not any(c in caplog.text for c in _RAW_CONTROL_CHARS)
+        joined = "\n".join(caplog.messages)
+        assert f'Archive: "Old{_NEUTRALISED}Title" (page 12345)' in joined
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any(f"Old{_NEUTRALISED}Title" in m for m in warnings)
+
+
 def _foreign_remote() -> dict[str, Any]:
     """A page Confluence reports in space HR, not the frontmatter's ENG."""
     remote = dict(_REMOTE_PAGE)

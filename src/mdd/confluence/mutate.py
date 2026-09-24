@@ -58,6 +58,7 @@ from mdd.confluence.url import URLMismatchError
 from mdd.confluence.url import parse as parse_url
 from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.utils.logging import get_logger
+from mdd.utils.terminal import neutralise_controls, neutralise_lines
 
 if TYPE_CHECKING:
     from mdd.confluence.config import ConfluenceConfig
@@ -314,8 +315,11 @@ def _prompt(preview: str, opts: MutateOptions) -> bool:
 
     The preview goes to stderr just before the question, so it is visible
     at the default log level. A dry run prints it and asks nothing, since
-    nothing will change. With ``--yes`` it is logged instead.
+    nothing will change. With ``--yes`` it is logged instead. Titles in
+    the preview come from Confluence and the mirror, so control characters
+    in it are neutralised.
     """
+    preview = neutralise_lines(preview)
     if opts.dry_run:
         _show_preview(preview)
         return True
@@ -386,8 +390,8 @@ def _prompt_identity(page_state: _PageState, remote: RemotePage) -> tuple[str, s
         log.warning(
             'Remote title "%s" differs from local title "%s" for page %s; '
             "the prompt shows the remote title.",
-            remote_title,
-            page_state.title,
+            neutralise_controls(remote_title),
+            neutralise_controls(page_state.title),
             page_state.page_id,
         )
     return remote_title, remote.space_label
