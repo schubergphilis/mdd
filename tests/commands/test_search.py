@@ -16,6 +16,7 @@ from mdd.commands.search import (
     _build_rg_cmd,  # pyright: ignore[reportPrivateUsage]
     _build_rg_type_args,  # pyright: ignore[reportPrivateUsage]
     _check_rg,  # pyright: ignore[reportPrivateUsage]
+    _neutralise_stderr,  # pyright: ignore[reportPrivateUsage]
 )
 from mdd.search.roots import MirrorRoot
 
@@ -241,6 +242,27 @@ class TestCmdSearchArgs:
         root = _confluence_root(CONFLUENCE_MIRROR)
         rc, _, _ = self._run(["query"], [root], rg_lines=[], rg_returncode=2, rg_stderr="boom")
         assert rc == 1
+
+    def test_rg_error_message_has_no_control_characters(self) -> None:
+        root = _confluence_root(CONFLUENCE_MIRROR)
+        stderr = "rg: bad\x1b[2K path\nrg: second\x07 line\n"
+        rc, _, err = self._run(["query"], [root], rg_lines=[], rg_returncode=2, rg_stderr=stderr)
+        assert rc == 1
+        assert "\x1b" not in err
+        assert "\x07" not in err
+        assert "rg: bad\ufffd[2K path\nrg: second\ufffd line" in err
+
+    def test_rg_error_message_sorted_mode_has_no_control_characters(self) -> None:
+        root = _confluence_root(CONFLUENCE_MIRROR)
+        rc, _, err = self._run(
+            ["query", "--sort"], [root], rg_lines=[], rg_returncode=2, rg_stderr="x\x1b[2Ky"
+        )
+        assert rc == 1
+        assert "\x1b" not in err
+        assert "x\ufffd[2Ky" in err
+
+    def test_neutralise_stderr_keeps_line_breaks(self) -> None:
+        assert _neutralise_stderr("  a\x00b\nc\td\n") == "a\ufffdb\nc\td"
 
     def test_missing_rg_returns_1(self) -> None:
         with patch("mdd.commands.search._check_rg", return_value=False):
