@@ -19,7 +19,8 @@ _MULTI_DASH = re.compile(r"-{2,}")
 # belongs in a file name: NUL cannot be passed to the OS at all, the others
 # garble terminal output and ``git status``, and a lone surrogate cannot be
 # encoded as UTF-8. They are removed rather than replaced, after the
-# ``\n``/``\t``/``\r`` → ``-`` rule above has run.
+# ``\n``/``\t``/``\r`` → ``-`` rule above has run and before NFC and space
+# folding.
 _CONTROL_OR_SURROGATE = re.compile(r"[\x00-\x1f\x7f-\x9f\ud800-\udfff]")
 
 # Unicode category "Zs" (Separator, space): U+0020 plus its look-alikes —
@@ -36,11 +37,11 @@ def sanitize(title: str) -> str:
     """Convert a Confluence page title to a safe filesystem filename (without extension).
 
     Rules:
-    - Normalize to NFC and fold runs of Unicode space-separator characters
-      (category Zs — NBSP and friends) to a single ASCII space
     - Replace <>:"/\\|?*\\n\\t\\r with -
     - Remove every other C0/C1 control character (including NUL, ESC and
       DEL) and any lone surrogate code point
+    - Normalize to NFC and fold runs of Unicode space-separator characters
+      (category Zs — NBSP and friends) to a single ASCII space
     - Strip leading/trailing whitespace and dots
     - Collapse runs of - to a single -
     - Truncate to 200 characters
@@ -48,12 +49,15 @@ def sanitize(title: str) -> str:
 
     Additionally, any ``..`` path components, leading ``~``, or residual path
     separators are stripped after the regex pass so that a future regex change
-    cannot reintroduce path traversal.
+    cannot reintroduce path traversal. The result never starts with ``.``,
+    ``-``, ``~`` or a space, and never ends with ``.``, ``-`` or a space.
     """
-    title = unicodedata.normalize("NFC", title)
-    title = _UNICODE_SPACE_RUN.sub(" ", title)
+    # Controls go first, so that neither NFC composition nor space folding
+    # sees two neighbours a removed control used to separate.
     result = _FORBIDDEN.sub("-", title)
     result = _CONTROL_OR_SURROGATE.sub("", result)
+    result = unicodedata.normalize("NFC", result)
+    result = _UNICODE_SPACE_RUN.sub(" ", result)
     result = result.strip(". \t\n\r")
     result = _MULTI_DASH.sub("-", result)
     result = result[:200]
@@ -76,7 +80,10 @@ def sanitize(title: str) -> str:
     while ".." in result:
         result = result.replace("..", "-")
     result = _MULTI_DASH.sub("-", result)
-    return result.strip("-") or "untitled"
+    # Trim the ends one last time with the full set: stripping a dash or a
+    # ``~`` above can expose a dot or a space (``-.git`` would otherwise
+    # become the hidden name ``.git``).
+    return result.lstrip(". -~").rstrip(". -") or "untitled"
 
 
 def _read_page_id_from_frontmatter(path: Path) -> str | None:
