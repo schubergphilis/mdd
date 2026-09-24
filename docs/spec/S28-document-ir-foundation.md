@@ -276,7 +276,12 @@ typed field, the typed field wins and the cached value is not grafted:
   `InlineMacro`; the storage writer emits the typed `kind` / `name`
   instead. Cached `params`, `title` and body shape are restored only
   when the fresh node names the same macro (or, for a macro fence with
-  no `name`, names none).
+  no `name`, names none), and a cached `title` is not restored over an
+  authored `{title="…"}`. An `InlineMacro` name takes part in the
+  "same content" comparison that lets a cached inline run win outright,
+  so a renamed inline macro in otherwise unchanged text still reaches
+  the page (`Emoticon` / `Placeholder` compare as the `InlineMacro`
+  the markdown leg returns for them).
 - `ac:type` is never grafted onto `LayoutSection`; `layout_type` wins.
 - `task` (and `ac:task-id` when fresh is not a task) is never grafted
   onto `ListItem`; the markdown task marker wins.

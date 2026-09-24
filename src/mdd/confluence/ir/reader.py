@@ -253,18 +253,21 @@ def _decode_pua_in_text(content: str, pua_to_entity: dict[str, str]) -> tuple[st
         return content, {}
     new_chars: list[str] = []
     entity_form: dict[int, str] = {}
+    offset = 0
     for c in content:
         entity_str = pua_to_entity.get(c)
         if entity_str is None:
             new_chars.append(c)
+            offset += 1
             continue
         name = entity_str[1:-1]  # strip & and ;
         if name in _XML_PREDEFINED_ENTITIES:
             decoded = {"amp": "&", "lt": "<", "gt": ">", "quot": '"', "apos": "'"}[name]
         else:
             decoded = html.entities.html5.get(name + ";", c)
-        entity_form[len(new_chars)] = entity_str
+        entity_form[offset] = entity_str
         new_chars.append(decoded)
+        offset += len(decoded)
     return "".join(new_chars), entity_form
 
 

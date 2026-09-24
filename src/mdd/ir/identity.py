@@ -24,6 +24,7 @@ from .nodes import (
     CodeBlock,
     ConfluenceLink,
     ConfluenceMacro,
+    Emoticon,
     Emph,
     Heading,
     HorizontalRule,
@@ -39,6 +40,7 @@ from .nodes import (
     OrderedList,
     Origin,
     Paragraph,
+    Placeholder,
     RawBlock,
     SoftBreak,
     Strikethrough,
@@ -313,13 +315,18 @@ def _graft_callout_block(fresh: Callout, cached: Callout, updates: dict[str, Any
     entirely — keep the fresh side when it's non-empty so a genuine edit
     survives. Params and title belong to the cached panel kind, so they are
     only restored when the fresh side still has that kind.
+
+    The markdown leg keeps an authored ``{title="…"}`` in ``params`` rather
+    than the typed ``title`` field, so a fresh ``title`` param counts as an
+    authored title: restoring the cached one alongside it would publish two
+    ``title`` parameters.
     """
     updates["body"] = _reattach_blocks(fresh.body, cached.body)
     if fresh.kind != cached.kind:
         return
     if not fresh.params and cached.params:
         updates["params"] = dict(cached.params)
-    if fresh.title is None and cached.title is not None:
+    if fresh.title is None and "title" not in fresh.params and cached.title is not None:
         updates["title"] = cached.title
     _graft_body_ws(fresh, cached, updates)
 
@@ -449,11 +456,16 @@ def _flat_text(tokens: list[Inline]) -> str:
 # so they take part in the "same content" test below — otherwise the cached
 # list wins and the edit never reaches the page.
 #
-# Every other kind is Confluence-native (`ConfluenceLink`, `InlineMacro`,
-# `Emoticon`, `Placeholder`, …). The markdown leg neither preserves their
-# node type — an `Emoticon` comes back as an `InlineMacro` — nor their
-# targets, so they compare as one opaque marker: a token appearing or
-# disappearing still counts, a change of kind or field does not.
+# `InlineMacro` carries its `name` faithfully (`{{confluence:<name> …}}`),
+# so a renamed macro counts as an edit; its params do not take part, the
+# storage leg can hold param markup the fence syntax cannot reproduce.
+# `Emoticon` and `Placeholder` come back from markdown as the `InlineMacro`
+# of the same name, so they compare as that macro.
+#
+# Every other kind is Confluence-native (`ConfluenceLink`, …). The markdown
+# leg preserves neither their node type nor their targets, so they compare
+# as one opaque marker: a token appearing or disappearing still counts, a
+# change of kind or field does not.
 _MD_FAITHFUL_FIELDS: dict[type, tuple[str, ...]] = {
     Strong: (),
     Emph: (),
@@ -513,6 +525,12 @@ def _inline_shape(tokens: list[Inline]) -> tuple[object, ...]:
 
 
 def _inline_token_shape(tok: Inline) -> tuple[object, ...]:
+    if isinstance(tok, InlineMacro):
+        return ("InlineMacro", tok.name)
+    if isinstance(tok, Emoticon):
+        return ("InlineMacro", "emoticon")
+    if isinstance(tok, Placeholder):
+        return ("InlineMacro", "placeholder")
     fields = _MD_FAITHFUL_FIELDS.get(type(tok))
     if fields is None:
         return _OPAQUE_SHAPE
