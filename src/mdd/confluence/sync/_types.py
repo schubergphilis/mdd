@@ -70,6 +70,9 @@ class SyncSummary:
     # Opted-in tracked files skipped by office publishing because their
     # page_id is not part of the synced space (``"<page_id>: <path>"``).
     office_skipped_outside_space: list[str] = field(default_factory=list)
+    # Untracked files not created because their frontmatter names a space
+    # other than the synced one (``"<file>: names space X, synced space is Y"``).
+    create_skipped_other_space: list[str] = field(default_factory=list)
     # managed-elsewhere skips: {publisher_name: count}
     managed_skips: dict[str, int] = field(default_factory=dict)
     # Pages pushed even though the page-restrictions check (managed-elsewhere
@@ -160,6 +163,10 @@ class SyncSummary:
             ("Skipped (managed elsewhere):", self._managed_skip_lines()),
             ("Restriction check unverified:", self._restriction_unverified_lines()),
             ("Cross-space moves detected:", [f"- {note}" for note in self.cross_space]),
+            (
+                "New pages not created (file names another space):",
+                [f"- {note}" for note in self.create_skipped_other_space],
+            ),
             (
                 "Office publishing skipped (page not in synced space):",
                 [f"- {note}" for note in self.office_skipped_outside_space],

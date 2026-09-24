@@ -339,6 +339,13 @@ def _print_sync_summary(summary: SyncSummary) -> None:
             "Conflicts (skipped): %d — resolve manually with 'mdd confluence update-page'",
             len(summary.conflicts),
         )
+    if summary.create_skipped_other_space:
+        log.warning(
+            "New pages not created (file names another space): %d",
+            len(summary.create_skipped_other_space),
+        )
+        for note in summary.create_skipped_other_space:
+            log.warning("  - %s", note)
     if summary.restriction_check_unverified:
         log.warning(
             "Restriction check unverified: %d — pushed without confirming update "

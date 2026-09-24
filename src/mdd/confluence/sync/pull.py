@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.create import create_page
 from mdd.confluence.export import export_page
+from mdd.confluence.frontmatter import read as read_frontmatter
+from mdd.confluence.models import ConfluenceBlock
 from mdd.confluence.sync_diff import EventKind, SyncEvent
 from mdd.utils.logging import get_logger
 
@@ -25,12 +27,35 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _create_one_local(event: SyncEvent, config: ConfluenceConfig, summary: SyncSummary) -> None:
+def _frontmatter_space_key(md_path: Path) -> str:
+    """Return the ``confluence.space_key`` a local file names, or ``""`` if it names none."""
+    frontmatter, _body = read_frontmatter(md_path)
+    raw: object = frontmatter.get("confluence")
+    if raw is None:
+        return ""
+    return ConfluenceBlock.model_validate(raw).space_key
+
+
+def _create_one_local(
+    event: SyncEvent, config: ConfluenceConfig, space_key: str, summary: SyncSummary
+) -> None:
     if event.current_path is None:
         return
     local_path = Path(event.current_path)
     try:
-        rc = create_page(local_path, config)
+        file_space_key = _frontmatter_space_key(local_path)
+        if file_space_key and file_space_key.casefold() != space_key.casefold():
+            log.warning(
+                "skip-create: %s names space %r, not the synced space %r",
+                local_path.name,
+                file_space_key,
+                space_key,
+            )
+            summary.create_skipped_other_space.append(
+                f"{local_path.name}: names space {file_space_key}, synced space is {space_key}"
+            )
+            return
+        rc = create_page(local_path, config, space_key=space_key)
         if rc == 0:
             summary.new_pushed += 1
             log.info("create: %s", local_path.name)
@@ -42,15 +67,26 @@ def _create_one_local(event: SyncEvent, config: ConfluenceConfig, summary: SyncS
 
 
 def create_local_pages(
-    events: list[SyncEvent], config: ConfluenceConfig, opts: SyncOptions, summary: SyncSummary
+    events: list[SyncEvent],
+    config: ConfluenceConfig,
+    opts: SyncOptions,
+    summary: SyncSummary,
+    *,
+    space_key: str,
 ) -> None:
+    """Create a Confluence page in *space_key* for every untracked local file.
+
+    A file whose frontmatter names a different space is skipped and recorded
+    in ``summary.create_skipped_other_space``: sync-space only creates pages
+    in the space it was asked to sync.
+    """
     for event in events:
         if event.kind != EventKind.NEW or event.page_id != "" or event.current_path is None:
             continue
         if opts.read_only:
             log.info("skip-create: %s (--read-only)", Path(event.current_path).name)
             continue
-        _create_one_local(event, config, summary)
+        _create_one_local(event, config, space_key, summary)
 
 
 @dataclass

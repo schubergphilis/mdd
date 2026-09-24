@@ -735,3 +735,48 @@ class TestSyncSpacePruneIgnoredCli:
         captured = capsys.readouterr()
         combined = captured.err + captured.out
         assert "2 pruned (ignored, dry-run)" in combined
+
+
+class TestSyncSpaceCreateSkippedReport:
+    def test_skipped_create_is_reported_at_default_level(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        output_dir = tmp_path / "mirror"
+        _init_git_repo(output_dir)
+        _git_commit(output_dir)
+        config_file = tmp_path / "confluence.yaml"
+        _make_config_file(config_file)
+
+        with (
+            patch("mdd.commands.confluence.load_config") as mock_config,
+            patch("mdd.commands.confluence.sync_space") as mock_sync,
+        ):
+            from mdd.confluence.config import ConfluenceConfig
+            from mdd.confluence.sync import SyncSummary
+
+            mock_config.return_value = ConfluenceConfig(
+                url="https://example.atlassian.net",
+                username="test",
+                api_token="token",
+            )
+            summary = SyncSummary()
+            summary.create_skipped_other_space.append("x.md: names space HR, synced space is TEST")
+            mock_sync.return_value = summary
+
+            rc = _cli_main(
+                [
+                    "confluence",
+                    "sync-space",
+                    "TEST",
+                    "--config",
+                    str(config_file),
+                    "--output",
+                    str(output_dir),
+                ]
+            )
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        combined = captured.err + captured.out
+        assert "New pages not created (file names another space): 1" in combined
+        assert "x.md: names space HR, synced space is TEST" in combined
