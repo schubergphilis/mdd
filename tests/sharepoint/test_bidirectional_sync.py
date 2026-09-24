@@ -450,6 +450,62 @@ class TestSyncFolderBasic:
         assert summary.md_to_docx == 0
         assert summary.diverged == 0
 
+    @pytest.mark.parametrize("office_changed", [True, False])
+    def test_blocked_pull_warns_when_both_sides_changed(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        office_changed: bool,
+    ) -> None:
+        """A locally modified .md that blocks an office-side change says so."""
+        import hashlib
+
+        site = tmp_path / "MySite"
+        site.mkdir()
+        output = tmp_path / "output"
+        output.mkdir()
+
+        docx_bytes = b"authoritative docx"
+        docx = site / "Report.docx"
+        docx.write_bytes(docx_bytes)
+
+        md = output / "Report.docx.md"
+        body = "# original\n"
+        md.write_text(
+            f"---\nsharepoint:\n  sync:\n"
+            f"    office_sha256_at_sync: {hashlib.sha256(docx_bytes).hexdigest()}\n"
+            f"    md_sha256_at_sync: {hashlib.sha256(body.encode()).hexdigest()}\n"
+            f"    update_office: false\n"
+            f"---\n{body}",
+            encoding="utf-8",
+        )
+        md.write_text(
+            md.read_text(encoding="utf-8").replace("# original", "# edited"),
+            encoding="utf-8",
+        )
+        if office_changed:
+            docx.write_bytes(b"edited in SharePoint")
+
+        with (
+            patch("mdd.sharepoint.sync._check_dirty"),
+            patch("mdd.utils.blacklist.check_sharepoint"),
+            patch("mdd.sharepoint.apply.actions.do_render"),
+            caplog.at_level(logging.INFO, logger="mdd.sharepoint.dispatch"),
+        ):
+            summary = sync_folder(site, output_dir=output)
+
+        assert summary.skipped_md_update == 1
+        assert summary.docx_to_md == 0
+        blocked = [r for r in caplog.records if r.getMessage().startswith("pull blocked:")]
+        if office_changed:
+            assert [r.levelno for r in blocked] == [logging.WARNING]
+            assert blocked[0].getMessage() == (
+                "pull blocked: Report.docx.md is locally modified; "
+                "changes to Report.docx were not pulled"
+            )
+        else:
+            assert blocked == []
+
     def test_office_deleted_upstream_does_not_render_mirror_back(self, tmp_path: Path) -> None:
         """Deleting the office file in SharePoint must not trigger a Quarto render.
 

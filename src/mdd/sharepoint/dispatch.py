@@ -53,6 +53,13 @@ def _apply_skip_md_update(
     result = apply_skip_md_update(docx_path, md_path, both_changed=both_changed)
     summary.skipped_md_update += 1
     summary.skipped_md_paths.append(md_path.name)
+    if both_changed:
+        # The office file changed too, so an office-side edit is not arriving.
+        log.warning(
+            "pull blocked: %s is locally modified; changes to %s were not pulled",
+            md_path.name,
+            docx_path.name,
+        )
     if result.warning:
         log.info(result.warning)
 
