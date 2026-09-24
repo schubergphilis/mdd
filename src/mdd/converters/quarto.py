@@ -7,7 +7,9 @@ produce .docx and .pptx from a Markdown source.  Both are registered in
 
 from __future__ import annotations
 
+import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from importlib import resources
@@ -55,6 +57,56 @@ def quarto_version() -> str:
     return _check_quarto()
 
 
+# Name of the prepared copy of the source inside the render directory.
+_SOURCE_NAME = "source.md"
+
+_PROJECT_FILE = "project:\n  type: default\n"
+
+# Environment variables Quarto gets. Everything else in mdd's environment
+# (tokens, credentials) stays out of reach of the render.
+_ENVIRONMENT_NAMES: frozenset[str] = frozenset({"PATH", "HOME", "TMPDIR", "LANG"})
+_ENVIRONMENT_PREFIXES: tuple[str, ...] = ("LC_",)
+
+
+def _render_environment() -> dict[str, str]:
+    """Return the minimal environment ``quarto render`` runs with."""
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name in _ENVIRONMENT_NAMES or name.startswith(_ENVIRONMENT_PREFIXES)
+    }
+
+
+def _copy_attachments(source: Path, render_dir: Path) -> None:
+    """Copy the page's attachments directory into *render_dir*, under the same name.
+
+    Only regular files are copied, keeping their layout below *source*.
+    Symlinks (to files or directories, including *source* itself) are skipped
+    and logged, so the render cannot reach files outside the directory.
+    """
+    try:
+        mode = source.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(mode):
+        log.warning("not copying symlinked attachments directory into the render: %s", source)
+        return
+    if not stat.S_ISDIR(mode):
+        return
+    target_root = render_dir / source.name
+    for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
+        current = Path(dirpath)
+        for name in [*dirnames, *filenames]:
+            entry = current / name
+            entry_mode = entry.lstat().st_mode
+            if stat.S_ISLNK(entry_mode):
+                log.warning("not copying symlinked attachment into the render: %s", entry)
+            elif stat.S_ISREG(entry_mode):
+                target = target_root / entry.relative_to(source)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(entry, target)
+
+
 def _render(
     md_path: Path,
     *,
@@ -73,6 +125,14 @@ def _render(
     so frontmatter is reduced to presentation keys and body constructs that
     make Quarto read files or run code are neutralised. Dropped frontmatter
     keys are logged and reported in ``RenderResult.warnings``.
+
+    The render directory holds only that copy, the page's own
+    ``<stem>-attachments/`` directory and a project file that keeps Quarto
+    from picking up a ``_quarto.yml`` from a parent directory. mdd's image
+    filter replaces every image that points anywhere else (a URL, an absolute
+    path, a ``..`` path) with its alt text and reports it on stderr, which
+    ends up in ``RenderResult.warnings``. Quarto runs with only ``PATH``,
+    ``HOME``, ``TMPDIR``, ``LANG`` and ``LC_*`` from mdd's environment.
 
     Args:
         md_path: Source Markdown file.
@@ -93,8 +153,16 @@ def _render(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        tmp_src = tmp / md_path.name
-        prepared = prepare_quarto_source(md_path.read_text(encoding="utf-8", errors="replace"))
+        # A project file of its own stops Quarto from searching the parent
+        # directories of the temp dir for a _quarto.yml to apply.
+        (tmp / "_quarto.yml").write_text(_PROJECT_FILE, encoding="utf-8")
+        _copy_attachments(md_path.parent / f"{md_path.stem}-attachments", tmp)
+        # A fixed .md name: Quarto runs code cells in .qmd sources, never in .md.
+        tmp_src = tmp / _SOURCE_NAME
+        prepared = prepare_quarto_source(
+            md_path.read_text(encoding="utf-8", errors="replace"),
+            extra_metadata={"filters": [str(bundled_image_guard())]},
+        )
         tmp_src.write_text(prepared.text, encoding="utf-8")
         if prepared.dropped_keys:
             log.warning(
@@ -121,6 +189,7 @@ def _render(
             text=True,
             timeout=300,
             cwd=tmpdir,
+            env=_render_environment(),
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -186,6 +255,23 @@ class QuartoPptxRenderer:
     ) -> RenderResult:
         """Render *md_path* to *dest* (.pptx) via ``quarto render``."""
         return _render(md_path, dest=dest, to="pptx", reference_doc=reference_doc)
+
+
+def bundled_image_guard() -> Path:
+    """Return the path to the bundled Lua filter that drops images from outside the render.
+
+    Raises:
+        FileNotFoundError: if the bundled filter cannot be located.
+    """
+    pkg_files: Any = resources.files("mdd")  # pyright: ignore[reportAny]
+    filter_ref: Any = pkg_files.joinpath("templates/quarto/image-guard.lua")  # pyright: ignore[reportAny]
+    filter_path = Path(str(filter_ref))
+    if not filter_path.is_file():
+        raise FileNotFoundError(
+            f"Bundled image filter not found at {filter_path}. "
+            "Re-install mdd to restore bundled templates."
+        )
+    return filter_path
 
 
 def bundled_reference_doc(extension: str) -> Path:
