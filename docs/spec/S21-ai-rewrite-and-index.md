@@ -182,6 +182,11 @@ one of its placeholders is re-sent once before the file is refused.
   lacks any of the chunk's placeholders (not only the ones named in
   the correction), or echoes the correction block back, the whole
   file is refused and the failure dump holds the retry's output.
+- An echo means the retry's answer holds more `<mdd-correction>`
+  tags than the chunk that was sent. A page may contain the tag
+  itself, for instance this spec in inline code, and that alone is
+  no echo. The echo check applies to the retry only; a first answer
+  is judged on its placeholders alone.
 - A truncated first answer is not retried: truncation is a budget
   problem, and re-sending the same request hits the same cap. A
   truncated retry is refused as truncated.
@@ -190,7 +195,7 @@ one of its placeholders is re-sent once before the file is refused.
   hide a systematic prompt problem behind a success.
 - The retried request has a different user message, so it lands on
   its own cache key. Neither attempt is cached unless its answer
-  keeps every placeholder the chunk carried (the client's `accept`
+  passes the check above for that attempt (the client's `accept`
   check, see [S20](S20-litellm-ai-client.md)), so a failed first
   attempt is never replayed from cache on the next run.
 - Token and cost totals for the file include both attempts.
@@ -246,8 +251,10 @@ cheap signal that something went missing.
     managed-elsewhere page under `--apply`, or an I/O failure).
 - End of run: the tally of all four statuses, the placeholder
   retry count (total retries, how many files needed one, and how
-  many of those still succeeded), the paths of any failure dumps,
-  then total tokens and estimated cost.
+  many of those had every retry bring its placeholders back), the
+  paths of any failure dumps, then total tokens and estimated cost.
+  A file counts as recovered even if it is refused later for an
+  unrelated reason, such as a managed-elsewhere page under `--apply`.
 
 **Output**
 - Files are processed serially, and the chunks of a single file

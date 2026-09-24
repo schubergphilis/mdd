@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 
+from mdd.ai.client import Client
+from mdd.ai.config import AiConfig
 from mdd.ai.models import ChatResult
 from mdd.ai.rewrite import (
     _CHUNK_TARGET_CHARS as _CHUNK_TARGET_CHARS,  # pyright: ignore[reportPrivateUsage]
@@ -1541,11 +1544,96 @@ class TestPlaceholderRetry:
         assert sent[-1].startswith(sent[-2].rstrip())
 
 
+_TAG_PAGE = (
+    "The retry wraps its note in a `<mdd-correction>` block.\n\n"
+    "```python\nx=1\n```\n\n"
+    "More prose.\n"
+)
+_TAG_PAGE_SENT = _TAG_PAGE.replace("```python\nx=1\n```", "__MDD_PROTECTED_0__")
+
+
+def _cached_client(tmp_path: Path, replies: list[str]) -> tuple[Client, MagicMock]:
+    """Return a real Client with an on-disk cache whose gateway answers *replies* in order."""
+    config = AiConfig(
+        api_token="test-token",
+        base_url="https://litellm.example.com/v1",
+        token_hint="set ai.api_token.",
+        models={"default": "claude-sonnet-4-5"},
+        concurrency=1,
+        cache_dir=tmp_path / "ai_cache",
+        cache_ttl_days=30,
+    )
+    client = Client(config=config)
+    client._models_checked = True  # pyright: ignore[reportPrivateUsage]
+    oai = MagicMock()
+    oai.chat.completions.create.side_effect = [
+        SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason="stop")],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+        )
+        for text in replies
+    ]
+    client._oai = oai  # pyright: ignore[reportPrivateUsage]
+    return client, oai
+
+
+class TestPageContainingCorrectionTag:
+    """A page may legitimately contain the correction tag, e.g. in inline code."""
+
+    def test_first_attempt_is_accepted_and_cached(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_TAG_PAGE, encoding="utf-8")
+        client, oai = _cached_client(tmp_path, [_TAG_PAGE_SENT])
+
+        first = rewrite_file(src, client)
+        second = rewrite_file(src, client)
+
+        assert first.status == "rewritten"
+        assert first.placeholder_retries == 0
+        assert second.status == "cached"
+        assert oai.chat.completions.create.call_count == 1
+
+    def test_dropped_placeholder_is_still_recovered(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_TAG_PAGE, encoding="utf-8")
+        mock_client, sent = _scripted_client(
+            ["The retry wraps its note in a `<mdd-correction>` block. More prose.", _TAG_PAGE_SENT]
+        )
+
+        result = rewrite_file(src, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "rewritten"
+        assert result.placeholder_retries == 1
+        assert result.placeholders_recovered is True
+        assert len(sent) == 2
+        assert src.read_text(encoding="utf-8") == _TAG_PAGE
+
+    def test_extra_correction_tag_is_still_an_echo(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_TAG_PAGE, encoding="utf-8")
+        mock_client, _ = _scripted_client(["dropped", _TAG_PAGE_SENT + f"{_CORRECTION}\nsorry\n"])
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "echoed the placeholder correction" in (result.error or "")
+
+
 class TestRunSummaryRetries:
     def test_summary_reports_placeholder_retries(self, caplog: pytest.LogCaptureFixture) -> None:
         results = [
-            RewriteResult(path=Path("a.md"), status="rewritten", placeholder_retries=1),
-            RewriteResult(path=Path("b.md"), status="error", placeholder_retries=2),
+            RewriteResult(
+                path=Path("a.md"),
+                status="rewritten",
+                placeholder_retries=1,
+                placeholder_recoveries=1,
+            ),
+            RewriteResult(
+                path=Path("b.md"),
+                status="error",
+                placeholder_retries=2,
+                placeholder_recoveries=1,
+            ),
             RewriteResult(path=Path("c.md"), status="rewritten"),
         ]
         client = _make_mock_client("unused")
@@ -1554,3 +1642,36 @@ class TestRunSummaryRetries:
             print_run_summary(results, client)  # pyright: ignore[reportArgumentType]
 
         assert "Placeholder retries: 3 across 2 of 3 file(s), 1 file(s) recovered." in caplog.text
+
+    def test_recovery_counts_even_when_the_file_is_refused_later(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A retry that brought every placeholder back is a recovery, whatever happens next."""
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        # The retry keeps the token but opens with frontmatter the source lacks.
+        mock_client, _ = _scripted_client(
+            ["dropped", "---\ntitle: invented\n---\n\n__MDD_PROTECTED_0__\n\nMore prose."]
+        )
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+        with caplog.at_level("INFO", logger="mdd.ai.rewrite"):
+            print_run_summary([result], _make_mock_client("unused"))  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "frontmatter" in (result.error or "")
+        assert result.placeholder_retries == 1
+        assert result.placeholder_recoveries == 1
+        assert result.placeholders_recovered is True
+        assert "1 across 1 of 1 file(s), 1 file(s) recovered." in caplog.text
+
+    def test_failed_retry_is_not_a_recovery(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, _ = _scripted_client(["dropped", "dropped again"])
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.placeholder_retries == 1
+        assert result.placeholder_recoveries == 0
+        assert result.placeholders_recovered is False
