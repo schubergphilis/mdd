@@ -231,7 +231,11 @@ forge this ends up on is a wiring decision, not part of this spec:
   trigger condition. If the current branch has no upstream tracking yet
   (first push), the generic implementation uses
   `git push -u origin <branch>`, rebasing onto `origin/<branch>` first if
-  the remote already has commits.
+  the remote already has commits. It refuses to push from a detached
+  HEAD, or when the branch name starts with `-` or fails
+  `git check-ref-format --branch`, and it passes `--end-of-options`
+  before the remote and branch, so a branch name is never read as a
+  `git push` option.
 
 If `--push` is passed but the run produced no commit and the mirror
 was already a git repo (truly nothing to do), sync skips the push —
