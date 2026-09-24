@@ -193,6 +193,8 @@ def _image_alt(tok: Token) -> str:
     for child in tok.children:
         if child.type == "code_inline":
             parts.append(f"{child.markup}{child.content}{child.markup}")
+        elif child.type in ("softbreak", "hardbreak"):
+            parts.append("\n")
         else:
             parts.append(child.content or child.markup)
     return "".join(parts)

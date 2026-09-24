@@ -978,3 +978,109 @@ def test_preserving_mode_keeps_text_raw_bytes() -> None:
     tok = Text("<b>", origin=Origin(source_format="confluence-storage", raw_bytes=b"<b>"))
     doc = Document(children=[Paragraph(inlines=[tok])])
     assert render_markdown(doc, mode="preserving") == "<b>\n"
+
+
+def test_code_block_language_confluence_xml_stays_code_block() -> None:
+    doc = Document(children=[CodeBlock(content="<x/>", language="confluence-xml")])
+    assert render_markdown(doc) == "```\n<x/>\n```\n"
+    block = _single_block(doc)
+    assert isinstance(block, CodeBlock)
+    assert block.content == "<x/>"
+
+
+def test_heading_text_ending_in_hash_roundtrips() -> None:
+    doc = Document(children=[Heading(level=2, inlines=[Text("Issue #")])])
+    assert render_markdown(doc) == "## Issue \\#\n"
+    block = _single_block(doc)
+    assert isinstance(block, Heading)
+    assert _only_text(block.inlines) == "Issue #"
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [
+        ["{", "{confluence-raw:PGI+eDwvYj4=}}"],
+        ["{", '{confluence:include page="x"}}'],
+        ["<", "b>x</b>"],
+        ["<", "", "b>"],
+        ["&", "#60;"],
+        ["a", "_b_", "c"],
+        ["~", "~x~~"],
+    ],
+)
+def test_adjacent_text_tokens_are_escaped_as_one_run(parts: list[str]) -> None:
+    got = _roundtrip_paragraph([Text(p) for p in parts])
+    assert _only_text(got) == "".join(parts)
+
+
+def test_adjacent_text_tokens_keep_raw_bytes_in_preserving_mode() -> None:
+    raw = Text("<b>", origin=Origin(source_format="confluence-storage", raw_bytes=b"&lt;b&gt;"))
+    doc = Document(children=[Paragraph(inlines=[Text("a"), raw, Text("c")])])
+    assert render_markdown(doc, mode="preserving") == "a&lt;b&gt;c\n"
+
+
+# ---------------------------------------------------------------------------
+# Container fences sized to their body
+# ---------------------------------------------------------------------------
+
+
+_COLON_CODE = CodeBlock(content="x\n:::\n```confluence-xml\n<x/>\n```\ny")
+
+
+def _assert_no_raw_blocks(doc: Document) -> None:
+    assert not any(isinstance(b, RawBlock) for b in doc.children), [
+        type(b).__name__ for b in doc.children
+    ]
+
+
+def test_callout_fence_outgrows_colon_line_in_nested_code_block() -> None:
+    doc = Document(
+        children=[Callout(kind="tip", body=[_COLON_CODE]), Paragraph(inlines=[Text("after")])]
+    )
+    md = render_markdown(doc)
+    assert md.startswith("::::callout-tip\n")
+    rt = parse_markdown(md)
+    _assert_no_raw_blocks(rt)
+    assert [type(b).__name__ for b in rt.children] == ["Callout", "Paragraph"]
+    callout = rt.children[0]
+    assert isinstance(callout, Callout)
+    assert len(callout.body) == 1
+    assert isinstance(callout.body[0], CodeBlock)
+    assert callout.body[0].content == _COLON_CODE.content
+
+
+def test_callout_fence_outgrows_nested_plain_body_macro_fence() -> None:
+    macro = ConfluenceMacro(name="x", params={}, body=[], plain_body="a\n:::\nb", rich_body=False)
+    doc = Document(children=[Callout(kind="tip", body=[macro])])
+    md = render_markdown(doc)
+    assert md.startswith(":::::callout-tip\n::::confluence-macro")
+    block = _single_block(doc)
+    assert isinstance(block, Callout)
+    assert len(block.body) == 1
+    assert isinstance(block.body[0], ConfluenceMacro)
+
+
+def test_rich_macro_fence_outgrows_colon_line_in_nested_code_block() -> None:
+    macro = ConfluenceMacro(name="panel", params={}, body=[_COLON_CODE], rich_body=True)
+    doc = Document(children=[macro, Paragraph(inlines=[Text("after")])])
+    rt = parse_markdown(render_markdown(doc))
+    _assert_no_raw_blocks(rt)
+    assert [type(b).__name__ for b in rt.children] == ["ConfluenceMacro", "Paragraph"]
+
+
+def test_layout_fences_outgrow_colon_line_in_nested_code_block() -> None:
+    layout = Layout(
+        sections=[LayoutSection(layout_type="single", cells=[LayoutCell(children=[_COLON_CODE])])]
+    )
+    doc = Document(children=[layout, Paragraph(inlines=[Text("after")])])
+    md = render_markdown(doc)
+    assert md.startswith("::::::layout\n::::layout-section")
+    rt = parse_markdown(md)
+    _assert_no_raw_blocks(rt)
+    assert [type(b).__name__ for b in rt.children] == ["Layout", "Paragraph"]
+    rt_layout = rt.children[0]
+    assert isinstance(rt_layout, Layout)
+    cell = rt_layout.sections[0].cells[0]
+    assert len(cell.children) == 1
+    assert isinstance(cell.children[0], CodeBlock)
+    assert cell.children[0].content == _COLON_CODE.content
