@@ -503,8 +503,11 @@ class TestSyncFolderBasic:
                 "pull blocked: Report.docx.md is locally modified; "
                 "changes to Report.docx were not pulled"
             )
+            # One clear warning, not a second info line saying the same thing.
+            assert not any("both changed" in r.getMessage() for r in caplog.records)
         else:
             assert blocked == []
+            assert any("update_office is False" in r.getMessage() for r in caplog.records)
 
     def test_office_deleted_upstream_does_not_render_mirror_back(self, tmp_path: Path) -> None:
         """Deleting the office file in SharePoint must not trigger a Quarto render.
