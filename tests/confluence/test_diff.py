@@ -213,3 +213,36 @@ class TestSoftBreakInsensitivity:
 
     def test_newline_at_start_or_end_is_left_alone(self) -> None:
         assert unified_xhtml_diff("\n<p>A</p>\n", "<p>A</p>") == ""
+
+    def test_entity_form_inside_pre_gives_empty_diff(self) -> None:
+        assert unified_xhtml_diff("<pre>it&#8217;s</pre>", "<pre>it’s</pre>") == ""
+
+    def test_entity_form_inside_code_macro_gives_empty_diff(self) -> None:
+        template = (
+            '<ac:structured-macro ac:name="code"><ac:parameter ac:name="title">'
+            "{title}</ac:parameter><ac:plain-text-body><![CDATA[x = 1\n]]>"
+            "</ac:plain-text-body></ac:structured-macro>"
+        )
+        local = template.format(title="it&rsquo;s")
+        remote = template.format(title="it’s")
+        assert unified_xhtml_diff(local, remote) == ""
+
+    def test_whitespace_only_change_inside_pre_gives_diff(self) -> None:
+        local = "<pre><code>x  =  1</code></pre>"
+        remote = "<pre><code>x = 1</code></pre>"
+        assert "whitespace-only differences" in unified_xhtml_diff(local, remote)
+
+    def test_self_closing_code_macro_does_not_swallow_later_prose(self) -> None:
+        later_macro = (
+            '<ac:structured-macro ac:name="info"><ac:rich-text-body><p>Note</p>'
+            "</ac:rich-text-body></ac:structured-macro>"
+        )
+        self_closing = '<ac:structured-macro ac:name="code" />'
+        local = f"{self_closing}<p>Some\nprose</p>{later_macro}"
+        remote = f"{self_closing}<p>Some prose</p>{later_macro}"
+        assert unified_xhtml_diff(local, remote) == ""
+
+    def test_self_closing_pre_does_not_swallow_later_prose(self) -> None:
+        local = "<pre/><p>Some\nprose</p><pre>x</pre>"
+        remote = "<pre/><p>Some prose</p><pre>x</pre>"
+        assert unified_xhtml_diff(local, remote) == ""

@@ -9,9 +9,11 @@ import re
 # Spans where whitespace, including where lines break, is load-bearing: code
 # macros, preformatted blocks and CDATA sections. A code macro holds a CDATA
 # body and no nested macros, so the first closing tag after it is its own.
+# Self-closing tags (``/>``) have no body and are not matched, so the lazy
+# match cannot run on to the closing tag of a later element.
 _WHITESPACE_SIGNIFICANT_RE = re.compile(
-    r'<ac:structured-macro[^>]*\bac:name=["\']code["\'].*?</ac:structured-macro>'
-    r"|<pre\b.*?</pre>"
+    r'<ac:structured-macro\b[^>]*\bac:name=["\']code["\'][^>]*(?<!/)>.*?</ac:structured-macro>'
+    r"|<pre\b[^>]*(?<!/)>.*?</pre>"
     r"|<!\[CDATA\[.*?\]\]>",
     re.IGNORECASE | re.DOTALL,
 )
@@ -64,8 +66,12 @@ def _decode_safe_entities(text: str) -> str:
 
 
 def _whitespace_significant_spans(xhtml: str) -> list[str]:
-    """Return every code macro, preformatted block and CDATA section in *xhtml*."""
-    return _WHITESPACE_SIGNIFICANT_RE.findall(xhtml)
+    """Return every code macro, preformatted block and CDATA section in *xhtml*.
+
+    Character references are decoded first, the same way :func:`_normalize`
+    does, so an entity and its literal character compare equal.
+    """
+    return _WHITESPACE_SIGNIFICANT_RE.findall(_decode_safe_entities(xhtml))
 
 
 def _join_soft_breaks(text: str) -> str:
