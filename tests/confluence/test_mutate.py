@@ -490,6 +490,108 @@ class TestArchivePage:
 # ---------------------------------------------------------------------------
 
 
+class TestRemoteTruthInPromptsAndParent:
+    """Prompts name the page as Confluence has it; rename keeps the remote parent."""
+
+    def _drifted_remote(self) -> dict[str, Any]:
+        remote = dict(_REMOTE_PAGE)
+        remote["title"] = "Remote Title"
+        remote["parentId"] = "777"
+        return remote
+
+    def test_rename_prompt_shows_remote_title_and_warns(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
+        md_path = repo / "Old-Title.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(page_response=self._drifted_remote())
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = rename_page(md_path, "New Title", opts=opts)
+
+        assert rc == 0
+        joined = "\n".join(caplog.messages)
+        assert 'Rename: "Remote Title" -> "New Title"' in joined
+        assert 'Rename: "Old Title"' not in joined
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any("Remote Title" in m and "Old Title" in m for m in warnings)
+
+    def test_rename_keeps_remote_parent_over_frontmatter(self, repo: Path) -> None:
+        md_path = repo / "Old-Title.md"
+        _write_md(md_path, _make_fm(parent_id="111"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(page_response=self._drifted_remote())
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = rename_page(md_path, "New Title", opts=opts)
+
+        assert rc == 0
+        options = mock_client.put_page.call_args.kwargs["options"]
+        assert options.parent_id == "777"
+
+    def test_rename_root_page_sends_no_parent(self, repo: Path) -> None:
+        md_path = repo / "Old-Title.md"
+        _write_md(md_path, _make_fm(parent_id="111"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = rename_page(md_path, "New Title", opts=opts)
+
+        assert rc == 0
+        options = mock_client.put_page.call_args.kwargs["options"]
+        assert options.parent_id is None
+
+    def test_archive_prompt_shows_remote_title_and_warns(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(status="CURRENT"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(page_response=self._drifted_remote())
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        joined = "\n".join(caplog.messages)
+        assert 'Archive: "Remote Title" (page 12345)' in joined
+        assert "space ENG" in joined
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any("Remote Title" in m for m in warnings)
+
+    def test_prompt_falls_back_to_frontmatter_space_key(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(status="CURRENT"))
+        _commit_all(repo)
+
+        remote = dict(_REMOTE_PAGE)
+        del remote["spaceKey"]
+        mock_client = _make_mock_client(page_response=remote)
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        assert "space ENG" in "\n".join(caplog.messages)
+        assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
 def _read_conf(md_path: Path) -> dict[str, Any]:
     text = md_path.read_text(encoding="utf-8")
     parsed: object = yaml.safe_load(text.split("---")[1])

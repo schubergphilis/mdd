@@ -325,6 +325,33 @@ def _remote_title(page_data: dict[str, Any]) -> str:
     return _v2_page(page_data).title
 
 
+def _remote_parent_id(page_data: dict[str, Any]) -> str | None:
+    """Pull ``parentId`` from a page response (``None`` for a space-root page)."""
+    return _v2_page(page_data).parent_id
+
+
+def _prompt_identity(page_state: _PageState, page_data: dict[str, Any]) -> tuple[str, str]:
+    """Return ``(title, space_key)`` as Confluence reports them, for confirmation prompts.
+
+    The prompt describes what will happen on Confluence, so it must name the
+    page as Confluence knows it rather than as the local frontmatter does.
+    A mismatch is logged so a stale or edited frontmatter title is visible
+    before the user confirms.  The space key falls back to frontmatter when
+    the v2 response omits it.
+    """
+    remote_title = _remote_title(page_data)
+    if remote_title != page_state.title:
+        log.warning(
+            'Remote title "%s" differs from local title "%s" for page %s; '
+            "the prompt shows the remote title.",
+            remote_title,
+            page_state.title,
+            page_state.page_id,
+        )
+    space_key = _v2_page(page_data).space_key or page_state.space_key
+    return remote_title, space_key
+
+
 def _build_event(
     kind: EventKind,
     page_state: _PageState,
@@ -579,9 +606,10 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
         repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
             page_data = _preflight(client, page_state, repo_dir, opts)
+            remote_title, space_key = _prompt_identity(page_state, page_data)
             preview = (
-                f'Rename: "{page_state.title}" -> "{new_title}"\n'
-                f"        space {page_state.space_key}, page {page_state.page_id}"
+                f'Rename: "{remote_title}" -> "{new_title}"\n'
+                f"        space {space_key}, page {page_state.page_id}"
             )
             if not _prompt(preview, yes=opts.yes):
                 return 0
@@ -594,8 +622,10 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
                 _extract_storage_body(page_data),
                 page_state.version + 1,
                 opts.message or "Renamed via mdd",
+                # Rename keeps the page where Confluence has it; the local
+                # parent_id may be stale and must not reparent the page.
                 options=PutPageOptions(
-                    parent_id=page_state.parent_id,
+                    parent_id=_remote_parent_id(page_data),
                     status=_remote_status(page_data),
                 ),
             )
@@ -844,12 +874,10 @@ def _call_archive_api(
     return client.unarchive_page(page_id, message=api_msg)
 
 
-def _archive_preview(page_state: _PageState, action: str) -> str:
+def _archive_preview(page_state: _PageState, page_data: dict[str, Any], action: str) -> str:
     verb = "Archive" if action == "archive" else "Unarchive"
-    return (
-        f'{verb}: "{page_state.title}" (page {page_state.page_id})\n'
-        f"        space {page_state.space_key}"
-    )
+    remote_title, space_key = _prompt_identity(page_state, page_data)
+    return f'{verb}: "{remote_title}" (page {page_state.page_id})\n        space {space_key}'
 
 
 def _archive_dispatch(md_path: Path, *, action: str, opts: MutateOptions) -> int:
@@ -857,8 +885,8 @@ def _archive_dispatch(md_path: Path, *, action: str, opts: MutateOptions) -> int
         page_state = _load_local(md_path)
         repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
-            _ = _preflight(client, page_state, repo_dir, opts)
-            if not _prompt(_archive_preview(page_state, action), yes=opts.yes):
+            page_data = _preflight(client, page_state, repo_dir, opts)
+            if not _prompt(_archive_preview(page_state, page_data, action), yes=opts.yes):
                 return 0
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")
