@@ -33,7 +33,9 @@ to arrive as an Office file but you would rather write Markdown.
 
 `mdd pdf` exports the rendered Office files to PDF, and `mdd pdf-pptx` and
 `mdd pdf-docx` do one format each. All three drive Microsoft Office through
-AppleScript, so they need macOS with Office installed.
+AppleScript, so they need macOS with Office installed. Before exporting a Word
+document they update its table of contents and other fields, so the PDF does not
+show an empty TOC; `mdd pdf-docx --no-update-fields` skips that step.
 
 ## Mirror a Confluence space
 
