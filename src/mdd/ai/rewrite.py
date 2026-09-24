@@ -383,6 +383,19 @@ class RewriteResult:
     """Where the rejected model output was dumped, if anywhere."""
     placeholder_retries: int = 0
     """How many chunks were re-sent because the model dropped a placeholder."""
+    placeholder_recoveries: int = 0
+    """How many of those retries brought every placeholder back."""
+
+    @property
+    def placeholders_recovered(self) -> bool:
+        """True when chunks were retried and every retry succeeded.
+
+        Independent of ``status``: a file can recover its placeholders and still
+        be refused later for an unrelated reason.
+        """
+        return (
+            self.placeholder_retries > 0 and self.placeholder_recoveries == self.placeholder_retries
+        )
 
 
 # Deliberately not ``.md``: a dump must not be picked up by the next
@@ -642,14 +655,32 @@ def _placeholder_correction(chunk: str, missing: list[_Region]) -> str:
 
 
 def _keeps_placeholders(regions: list[_Region]) -> Callable[[str], bool]:
-    """Return a check that a response kept every placeholder in *regions*.
-
-    It also refuses a response that echoes a correction block back, since that
-    text would otherwise end up in the rewritten page.
-    """
+    """Return a check that a response kept every placeholder in *regions*."""
 
     def check(text: str) -> bool:
-        return _CORRECTION_OPEN not in text and not _missing_regions(text, regions)
+        return not _missing_regions(text, regions)
+
+    return check
+
+
+def _echoes_correction(text: str, chunk: str) -> bool:
+    """Return True if *text* carries more correction tags than the source *chunk* did.
+
+    A page may legitimately contain the tag itself, for instance in inline code
+    that documents this very retry, so only tags beyond those count as an echo.
+    """
+    return text.count(_CORRECTION_OPEN) > chunk.count(_CORRECTION_OPEN)
+
+
+def _keeps_placeholders_without_echo(regions: list[_Region], chunk: str) -> Callable[[str], bool]:
+    """Return the retry's check: every placeholder kept, and no correction echoed.
+
+    An echoed correction would otherwise end up in the rewritten page.
+    """
+    keeps = _keeps_placeholders(regions)
+
+    def check(text: str) -> bool:
+        return keeps(text) and not _echoes_correction(text, chunk)
 
     return check
 
@@ -787,6 +818,7 @@ class _ChunkedRewrite:
 
     chat: ChatResult
     placeholder_retries: int
+    placeholder_recoveries: int
 
 
 @dataclass(frozen=True)
@@ -835,7 +867,7 @@ def _retry_dropped_placeholders(  # noqa: PLR0913
         ", ".join(region.placeholder for region in missing),
     )
     user = _placeholder_correction(chunk, missing)
-    accept = _keeps_placeholders(regions)
+    accept = _keeps_placeholders_without_echo(regions, chunk)
     try:
         retry = sender.send(user, accept)
     except Exception as exc:
@@ -850,6 +882,13 @@ def _retry_dropped_placeholders(  # noqa: PLR0913
         )
     log.info("rewrite %s: chunk %d of %d kept every placeholder on retry", path, index, total)
     return combined
+
+
+def _with_retry_counts(result: RewriteResult, *, retries: int, recoveries: int) -> RewriteResult:
+    """Record on *result* how many chunks were retried and how many retries succeeded."""
+    result.placeholder_retries = retries
+    result.placeholder_recoveries = recoveries
+    return result
 
 
 def _rewrite_chunks(
@@ -869,14 +908,17 @@ def _rewrite_chunks(
     parts: list[str] = []
     results: list[ChatResult] = []
     retries = 0
+    recoveries = 0
 
     for index, chunk in enumerate(chunks, start=1):
         chunk_regions = _regions_in(chunk, regions)
         try:
             chat = sender.send(chunk, _keeps_placeholders(chunk_regions))
         except Exception as exc:
-            return RewriteResult(
-                path=path, status="error", error=str(exc), placeholder_retries=retries
+            return _with_retry_counts(
+                RewriteResult(path=path, status="error", error=str(exc)),
+                retries=retries,
+                recoveries=recoveries,
             )
 
         log.debug(
@@ -898,8 +940,7 @@ def _rewrite_chunks(
             refusal = _reject_truncated_chunk(
                 path, chat=chat, chunk=chunk, index=index, total=total
             )
-            refusal.placeholder_retries = retries
-            return refusal
+            return _with_retry_counts(refusal, retries=retries, recoveries=recoveries)
 
         if _missing_regions(chat.text, chunk_regions):
             retries += 1
@@ -913,8 +954,8 @@ def _rewrite_chunks(
                 total=total,
             )
             if isinstance(retried, RewriteResult):
-                retried.placeholder_retries = retries
-                return retried
+                return _with_retry_counts(retried, retries=retries, recoveries=recoveries)
+            recoveries += 1
             chat = retried
 
         # A model that trims a chunk's leading or trailing whitespace would
@@ -925,7 +966,11 @@ def _rewrite_chunks(
         parts.append(chat.text if total == 1 else _restore_boundary_whitespace(chunk, chat.text))
         results.append(chat)
 
-    return _ChunkedRewrite(chat=_merge_chunk_results(parts, results), placeholder_retries=retries)
+    return _ChunkedRewrite(
+        chat=_merge_chunk_results(parts, results),
+        placeholder_retries=retries,
+        placeholder_recoveries=recoveries,
+    )
 
 
 def _warn_if_shrunk(path: Path, body: str, rewritten_body: str) -> None:
@@ -1011,7 +1056,7 @@ def _refuse_managed_apply(
     )
 
 
-def rewrite_file(  # noqa: C901, PLR0911, PLR0912
+def rewrite_file(  # noqa: PLR0911
     path: Path,
     client: Client,
     *,
@@ -1112,35 +1157,55 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
     outcome = _rewrite_chunks(path, sender, chunks=chunks, regions=regions)
     if isinstance(outcome, RewriteResult):
         return outcome
-    result = outcome.chat
-    retries = outcome.placeholder_retries
+    return _with_retry_counts(
+        _finish_rewrite(
+            path,
+            chat=outcome.chat,
+            frontmatter_block=frontmatter_block,
+            body=body,
+            transformed_body=transformed_body,
+            regions=regions,
+            apply=apply,
+        ),
+        retries=outcome.placeholder_retries,
+        recoveries=outcome.placeholder_recoveries,
+    )
 
+
+def _finish_rewrite(  # noqa: PLR0913
+    path: Path,
+    *,
+    chat: ChatResult,
+    frontmatter_block: str,
+    body: str,
+    transformed_body: str,
+    regions: list[_Region],
+    apply: bool,
+) -> RewriteResult:
+    """Stitch the model output back into the page and write it out."""
     # Stitch the protected regions back once, over the joined output.  Every
     # chunk has already been checked for its own placeholders, so none is
     # missing here.
-    rewritten_body = stitch_protected(result.text, regions)
+    rewritten_body = stitch_protected(chat.text, regions)
 
     # Restore the source body's boundary whitespace to avoid whitespace-only churn.
     rewritten_body = _restore_boundary_whitespace(body, rewritten_body)
     _warn_if_shrunk(path, body, rewritten_body)
 
     if not frontmatter_block and _opens_with_frontmatter(rewritten_body):
-        refusal = _rejected(
+        return _rejected(
             path,
             reason="model output opens with a frontmatter block but the source has none",
-            chat=result,
-            diagnostics=_call_diagnostics(result, transformed_body),
+            chat=chat,
+            diagnostics=_call_diagnostics(chat, transformed_body),
         )
-        refusal.placeholder_retries = retries
-        return refusal
 
     rewritten_full = frontmatter_block + rewritten_body
 
     # When --apply is set, check for managed-elsewhere before overwriting.
     if apply:
-        refusal = _refuse_managed_apply(path, rewritten_full=rewritten_full, chat=result)
+        refusal = _refuse_managed_apply(path, rewritten_full=rewritten_full, chat=chat)
         if refusal is not None:
-            refusal.placeholder_retries = retries
             return refusal
 
     # Determine output path and write atomically.
@@ -1149,21 +1214,15 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912
     try:
         atomic_write_text(out_path, rewritten_full)
     except OSError as exc:
-        return RewriteResult(
-            path=path,
-            status="error",
-            error=f"Write failed: {exc}",
-            placeholder_retries=retries,
-        )
+        return RewriteResult(path=path, status="error", error=f"Write failed: {exc}")
 
     return RewriteResult(
         path=path,
-        status="cached" if result.cached else "rewritten",
+        status="cached" if chat.cached else "rewritten",
         output_path=out_path,
-        prompt_tokens=result.prompt_tokens,
-        completion_tokens=result.completion_tokens,
-        cost_usd=result.cost_usd,
-        placeholder_retries=retries,
+        prompt_tokens=chat.prompt_tokens,
+        completion_tokens=chat.completion_tokens,
+        cost_usd=chat.cost_usd,
     )
 
 
@@ -1227,7 +1286,7 @@ def _log_fail_dumps(results: list[RewriteResult]) -> None:
 def _log_placeholder_retries(results: list[RewriteResult]) -> None:
     """Log how often a dropped placeholder forced a retry, and how many recovered."""
     retried = [r for r in results if r.placeholder_retries > 0]
-    recovered = sum(1 for r in retried if r.status != "error")
+    recovered = sum(1 for r in retried if r.placeholders_recovered)
     log.info(
         "  Placeholder retries: %d across %d of %d file(s), %d file(s) recovered.",
         sum(r.placeholder_retries for r in retried),
