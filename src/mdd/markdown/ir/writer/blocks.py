@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Literal, cast
 
 from mdd.ir.nodes import (
@@ -47,7 +48,7 @@ def _render_paragraph(
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
     out.append(indent)
-    render_inlines(block.inlines, out, mode=mode)
+    render_inlines(block.inlines, out, mode=mode, line_start=True)
 
 
 def _render_bullet_list(
@@ -115,6 +116,33 @@ def _render_horizontal_rule(
     out.append(f"{indent}---")
 
 
+def fence_for(body: str, char: str, *, minimum: int = 3) -> str:
+    """Return a run of *char* that no line of *body* can be mistaken for.
+
+    A line whose leading run of *char* (after optional indentation) is at
+    least as long as the opening fence would close it early, so the fence
+    is made one longer than the longest such run in the body.
+    """
+    longest = 0
+    for line in body.splitlines():
+        m = re.match(rf"\s*({re.escape(char)}+)", line)
+        if m:
+            longest = max(longest, len(m.group(1)))
+    return char * max(minimum, longest + 1)
+
+
+def _fence_info(language: str | None) -> str:
+    """Reduce *language* to a single word that cannot alter the fence line.
+
+    The info string ends at the first whitespace, and a backtick fence's
+    info string may not contain backticks.
+    """
+    if not language:
+        return ""
+    words = language.split()
+    return words[0].replace("`", "") if words else ""
+
+
 def _render_code_block(
     block: CodeBlock,
     out: list[str],
@@ -122,8 +150,8 @@ def _render_code_block(
     indent: str,
     mode: Literal["normalising", "preserving"] = "normalising",  # noqa: ARG001
 ) -> None:
-    lang = block.language or ""
-    out.append(f"{indent}```{lang}\n")
+    fence = fence_for(block.content, "`")
+    out.append(f"{indent}{fence}{_fence_info(block.language)}\n")
     for line in block.content.splitlines():
         out.append(f"{indent}{line}\n")  # noqa: PERF401
     # `splitlines()` drops the trailing newline if present, so a
@@ -133,7 +161,7 @@ def _render_code_block(
     # sees the trailing blank as part of the code body.
     if block.content.endswith("\n"):
         out.append(f"{indent}\n")
-    out.append(f"{indent}```")
+    out.append(f"{indent}{fence}")
 
 
 def _render_table(
@@ -182,6 +210,8 @@ def _render_confluence_macro(
     params["name"] = block.name
     param_str = render_attr_dict(params)
     fence = ":" * (3 + fence_depth)
+    if not block.rich_body and block.plain_body is not None:
+        fence = fence_for(block.plain_body, ":", minimum=3 + fence_depth)
     out.append(f"{indent}{fence}confluence-macro {{{param_str}}}\n")
     if block.rich_body:
         for i, child in enumerate(block.body):
@@ -219,10 +249,11 @@ def _render_raw_block(
         out.append(block.content)
         return
     # confluence-storage and any other format → confluence-xml fence
-    out.append(f"{indent}```confluence-xml\n")
+    fence = fence_for(block.content, "`")
+    out.append(f"{indent}{fence}confluence-xml\n")
     for line in block.content.splitlines():
         out.append(f"{indent}{line}\n")  # noqa: PERF401
-    out.append(f"{indent}```")
+    out.append(f"{indent}{fence}")
 
 
 def _render_layout(

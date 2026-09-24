@@ -120,10 +120,22 @@ floor M1 ≥ 0.95 on every metric.
   them.
 - **Backslash escapes (`\*`, `\_`, …).** The markdown reader
   strips the backslash per CommonMark; storage holds the
-  literal character. Restoring the backslash on the markdown
-  write path is deferred (it needs a context-sensitive
-  re-escape policy). Fixtures exercising this are xfailed
-  on R3 preserving.
+  literal character. The markdown writer re-escapes `Text` on
+  write: inline delimiters (`<` before a tag or scheme
+  character, `[`, `]`, `` ` ``, `*`, `_` outside a word, `{{`,
+  `~~`, entity-shaped `&…;`, and a backslash before ASCII
+  punctuation) everywhere, and block starters (`#`, `-`, `+`,
+  `>`, `|`, `N.`/`N)`, `:::`, setext underlines and table
+  delimiter rows) at the start of a paragraph line. The escapes
+  are chosen so the reader yields the same `Text` back; the
+  literal characters are not otherwise significant to the
+  storage leg. Link and image titles escape `"` and `\`.
+  Fenced bodies (`CodeBlock`, `confluence-xml` `RawBlock`,
+  `confluence-macro` plain bodies) get a fence one character
+  longer than the longest line-leading run of the fence
+  character inside the body, so a body can never close its own
+  fence; the fence info string is cut at the first whitespace
+  and stripped of backticks.
 - **Inline `<kbd>`/`<samp>` raw HTML.** Allowlist gap in the
   markdown reader's raw-HTML handling — see [S32](S32-ir-test-corpus-expansion.md)
   §"Fallback fixtures".

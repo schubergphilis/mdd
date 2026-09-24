@@ -19,10 +19,9 @@ from mdd.ir.nodes import (
     RawBlock,
 )
 
-from .inlines import consume_inlines
+from .inlines import consume_inlines, drop_empty_text
 from .layout import consume_layout, parse_attr_block
 from .listing import consume_list
-from .macros import split_inline_macros
 from .table import consume_table
 
 if TYPE_CHECKING:
@@ -45,8 +44,7 @@ def _consume_heading(tokens: list[Token], i: int, out: list[Block], ctx: IRConte
 
 
 def _consume_paragraph(tokens: list[Token], i: int, out: list[Block], ctx: IRContext | None) -> int:
-    inlines = consume_inlines(tokens[i + 1], ctx)
-    inlines = split_inline_macros(inlines, ctx)
+    inlines = drop_empty_text(consume_inlines(tokens[i + 1], ctx))
     out.append(Paragraph(inlines=inlines))
     return i + 3
 

@@ -1,4 +1,4 @@
-"""Inline-macro splitting: text → ``InlineMacro`` / ``RawInline``."""
+"""Inline-macro markers: ``confluence_inline`` token → ``InlineMacro`` / ``RawInline``."""
 
 from __future__ import annotations
 
@@ -14,16 +14,6 @@ if TYPE_CHECKING:
     import re
 
     from mdd.ir.fallback import IRContext
-
-
-def split_inline_macros(tokens: list[Inline], ctx: IRContext | None) -> list[Inline]:
-    out: list[Inline] = []
-    for tok in tokens:
-        if isinstance(tok, Text):
-            out.extend(_split_text(tok.content, ctx))
-        else:
-            out.append(tok)
-    return out
 
 
 def _inline_macro_from_match(m: re.Match[str]) -> InlineMacro:
@@ -57,30 +47,6 @@ def _raw_inline_from_match(
         ctx=ctx,
         format_override="html",
     )
-
-
-def _split_text(text: str, ctx: IRContext | None) -> list[Inline]:
-    out: list[Inline] = []
-    candidates: list[tuple[int, int, str, re.Match[str]]] = [
-        *((m.start(), m.end(), "macro", m) for m in INLINE_MACRO_RE.finditer(text)),
-        *((m.start(), m.end(), "raw", m) for m in INLINE_RAW_RE.finditer(text)),
-    ]
-    candidates.sort(key=lambda x: x[0])
-
-    pos = 0
-    for start, end, kind, m in candidates:
-        if start < pos:
-            continue
-        if start > pos:
-            out.append(Text(text[pos:start]))
-        if kind == "macro":
-            out.append(_inline_macro_from_match(m))
-        else:
-            out.append(_raw_inline_from_match(m, ctx))
-        pos = end
-    if pos < len(text):
-        out.append(Text(text[pos:]))
-    return out
 
 
 def parse_confluence_inline_marker(content: str, ctx: IRContext | None) -> list[Inline]:

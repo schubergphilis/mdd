@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING
 
 from mdd.ir.nodes import Paragraph, Table, TableCell, TableRow
 
-from .inlines import consume_inlines
-from .macros import split_inline_macros
+from .inlines import consume_inlines, drop_empty_text
 
 if TYPE_CHECKING:
     from markdown_it.token import Token
@@ -40,8 +39,7 @@ def consume_table(tokens: list[Token], i: int, ctx: IRContext | None) -> tuple[T
             if in_header and t == "th_open":
                 align.append(col_align)
             inline_tok = tokens[i + 1]
-            inlines = consume_inlines(inline_tok, ctx)
-            inlines = split_inline_macros(inlines, ctx)
+            inlines = drop_empty_text(consume_inlines(inline_tok, ctx))
             cells.append(
                 TableCell(
                     children=[Paragraph(inlines=inlines)] if inlines else [],
