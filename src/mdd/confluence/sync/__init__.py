@@ -44,7 +44,7 @@ from .finalize import (
     push_to_gitlab as push_to_gitlab,
 )
 from .mddignore import filter_desired
-from .office_publish import run_office_publish
+from .office_publish import OfficePublishCtx, run_office_publish
 from .pull import PullCtx
 from .push import PushCtx
 from .state import build_parent_path_map, fetch_desired_state
@@ -222,15 +222,14 @@ def sync_space(
     if opts.read_only:
         log.info("Office publishing skipped (--read-only)")
     else:
-        run_office_publish(
-            client,
-            mirror,
-            config,
-            summary,
-            desired_ids=set(desired),
+        office_ctx = OfficePublishCtx(
+            client=client,
+            config=config,
+            summary=summary,
             dry_run=False,
             managed_config=get_managed_cfg(),
         )
+        run_office_publish(mirror, office_ctx, desired_ids=set(desired))
 
     # Steps 5 + 6: commit + optional push, delegated to the mirror
     # orchestrator via finalize_commit_and_push.

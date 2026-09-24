@@ -266,6 +266,18 @@ class TestBuildMirrorStateAttachmentDirFrontmatterIgnored:
         state = build_mirror_state(root)
         assert set(state.tracked) == {"100"}
 
+    def test_output_dir_named_attachments_keeps_converter_suffix_manual(
+        self, tmp_path: Path
+    ) -> None:
+        # A user-authored notes.pdf.md at the root of a mirror whose own name
+        # ends in -attachments is manual, not a converter output.
+        root = tmp_path / "docs-attachments"
+        notes = root / "notes.pdf.md"
+        _write_md(notes, {}, "# notes\n")
+        state = build_mirror_state(root)
+        assert notes in state.manual
+        assert state.attachment_derived == []
+
 
 class TestBuildMirrorStateAttachments:
     def test_attachments_manifest_loaded(self, tmp_path: Path) -> None:

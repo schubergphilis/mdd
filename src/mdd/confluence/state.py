@@ -223,19 +223,22 @@ def build_mirror_state(output_dir: Path) -> MirrorState:
             state.manual.append(md_path)
             continue
         _ingest_md_path(state, md_path)
-    _split_attachment_derived(state)
+    _split_attachment_derived(state, output_dir)
     return state
 
 
-def _split_attachment_derived(state: MirrorState) -> None:
+def _split_attachment_derived(state: MirrorState, output_dir: Path) -> None:
     """Move converter outputs out of ``manual`` into ``attachment_derived``.
 
     Run after the main walk so it stays a single linear pass that does not add
-    cognitive complexity to ``build_mirror_state`` itself.
+    cognitive complexity to ``build_mirror_state`` itself. Only directories
+    inside *output_dir* count as ``*-attachments`` parents; the mirror root's
+    own name (and anything above it) is ignored.
     """
     keep: list[Path] = []
     derived: list[Path] = []
     for path in state.manual:
-        (derived if _is_attachment_derived(path) else keep).append(path)
+        rel = path.relative_to(output_dir)
+        (derived if _is_attachment_derived(rel) else keep).append(path)
     state.manual = keep
     state.attachment_derived = derived

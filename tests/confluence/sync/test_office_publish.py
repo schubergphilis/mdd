@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from mdd.confluence.state import LocalPage, MirrorState
 from mdd.confluence.sync._types import SyncSummary
-from mdd.confluence.sync.office_publish import run_office_publish
+from mdd.confluence.sync.office_publish import OfficePublishCtx, run_office_publish
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -41,6 +41,10 @@ def _mirror_with(path: Path, page_id: str) -> MirrorState:
     return state
 
 
+def _ctx(client: MagicMock, summary: SyncSummary) -> OfficePublishCtx:
+    return OfficePublishCtx(client=client, config=MagicMock(), summary=summary)
+
+
 class TestRunOfficePublishScope:
     def test_page_outside_synced_space_is_skipped(self, tmp_path: Path) -> None:
         # A tracked file naming a page that is not part of the synced space
@@ -56,11 +60,7 @@ class TestRunOfficePublishScope:
             patch("mdd.confluence.sync.office_publish.update_page") as update_page,
         ):
             run_office_publish(
-                client,
-                _mirror_with(md, "555"),
-                MagicMock(),
-                summary,
-                desired_ids={"100", "101"},
+                _mirror_with(md, "555"), _ctx(client, summary), desired_ids={"100", "101"}
             )
 
         client.get_page.assert_not_called()
@@ -76,19 +76,12 @@ class TestRunOfficePublishScope:
         md = tmp_path / "Report.md"
         _write_opted_in(md, "100")
         summary = SyncSummary()
+        ctx = _ctx(MagicMock(), summary)
 
         with patch("mdd.confluence.sync.office_publish._office_publish_one") as one:
-            run_office_publish(
-                MagicMock(),
-                _mirror_with(md, "100"),
-                MagicMock(),
-                summary,
-                desired_ids={"100"},
-            )
+            run_office_publish(_mirror_with(md, "100"), ctx, desired_ids={"100"})
 
-        one.assert_called_once()
-        assert one.call_args.args[0] == "100"
-        assert one.call_args.args[1] == md
+        one.assert_called_once_with("100", md, ctx)
         assert summary.office_skipped_outside_space == []
 
     def test_not_opted_in_outside_space_is_not_recorded(self, tmp_path: Path) -> None:
@@ -100,7 +93,7 @@ class TestRunOfficePublishScope:
 
         with patch("mdd.confluence.sync.office_publish._office_publish_one") as one:
             run_office_publish(
-                MagicMock(), _mirror_with(md, "555"), MagicMock(), summary, desired_ids=set()
+                _mirror_with(md, "555"), _ctx(MagicMock(), summary), desired_ids=set()
             )
 
         one.assert_not_called()
