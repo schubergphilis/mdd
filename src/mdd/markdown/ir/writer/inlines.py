@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -139,12 +140,20 @@ def _render_strikethrough(tok: Inline, out: list[str], mode: _Mode) -> None:
 def _render_code(tok: Inline, out: list[str], mode: _Mode) -> None:
     del mode
     assert isinstance(tok, Code)  # noqa: S101  # type-narrowing assert; invariant guaranteed by construction
-    n = 1
-    while "`" * n in tok.content:
-        n += 1
-    ticks = "`" * n
+    ticks = "`" * (_longest_backtick_run(tok.content) + 1)
     pad = " " if tok.content.startswith("`") or tok.content.endswith("`") else ""
     out.append(f"{ticks}{pad}{tok.content}{pad}{ticks}")
+
+
+_BACKTICK_RUN_RE = re.compile("`+")
+
+
+def _longest_backtick_run(content: str) -> int:
+    """Return the length of the longest run of backticks in *content*.
+
+    A delimiter one longer than that cannot occur inside the span.
+    """
+    return max((len(m.group(0)) for m in _BACKTICK_RUN_RE.finditer(content)), default=0)
 
 
 def _render_wrapped(delim: str, tokens: list[Inline], out: list[str], mode: _Mode) -> None:

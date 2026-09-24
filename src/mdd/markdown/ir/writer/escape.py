@@ -2,13 +2,44 @@
 
 from __future__ import annotations
 
+import base64
 import re
+import urllib.parse
+
+from .._patterns import FENCE_ATTR_B64_PREFIX
 
 
 def render_attr_dict(params: dict[str, str]) -> str:
     parts: list[str] = []
     for key, value in params.items():
         parts.append(f'{key}="{escape_attr(value)}"')
+    return " ".join(parts)
+
+
+# Characters a fenced-div header value cannot carry verbatim: the header is
+# a single line read up to the first ``}``, markdown-it rewrites CR and NUL,
+# and Python's ``str.splitlines`` treats the other C0 separators and the
+# Unicode line/paragraph separators as line breaks. Tab is harmless.
+_FENCE_UNSAFE_RE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f\x85\u2028\u2029}]")
+
+
+def _fence_value_needs_encoding(value: str) -> bool:
+    return value.startswith(FENCE_ATTR_B64_PREFIX) or _FENCE_UNSAFE_RE.search(value) is not None
+
+
+def render_fence_attr_dict(params: dict[str, str]) -> str:
+    """Render *params* for a ``:::name {…}`` fenced-div header line.
+
+    Values the header cannot hold verbatim are written as
+    ``confluence-b64:<base64 of the UTF-8 value>``; the reader decodes them.
+    """
+    parts: list[str] = []
+    for key, value in params.items():
+        if _fence_value_needs_encoding(value):
+            encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
+            parts.append(f'{key}="{FENCE_ATTR_B64_PREFIX}{encoded}"')
+        else:
+            parts.append(f'{key}="{escape_attr(value)}"')
     return " ".join(parts)
 
 
@@ -97,5 +128,16 @@ def escape_text(text: str, *, line_start: bool = False) -> str:
     return "\n".join(lines)
 
 
+# Characters that end or alter an unbracketed link destination when read
+# back: whitespace (Unicode whitespace too, which is trimmed at the end of a
+# destination) and control characters end it, parentheses must balance, a
+# leading ``<`` switches to the bracketed form, a backslash starts an escape
+# and ``&name;`` is decoded as an entity. ``>`` goes with ``<``. Each is
+# percent-encoded as UTF-8; the reader percent-decodes the destination.
+_URL_ESCAPE_RE = re.compile(
+    r"[\s\x00-\x1f\x7f-\x9f()<>\\]|&(?=(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9a-fA-F]+);)"
+)
+
+
 def escape_url(url: str) -> str:
-    return url.replace(" ", "%20").replace("(", "%28").replace(")", "%29")
+    return _URL_ESCAPE_RE.sub(lambda m: urllib.parse.quote(m.group(0), safe=""), url)

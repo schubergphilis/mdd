@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import re
 from typing import TYPE_CHECKING
 
 from mdd.ir.nodes import Block, Layout, LayoutCell, LayoutSection
 
-from .._patterns import ATTR_RE
+from .._patterns import ATTR_RE, FENCE_ATTR_B64_PREFIX
 
 if TYPE_CHECKING:
     from markdown_it.token import Token
@@ -24,8 +25,21 @@ def parse_attr_block(info: str) -> dict[str, str]:
     for m2 in ATTR_RE.finditer(body):
         key = m2.group(1)
         value = m2.group(2).replace('\\"', '"').replace("\\\\", "\\")
-        out[key] = value
+        out[key] = _decode_fence_value(value)
     return out
+
+
+def _decode_fence_value(value: str) -> str:
+    """Undo the writer's base64 form for a header value it could not hold verbatim.
+
+    A value that has the prefix but does not decode is kept as written.
+    """
+    if not value.startswith(FENCE_ATTR_B64_PREFIX):
+        return value
+    try:
+        return base64.b64decode(value[len(FENCE_ATTR_B64_PREFIX) :], validate=True).decode("utf-8")
+    except ValueError:
+        return value
 
 
 def parse_bare_attrs(info: str) -> dict[str, str]:
