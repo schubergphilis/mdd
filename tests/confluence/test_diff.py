@@ -159,3 +159,57 @@ class TestEntityNormalization:
         remote = "<p>A &amp; B</p>"
         result = unified_xhtml_diff(local, remote)
         assert result != "", "raw '&' vs '&amp;' must remain visible in the diff"
+
+
+class TestSoftBreakInsensitivity:
+    """Where a soft line break falls inside a text run does not change the page."""
+
+    def test_moved_soft_break_in_paragraph_gives_empty_diff(self) -> None:
+        local = "<p>First sentence.\nSecond sentence\ncontinues.</p>"
+        remote = "<p>First sentence. Second sentence continues.</p>"
+        assert unified_xhtml_diff(local, remote) == ""
+
+    def test_soft_break_next_to_inline_tag_gives_empty_diff(self) -> None:
+        local = "<p>Hello <em>big\nworld</em>\nagain</p>"
+        remote = "<p>Hello <em>big world</em> again</p>"
+        assert unified_xhtml_diff(local, remote) == ""
+
+    def test_newline_between_block_tags_keeps_line_structure(self) -> None:
+        local = "<p>A</p>\n<p>B</p>"
+        remote = "<p>A</p>\n<p>C</p>"
+        result = unified_xhtml_diff(local, remote)
+        assert "-<p>C</p>" in result
+        assert "+<p>B</p>" in result
+
+    def test_text_change_next_to_soft_break_still_detected(self) -> None:
+        local = "<p>First sentence.\nSecond one.</p>"
+        remote = "<p>First sentence. Third one.</p>"
+        assert unified_xhtml_diff(local, remote) != ""
+
+    def test_moved_line_break_in_code_macro_gives_diff(self) -> None:
+        template = (
+            '<p>Intro\ntext</p><ac:structured-macro ac:name="code">'
+            "<ac:plain-text-body><![CDATA[{body}]]></ac:plain-text-body>"
+            "</ac:structured-macro>"
+        )
+        local = template.format(body="a\nb c")
+        remote = template.format(body="a b\nc")
+        assert unified_xhtml_diff(local, remote) != ""
+
+    def test_moved_line_break_in_pre_block_gives_diff(self) -> None:
+        local = "<pre><code>a\nb c</code></pre>"
+        remote = "<pre><code>a b\nc</code></pre>"
+        assert unified_xhtml_diff(local, remote) != ""
+
+    def test_prose_soft_break_on_page_with_code_macro_gives_empty_diff(self) -> None:
+        macro = (
+            '<ac:structured-macro ac:name="code">'
+            "<ac:plain-text-body><![CDATA[x = 1\n]]></ac:plain-text-body>"
+            "</ac:structured-macro>"
+        )
+        local = f"<p>Some\nprose</p>{macro}"
+        remote = f"<p>Some prose</p>{macro}"
+        assert unified_xhtml_diff(local, remote) == ""
+
+    def test_newline_at_start_or_end_is_left_alone(self) -> None:
+        assert unified_xhtml_diff("\n<p>A</p>\n", "<p>A</p>") == ""

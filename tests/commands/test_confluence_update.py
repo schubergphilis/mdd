@@ -469,6 +469,52 @@ class TestUpdatePageEmptyDiff:
         assert "no changes" in msgs or "empty" in msgs
 
 
+def _page_with_storage(storage: str) -> dict[str, Any]:
+    page = dict(_SAMPLE_PAGE)
+    page["body"] = {"storage": {"value": storage, "representation": "storage"}}
+    return page
+
+
+class TestUpdatePageSoftBreaks:
+    def test_moved_soft_breaks_in_paragraph_skip_put(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "Hello *big\nworld*\nagain\n")
+
+        mock_client = _make_mock_client()
+        mock_client.get_page.return_value = _page_with_storage(
+            "<p>Hello <em>big world</em> again</p>"
+        )
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, _make_config(), yes=True)
+
+        assert result == 0
+        mock_client.put_page.assert_not_called()
+
+    def test_moved_line_break_in_code_block_puts(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "```\na\nb c\n```\n")
+
+        mock_client = _make_mock_client()
+        mock_client.get_page.return_value = _page_with_storage("<pre><code>a b\nc</code></pre>")
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            result = update_page(md_path, _make_config(), yes=True)
+
+        assert result == 0
+        mock_client.put_page.assert_called_once()
+
+
 class TestUpdatePageValidation:
     def test_missing_page_id_returns_1(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
