@@ -78,20 +78,26 @@ IMPLEMENTED_OK_RE = re.compile(r"^Implemented \(\d{4}-\d{2}-\d{2}\)$")
 
 # Plan and research numbers are a two-digit (or longer) prefixed number:
 # `P03`, `R14`. Single-digit `R1`..`R4` are the IR round-trip flavours and
-# are deliberately not matched. The prose alternative is tried first so that
-# `research note R13` reports once, not once for the phrase and once for R13.
-# The bare token is case-sensitive so latency percentiles like `p95` pass.
+# are deliberately not matched. The bare token is case-sensitive, so `p95`
+# passes, and the common percentile names P50, P75, P90, P95, P99 and P999
+# are excluded outright, so plans with those numbers go unflagged.
+# In the prose form (`research note R13`, `research 004`) an unprefixed
+# number must be two or three digits, so a year (`the plan 2026`) passes.
+# The prose alternative is tried first so that `research note R13` reports
+# once, not once for the phrase and once for R13.
 XREF_RE = re.compile(
-    r"(?P<prose>\b(?:research|plan)(?:\s+(?:note|doc|document))?\s+[PR]?\d{2,}\b)"
-    r"|(?P<token>(?-i:\b[PR]\d{2,}\b))",
+    r"(?P<prose>\b(?:research|plan)(?:\s+(?:note|doc|document))?\s+"
+    r"(?:[PR]\d{2,}|\d{2,3})\b)"
+    r"|(?P<token>(?-i:\b(?!P(?:50|75|90|95|99|999)\b)[PR]\d{2,}\b))",
     re.IGNORECASE,
 )
 
-# The one sanctioned way to name a research note: a credit, without a link.
-XREF_CREDIT_RE = re.compile(r"\bOriginates from research note R\d{2,}\b", re.IGNORECASE)
+# The one sanctioned way to name a research note: exactly the sentence
+# `Originates from research note RNN.`, case-sensitive, starting a sentence.
+XREF_CREDIT_RE = re.compile(r"(?:^|(?<=[.!?] ))Originates from research note R\d{2,}\.")
 
-# A relative link target that walks into a plan/ or research/ directory.
-XREF_LINK_TARGET_RE = re.compile(r"(?:^|/)(?:plan|research)/")
+# A relative link target that walks into a plan or research directory.
+XREF_LINK_TARGET_RE = re.compile(r"(?:^|/)(?:plan|research)(?:[/#]|$)")
 
 XREF_HINT = "specs must stand alone; copy the content in instead"
 
@@ -162,6 +168,12 @@ def prose_paragraphs(lines: list[str]) -> list[list[tuple[int, str]]]:
     return paragraphs
 
 
+def _is_xref_link_target(target: str) -> bool:
+    """True for a relative link target into a plan or research directory."""
+    target = target.strip()
+    return "://" not in target and XREF_LINK_TARGET_RE.search(target) is not None
+
+
 def xref_violations(path: Path, paragraph: list[tuple[int, str]]) -> list[str]:
     """Flag plan/research references in one paragraph of (lineno, line) pairs.
 
@@ -182,18 +194,27 @@ def xref_violations(path: Path, paragraph: list[tuple[int, str]]) -> list[str]:
     def lineno_at(pos: int) -> int:
         return paragraph[bisect_right(starts, pos) - 1][0]
 
+    def blank(m: re.Match[str]) -> str:
+        return " " * len(m.group(0))
+
     violations: list[str] = []
     for m in LINKED_URL_RE.finditer(text):
         target = m.group(1).strip()
-        if "://" in target or not XREF_LINK_TARGET_RE.search(target):
+        if not _is_xref_link_target(target):
             continue
         violations.append(
             f"{path}:{lineno_at(m.start())}: xref: link into plan/research → {target} ({XREF_HINT})"
         )
 
-    # Blank out credit sentences so their offsets, and every other match's
-    # line number, stay put.
-    scan = XREF_CREDIT_RE.sub(lambda m: " " * len(m.group(0)), text)
+    # Blank out flagged links, so a number in their target is not reported a
+    # second time, and credit sentences. Blanking keeps every offset, and so
+    # every other match's line number, in place.
+    scan = text
+    for m in LINKED_URL_RE.finditer(text):
+        if _is_xref_link_target(m.group(1)):
+            start, end = m.span(1)
+            scan = scan[:start] + " " * (end - start) + scan[end:]
+    scan = XREF_CREDIT_RE.sub(blank, scan)
     for m in XREF_RE.finditer(scan):
         kind = "plan/research reference" if m.group("prose") else "plan/research number"
         violations.append(

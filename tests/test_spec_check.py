@@ -153,14 +153,53 @@ def test_xref_legit_tokens_pass() -> None:
 
 def test_xref_credit_sentence_allowed() -> None:
     assert _xref("Originates from research note R03.") == []
-    assert _xref("Originates from research note R02 (attachments).") == []
     assert _xref("Originates from", "research note R02.") == []
+    assert _xref("No command ships here. Originates from research note R03.") == []
+    assert _xref("See [S17](S17-x.md). Originates from research note R02.") == []
+
+
+def test_xref_credit_must_be_the_exact_documented_sentence() -> None:
+    for text in (
+        "Originates from research note R02 (attachments).",
+        "originates from research note R02.",
+        "It originates from research note R02.",
+        "Originates from research note R02",
+        "Originates from plan P03.",
+    ):
+        assert len(_xref(text)) == 1, text
 
 
 def test_xref_other_references_next_to_credit_still_reported() -> None:
-    violations = _xref("Originates from research note R03; deferred per research note R03.")
+    violations = _xref("Originates from research note R03. Deferred per research note R03.")
     assert len(violations) == 1
     assert "'research note R03'" in violations[0]
+
+
+def test_xref_uppercase_percentiles_pass() -> None:
+    assert _xref("P50, P75, P90, P95, P99 and P999 latency stay under 20ms.") == []
+    assert len(_xref("Retired in P98.")) == 1
+
+
+def test_xref_prose_year_after_plan_passes() -> None:
+    assert _xref("The rollout plan", "2026 is out of scope.") == []
+    assert _xref("The research 2026 budget.") == []
+    assert len(_xref("See plan P2026.")) == 1
+
+
+def test_xref_links_to_bare_plan_and_research_dirs_reported() -> None:
+    for target in ("../plan", "../research#x", "../plan/", "research"):
+        violations = _xref(f"See [x]({target}).")
+        assert len(violations) == 1, target
+        assert f"link into plan/research → {target}" in violations[0]
+    assert _xref("See [x](../planning/notes.md) and [y](../researchers.md).") == []
+
+
+def test_xref_number_inside_flagged_link_reported_once() -> None:
+    violations = _xref("See [y](../research/R01-a.md).")
+    assert len(violations) == 1
+    assert "link into plan/research → ../research/R01-a.md" in violations[0]
+    # A number in the link text is not part of the target, so it still counts.
+    assert len(_xref("See [R01](../research/R01-a.md).")) == 2
 
 
 def test_xref_matches_across_line_wrap_and_reports_start_line() -> None:
