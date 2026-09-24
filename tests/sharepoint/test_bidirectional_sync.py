@@ -1087,3 +1087,39 @@ class TestSyncFolderPruneIgnored:
 
         assert keep.exists()
         assert summary.pruned_ignored == 0
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestWalkRealFilesSkipsSymlinks:
+    def test_symlinked_file_and_dir_skipped(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "Leak.docx.md").write_text("secret", encoding="utf-8")
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "Real.docx.md").write_text("# body", encoding="utf-8")
+        _plant_symlink(out / "Link.docx.md", outside / "Leak.docx.md")
+        _plant_symlink(out / "LinkDir", outside)
+
+        files = _walk_real_files(out)
+
+        assert files == [out / "Real.docx.md"]
+
+    def test_symlinked_orphan_md_produces_no_pair(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        out = tmp_path / "out"
+        src.mkdir()
+        out.mkdir()
+        secret = tmp_path / "secret"
+        secret.write_text("private", encoding="utf-8")
+        _plant_symlink(out / "Leak.docx.md", secret)
+
+        pairs = _walk_for_pairs(src, out)
+
+        assert pairs == []

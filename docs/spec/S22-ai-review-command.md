@@ -20,6 +20,7 @@ Originates from research note R03.
 - Each sub-mode follows a two-tier pipeline: cheap BM25 shortlist followed by LLM judge
 - `--space` / `--site` / `--source TYPE:ID` scope filter must be supported for all sub-modes
   (the same registered root sources as [S19](S19-search-command.md))
+- Symlinked `.md` entries under the reviewed directory are skipped, never read
 - Default report path: `docs/review/<YYYY-MM-DD>-<scope>.md`; `--output <path>` overrides
 - Existing report files must not be overwritten; append a numeric suffix
 - Report must be plain markdown with anchors

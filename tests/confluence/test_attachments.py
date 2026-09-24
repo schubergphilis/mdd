@@ -6,13 +6,14 @@ import hashlib
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from mdd.confluence.attachments import download_for_page
 from mdd.confluence.ir import AttachmentRef
+from mdd.utils.safe_write import SymlinkRefusedError
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def _make_attachment(filename: str, version: int = 1) -> dict[str, Any]:
@@ -210,3 +211,49 @@ class TestDownloadForPage:
         assert "download bad.png" in msgs
         assert "page 123" in msgs
         assert "HTTP 500 from server" in msgs
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestSymlinkedAttachmentsDir:
+    """A symlink planted at ``<page>-attachments`` is refused, not written through."""
+
+    def test_download_for_page_refuses_symlinked_dir(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        mirror = tmp_path / "mirror"
+        mirror.mkdir()
+        _plant_symlink(mirror / "Page-attachments", outside)
+
+        client = _make_client(
+            [_make_attachment("authorized_keys")], {"authorized_keys": b"ssh-ed25519 AAAA"}
+        )
+        refs = [AttachmentRef(filename="authorized_keys")]
+
+        with pytest.raises(SymlinkRefusedError):
+            download_for_page(client, "123", refs, mirror, "Page")
+
+        assert list(outside.iterdir()) == []
+        client.download_attachment.assert_not_called()
+
+    def test_sync_all_attachments_refuses_symlinked_dir(self, tmp_path: Path) -> None:
+        from mdd.confluence.attachments import sync_all_attachments
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        mirror = tmp_path / "mirror"
+        mirror.mkdir()
+        _plant_symlink(mirror / "Page-attachments", outside)
+
+        client = _make_client([_make_attachment("payload.bin")], {"payload.bin": b"x"})
+
+        with pytest.raises(SymlinkRefusedError):
+            sync_all_attachments(client, "123", mirror / "Page-attachments", [])
+
+        assert list(outside.iterdir()) == []
+        client.download_attachment_to_file.assert_not_called()

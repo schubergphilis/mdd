@@ -213,7 +213,7 @@ def _classify_walk_child(
     Kept as a top-level helper so :func:`_walk_real_files` stays inside the
     cognitive-complexity ceiling.
     """
-    if not _is_real_filename(child.name):
+    if not _is_real_filename(child.name) or child.is_symlink():
         return
     if child.is_dir():
         if not _maybe_prune_dir(child, rel_root, matcher, stats):

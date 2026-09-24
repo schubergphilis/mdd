@@ -109,6 +109,8 @@ def _load_docs(directory: Path) -> list[tuple[Path, str, dict[str, Any]]]:
     """
     docs: list[tuple[Path, str, dict[str, Any]]] = []
     for md_file in sorted(directory.rglob("*.md")):
+        if md_file.is_symlink():
+            continue
         try:
             content = md_file.read_text(encoding="utf-8")
         except OSError:

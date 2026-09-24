@@ -2,26 +2,31 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mdd.utils import safe_write
+
 
 def atomic_write_bytes(dest: Path, data: bytes) -> None:
-    """Write *data* to *dest* atomically via a ``.tmp`` sibling."""
+    """Write *data* to *dest* atomically via a ``.tmp`` sibling.
+
+    Creates missing parent directories. Refuses to write through a symlink
+    at *dest* or at the ``.tmp`` sibling.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, dest)  # noqa: PTH105
+    safe_write.atomic_write_bytes(dest, data)
 
 
 def atomic_write_text(dest: Path, text: str) -> None:
-    """Write *text* to *dest* atomically via a ``.tmp`` sibling."""
+    """Write *text* to *dest* atomically via a ``.tmp`` sibling.
+
+    Creates missing parent directories. Refuses to write through a symlink
+    at *dest* or at the ``.tmp`` sibling.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, dest)  # noqa: PTH105
+    safe_write.atomic_write_text(dest, text)
 
 
 def backup_office_file(office_path: Path, output_root: Path) -> None:
@@ -33,6 +38,9 @@ def backup_office_file(office_path: Path, output_root: Path) -> None:
 
     where ``<rel-path>`` is the path of the office file relative to *output_root*,
     and ``<timestamp>`` is the current UTC time as ``YYYYMMDDTHHMMSS``.
+
+    Refuses to copy when ``.mdd-backups`` or any directory below it inside
+    *output_root* is a symlink, or when the backup file name is one.
     """
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
     try:
@@ -40,6 +48,8 @@ def backup_office_file(office_path: Path, output_root: Path) -> None:
     except ValueError:
         rel = Path(office_path.name)
     backup_dir = output_root / ".mdd-backups" / rel.parent
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    safe_write.mkdir_no_symlink(backup_dir, root=output_root)
     backup_name = f"{ts}-{office_path.name}"
-    shutil.copy2(office_path, backup_dir / backup_name)
+    dest = backup_dir / backup_name
+    safe_write.refuse_symlink(dest)
+    shutil.copy2(office_path, dest)

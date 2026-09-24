@@ -24,7 +24,10 @@ Ported from `lsimons-auto spec-019` (md action). See that spec for full algorith
   has been superseded.
 - `extract_title`, `extract_metadata` use python-docx; `convert_body` uses Docling
 - Docling `DocumentConverter` instantiated once per invocation (singleton)
-- Atomic write: write to `.md.tmp`, then rename
+- Atomic write: write to `.md.tmp`, then rename. The writer refuses to write
+  through a symlink at the destination, at the `.md.tmp` sibling, or at the
+  `<name>-attachments/` directory; the conversion fails instead of following
+  the link.
 
 ## Implementation Notes
 

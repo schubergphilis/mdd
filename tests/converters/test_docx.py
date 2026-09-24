@@ -468,3 +468,27 @@ class TestSbpDocxHeuristicsGate:
             assert "Actions are on the" in out
         finally:
             self._reset()
+
+
+class TestWriteDocxRefusesSymlinks:
+    def test_dangling_tmp_symlink_target_not_created(self, tmp_path: Path) -> None:
+        import pytest
+
+        from mdd.converters.docx import _write_docx  # pyright: ignore[reportPrivateUsage]
+        from mdd.utils.safe_write import SymlinkRefusedError
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        src = _docx_with_paragraph(tmp_path, "Foo.docx", "ssh-ed25519 AAAA payload")
+        dst = tmp_path / "Foo.docx.md"
+        try:
+            (tmp_path / "Foo.docx.md.tmp").symlink_to(outside / "target")
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+
+        with pytest.raises(SymlinkRefusedError):
+            _write_docx(src, dst)
+
+        assert not (outside / "target").exists()
+        assert not dst.exists()
+        assert not dst.is_symlink()

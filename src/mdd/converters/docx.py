@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from mdd.convert import CorruptSourceError
 from mdd.converters.protocol import ConvertResult
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text
 
 log = get_logger(__name__)
 
@@ -555,9 +556,7 @@ def _write_docx(src: Path, dst: Path) -> Path | None:
         content = "\\" + content
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_suffix(".md.tmp")
-    tmp.write_text(content, encoding="utf-8")
-    tmp.rename(dst)
+    atomic_write_text(dst, content)
 
     if attachments_dir.is_dir() and any(attachments_dir.iterdir()):
         return attachments_dir

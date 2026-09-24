@@ -861,3 +861,26 @@ class TestConvertPptxCorruptSource:
         with pytest.raises(CorruptSourceError, match="not a valid pptx package"):
             convert_pptx(src, dst)
         assert not dst.exists()
+
+
+class TestConvertPptxRefusesSymlinks:
+    def test_dangling_tmp_symlink_target_not_created(self, tmp_path: Path) -> None:
+        import pytest
+
+        from mdd.convert.pptx import convert_pptx
+        from mdd.utils.safe_write import SymlinkRefusedError
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        src = _make_pptx(tmp_path, [{"title": "Payload"}])
+        dst = tmp_path / "test.pptx.md"
+        try:
+            (tmp_path / "test.pptx.md.tmp").symlink_to(outside / "target")
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+
+        with pytest.raises(SymlinkRefusedError):
+            convert_pptx(src, dst)
+
+        assert not (outside / "target").exists()
+        assert not dst.exists()

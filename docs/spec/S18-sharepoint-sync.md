@@ -145,7 +145,14 @@ and log "skipped: file open in Word" in the summary. The next sync
 picks it up after the user closes Word.
 
 **Atomic per-file writes.** Every regenerated file goes via
-`*.tmp → rename`. An interrupted sync leaves zero partial files.
+`*.tmp → rename`. An interrupted sync leaves zero partial files. A
+symlink at the destination or at the `*.tmp` sibling is refused, never
+written through; the same holds for the `.mdd-backups/` tree, which
+must consist of real directories inside the output root.
+
+**Symlinks in the mirror are not documents.** The mirror walk skips
+symlinked files and directories, so a symlink named like a mirror page
+produces no pair, no render and no write.
 
 **Backups optional, not default.** `--backup` copies the prior
 office file to `.mdd-backups/<rel-path>/<timestamp>-<basename>`

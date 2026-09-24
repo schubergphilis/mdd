@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 from collections.abc import Callable
@@ -32,6 +31,7 @@ from mdd.sharepoint.sync import (
 from mdd.utils.blacklist import check_sharepoint
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from mdd.sharepoint.models import SharepointCliConfig
@@ -171,7 +171,9 @@ def _walk_site(site_root: Path) -> list[Path]:
     return sorted(
         p
         for p in site_root.rglob("*")
-        if p.is_file() and not any(part.startswith((".", "._")) for part in p.parts)
+        if p.is_file()
+        and not p.is_symlink()
+        and not any(part.startswith((".", "._")) for part in p.parts)
     )
 
 
@@ -406,9 +408,7 @@ def _write_with_frontmatter(  # noqa: PLR0913
             body, site_name, rn, source_rel, source_mtime, exported_at, converter
         )
         dst.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = dst.with_suffix(dst.suffix + ".tmp")
-        tmp_path.write_text(merged, encoding="utf-8")
-        os.replace(tmp_path, dst)  # noqa: PTH105
+        atomic_write_text(dst, merged)
         return
 
     write_frontmatter(

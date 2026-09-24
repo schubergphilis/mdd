@@ -12,10 +12,11 @@ Bidirectional sync adds the ``sharepoint.sync`` sub-block::
         update_office:         false
 """
 
-import os
 from typing import TYPE_CHECKING, Any
 
 import yaml
+
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -87,6 +88,4 @@ def write_frontmatter(  # noqa: PLR0913
     content = f"---\n{fm_str}---\n{callout}\n{body}"
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    os.replace(tmp_path, path)  # noqa: PTH105
+    atomic_write_text(path, content)

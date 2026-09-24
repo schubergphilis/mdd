@@ -30,6 +30,7 @@ from mdd.confluence.paths import disambiguate, sanitize
 from mdd.markdown.ir import render_markdown
 from mdd.utils.blacklist import check_confluence
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import mkdir_no_symlink
 
 if TYPE_CHECKING:
     from mdd.confluence.client import ConfluenceClient
@@ -470,7 +471,7 @@ def export_page(  # noqa: PLR0913
     attachment_refs = collect_attachment_refs(doc)
 
     page_name = sanitize(meta.title) if meta.title else f"page-{page_id}"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(out_dir)
 
     # Settle the final .md path first: the attachments directory is keyed on
     # its stem, so two sibling pages whose titles sanitize to the same name

@@ -463,3 +463,24 @@ class TestDocUpdatedAt:
         elapsed = time.perf_counter() - start
         assert stale is False
         assert elapsed < 1.0, f"body date scan took {elapsed:.3f}s"
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestLoadDocsSkipsSymlinks:
+    def test_symlinked_md_not_loaded(self, tmp_path: Path) -> None:
+        secret = tmp_path / "secret.txt"
+        secret.write_text("private", encoding="utf-8")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "real.md").write_text("# Real", encoding="utf-8")
+        _plant_symlink(docs / "link.md", secret)
+
+        loaded = _load_docs(docs)
+
+        assert [rel for rel, _content, _fm in loaded] == [Path("real.md")]

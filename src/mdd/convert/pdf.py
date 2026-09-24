@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text
 
 log = get_logger(__name__)
 
@@ -147,6 +148,4 @@ def convert_pdf(src: Path, dst: Path, *, extract_images: bool = False) -> None:
 
     # Atomic write
     dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_suffix(".md.tmp")
-    tmp.write_text(fm + body, encoding="utf-8")
-    tmp.rename(dst)
+    atomic_write_text(dst, fm + body)

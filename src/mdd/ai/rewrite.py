@@ -27,6 +27,7 @@ import yaml  # pyright: ignore[reportMissingModuleSource]
 from mdd.ai.models import ChatResult, is_complete
 from mdd.utils.logging import get_logger
 from mdd.utils.markdown_fences import iter_fenced_code_blocks
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -825,12 +826,9 @@ def _refuse_managed_apply(
         return None
 
     out_path = path.parent / (path.name + ".rewrite.md")
-    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
     try:
-        tmp_path.write_text(rewritten_full, encoding="utf-8")
-        tmp_path.replace(out_path)
+        atomic_write_text(out_path, rewritten_full)
     except OSError as exc:
-        tmp_path.unlink(missing_ok=True)
         return RewriteResult(path=path, status="error", error=f"Write failed: {exc}")
     return RewriteResult(
         path=path,
@@ -843,7 +841,7 @@ def _refuse_managed_apply(
     )
 
 
-def rewrite_file(  # noqa: C901, PLR0911, PLR0912, PLR0915
+def rewrite_file(  # noqa: C901, PLR0911, PLR0912
     path: Path,
     client: Client,
     *,
@@ -873,6 +871,12 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912, PLR0915
     -------
     RewriteResult
     """
+    if path.is_symlink():
+        return RewriteResult(
+            path=path,
+            status="error",
+            error=f"Refusing to rewrite a symlink: {path}",
+        )
     if not path.exists():
         return RewriteResult(
             path=path,
@@ -968,18 +972,11 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912, PLR0915
             return refusal
 
     # Determine output path and write atomically.
-    if apply:
-        out_path = path
-        tmp_path = path.with_suffix(path.suffix + ".tmp")
-    else:
-        out_path = path.parent / (path.name + ".rewrite.md")
-        tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    out_path = path if apply else path.parent / (path.name + ".rewrite.md")
 
     try:
-        tmp_path.write_text(rewritten_full, encoding="utf-8")
-        tmp_path.replace(out_path)
+        atomic_write_text(out_path, rewritten_full)
     except OSError as exc:
-        tmp_path.unlink(missing_ok=True)
         return RewriteResult(path=path, status="error", error=f"Write failed: {exc}")
 
     return RewriteResult(

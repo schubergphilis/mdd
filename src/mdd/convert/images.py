@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from mdd.utils.safe_write import atomic_write_bytes, mkdir_no_symlink
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -406,10 +408,10 @@ def _write_blob(
         return ImageWriteResult(rel_path=cached, dedup_hit=True)
 
     filename = f"image_{digest}.{ext}"
-    attachments_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(attachments_dir)
     dest = attachments_dir / filename
     if not dest.exists():
-        dest.write_bytes(blob)
+        atomic_write_bytes(dest, blob)
 
     rel = Path(filename)
     cache[digest] = rel
