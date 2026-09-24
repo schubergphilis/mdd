@@ -8,6 +8,9 @@
 # - Match is case-insensitive.
 # - Default: exact match.
 # - A trailing `*` enables a prefix match (the only wildcard supported).
+# - Each entry is compared as the text written: an unquoted NO, ON, 007
+#   or 2026-01-01 means exactly that name, so quoting is optional. An
+#   empty, null or nested entry is refused as a config error.
 # - Removing an entry from this file requires a deliberate edit and
 #   leaves a diff in git history; that's intentional friction.
 #

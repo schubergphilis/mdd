@@ -183,6 +183,15 @@ site names that must not leave their source system. Matching is
 case-insensitive, exact by default, with a trailing `*` for a prefix match
 and no other wildcards.
 
+Each entry is read as the text you wrote. YAML would normally turn an
+unquoted `NO`, `ON`, `OFF` or `YES` into a true/false value, `007` or `0x1F`
+into a number and `2026-01-01` into a date; the blacklist does not, so
+`- NO` protects the space `NO` and `- 007` protects `007`. Quoting is never
+needed, though it does no harm. An entry that is not a single name, such
+as an empty `-`, a `~`/`null`, or a nested list or mapping, is refused as
+a config error naming the file and the entry, and the gated commands do
+not run until it is fixed.
+
 Both halves are enforced, and enforcement happens at the *entry point* of
 each command — before anything is fetched or written, not just before a
 push:

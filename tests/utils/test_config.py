@@ -7,7 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
-from mdd.utils.config import ConfigError, find_blacklist_files, load_yaml
+from mdd.utils.config import (
+    ConfigError,
+    find_blacklist_files,
+    load_yaml,
+    load_yaml_plain_text,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,6 +58,67 @@ class TestLoadYaml:
                 load_yaml(f)
         finally:
             os.chmod(f, 0o644)  # noqa: PTH101
+
+
+class TestLoadYamlPlainText:
+    @pytest.mark.parametrize(
+        "written",
+        [
+            "NO",
+            "No",
+            "no",
+            "ON",
+            "OFF",
+            "YES",
+            "Y",
+            "n",
+            "007",
+            "0x1F",
+            "12:30",
+            "1_000",
+            "1.5e3",
+            ".inf",
+            "2026-01-01",
+            "123",
+        ],
+    )
+    def test_plain_scalar_is_kept_as_written(self, tmp_path: Path, written: str) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text(f"names:\n  - {written}\n", encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"names": [written]}
+
+    def test_lists_and_mappings_still_load(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text("a:\n  b: []\n  c: [x, y]\n  d: {e: f}\n", encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"a": {"b": [], "c": ["x", "y"], "d": {"e": "f"}}}
+
+    @pytest.mark.parametrize("written", ["~", "null", "Null", "NULL", ""])
+    def test_null_is_still_none(self, tmp_path: Path, written: str) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text(f"names:\n  - {written}\n", encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"names": [None]}
+
+    def test_quoted_null_is_text(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text('names:\n  - "null"\n', encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"names": ["null"]}
+
+    def test_default_loader_is_unchanged(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text("names:\n  - NO\n  - 007\n", encoding="utf-8")
+        assert load_yaml(f) == {"names": [False, 7]}
+
+    def test_invalid_yaml_raises_config_error(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad.yaml"
+        f.write_text("key: [\nunot closed", encoding="utf-8")
+        with pytest.raises(ConfigError, match="Failed to parse"):
+            load_yaml_plain_text(f)
+
+    def test_non_mapping_raises_config_error(self, tmp_path: Path) -> None:
+        f = tmp_path / "list.yaml"
+        f.write_text("- NO\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="YAML mapping"):
+            load_yaml_plain_text(f)
 
 
 @pytest.fixture

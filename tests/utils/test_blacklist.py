@@ -301,6 +301,83 @@ class TestCheckSharepoint:
             check_sharepoint("Council", blacklist_file=blacklist_file)
 
 
+class TestEntriesKeptAsWritten:
+    """An unquoted entry protects exactly the name written, whatever YAML would retype it as."""
+
+    @pytest.mark.parametrize(
+        "written",
+        ["NO", "No", "ON", "OFF", "YES", "Y", "007", "0x1F", "12:30", "1_000", "2026-01-01"],
+    )
+    def test_unquoted_space_key_is_refused(self, tmp_path: Path, written: str) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text(f"confluence:\n  blacklisted_spaces:\n    - {written}\n")
+        with pytest.raises(BlacklistError, match=f"pattern '{written}'"):
+            check_confluence(written, blacklist_file=f)
+
+    @pytest.mark.parametrize("written", ["No", "Off", "0x1F", "2026-01-01"])
+    def test_unquoted_site_name_is_refused(self, tmp_path: Path, written: str) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text(f"sharepoint:\n  blacklisted_sites:\n    - {written}\n")
+        with pytest.raises(BlacklistError, match=str(f)):
+            check_sharepoint(written, blacklist_file=f)
+
+    def test_numeric_looking_entry_is_not_renumbered(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text("confluence:\n  blacklisted_spaces:\n    - 007\n    - 0x1F\n")
+        check_confluence("7", blacklist_file=f)
+        check_confluence("31", blacklist_file=f)
+
+
+class TestNonTextEntries:
+    """An entry that is not text is a config error naming the file and entry, never coerced."""
+
+    @pytest.mark.parametrize(
+        ("written", "shown"),
+        [
+            ("~", "None"),
+            ("null", "None"),
+            ("", "None"),
+            ("[HRPRIV, LEGAL]", "['HRPRIV', 'LEGAL']"),
+            ("{key: HRPRIV}", "{'key': 'HRPRIV'}"),
+            ("!!int 7", "7"),
+        ],
+    )
+    def test_confluence_entry_raises_config_error(
+        self, tmp_path: Path, written: str, shown: str
+    ) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text(f"confluence:\n  blacklisted_spaces:\n    - HRPRIV\n    - {written}\n")
+        with pytest.raises(BlacklistConfigError) as exc_info:
+            check_confluence("ENGINEERING", blacklist_file=f)
+        msg = str(exc_info.value)
+        assert str(f) in msg
+        assert f"entry {shown} " in msg
+        assert "confluence.blacklisted_spaces" in msg
+
+    def test_sharepoint_entry_raises_config_error(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text("sharepoint:\n  blacklisted_sites:\n    - - Board\n")
+        with pytest.raises(BlacklistConfigError, match=r"sharepoint\.blacklisted_sites"):
+            check_sharepoint("Engineering", blacklist_file=f)
+
+    def test_bad_entry_in_any_merged_file_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_file = tmp_path / "repo.yaml"
+        repo_file.write_text("confluence:\n  blacklisted_spaces:\n    - ~\n")
+        explicit = tmp_path / "extra.yaml"
+        explicit.write_text("confluence:\n  blacklisted_spaces:\n    - HRPRIV\n")
+        monkeypatch.setattr("mdd.utils.config._repo_blacklist_path", lambda: repo_file)
+        with pytest.raises(BlacklistConfigError, match=str(repo_file)):
+            check_confluence("ENGINEERING", blacklist_file=explicit)
+
+    def test_malformed_section_names_the_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text("confluence:\n  blacklisted_spaces: NO\n")
+        with pytest.raises(BlacklistConfigError, match=f"{f}: blacklist key"):
+            check_confluence("NO", blacklist_file=f)
+
+
 # ---------------------------------------------------------------------------
 # detect_source_system
 # ---------------------------------------------------------------------------
