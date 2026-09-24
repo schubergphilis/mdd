@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -29,36 +31,19 @@ if TYPE_CHECKING:
 def read(path: Path) -> tuple[dict[str, Any], str]:
     """Parse a Markdown file and return (frontmatter_dict, body_without_frontmatter).
 
-    Returns ({}, full_content) if there is no frontmatter fence.
+    Returns ({}, full_content) if there is no frontmatter fence or the block
+    does not parse as a YAML mapping.
     """
     content = path.read_text(encoding="utf-8")
-
-    if not content.startswith(("---\n", "---\r\n")):
+    split = split_frontmatter(content)
+    if split is None:
         return {}, content
-
-    # Find closing ---
-    rest = content[4:]  # skip opening ---\n
-    end_idx = rest.find("\n---\n")
-    if end_idx == -1:
-        # Try end-of-file fence
-        if rest.endswith("\n---"):
-            end_idx = len(rest) - 4
-        else:
-            return {}, content
-
-    yaml_block = rest[:end_idx]
-    body = rest[end_idx + 5 :]  # skip \n---\n
-
-    try:
-        parsed: Any = yaml.safe_load(yaml_block)
-    except yaml.YAMLError:
+    yaml_block, body = split
+    parsed = parse_yaml_mapping(yaml_block)
+    if parsed is None:
         return {}, content
-
-    if not isinstance(parsed, dict):
-        return {}, content
-
-    result: dict[str, Any] = dict(parsed.items())  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]  # raw dict[str, Any] read helper — callers convert to typed models
-    return result, body
+    # Raw dict[str, Any] read helper: callers convert to typed models.
+    return dict(parsed), body
 
 
 def write(path: Path, frontmatter: dict[str, Any], body: str) -> None:

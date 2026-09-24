@@ -26,9 +26,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-
-import yaml
+from typing import TYPE_CHECKING, Any
 
 from mdd.ai.bm25 import Bm25Index
 from mdd.ai.judges import (
@@ -41,6 +39,7 @@ from mdd.ai.judges import (
     judge_stale_candidate,
 )
 from mdd.ai.reports import choose_report_path, render_report
+from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -78,35 +77,22 @@ class ReviewConfig:
 
 
 def _read_frontmatter(content: str) -> dict[str, Any]:
-    """Parse YAML frontmatter from a markdown file content string."""
-    if not (content.startswith(("---\n", "---\r\n"))):
+    """Parse YAML frontmatter from a markdown file content string.
+
+    Returns ``{}`` when there is no frontmatter fence or the block does not
+    parse as a YAML mapping.
+    """
+    split = split_frontmatter(content)
+    if split is None:
         return {}
-    rest = content[4:]
-    end_idx = rest.find("\n---\n")
-    if end_idx == -1:
-        if rest.endswith("\n---"):
-            end_idx = len(rest) - 4
-        else:
-            return {}
-    fm_text = rest[:end_idx]
-    try:
-        parsed: Any = yaml.safe_load(fm_text)  # pyright: ignore[reportAny]
-        return cast("dict[str, Any]", parsed) if isinstance(parsed, dict) else {}
-    except yaml.YAMLError:
-        return {}
+    parsed = parse_yaml_mapping(split[0])
+    return dict(parsed) if parsed is not None else {}
 
 
 def _body_without_frontmatter(content: str) -> str:
     """Strip frontmatter from content; return body."""
-    if not (content.startswith(("---\n", "---\r\n"))):
-        return content
-    rest = content[4:]
-    end_idx = rest.find("\n---\n")
-    if end_idx == -1:
-        if rest.endswith("\n---"):
-            return ""
-        return content
-    return rest[end_idx + 5 :]
+    split = split_frontmatter(content)
+    return content if split is None else split[1]
 
 
 def _file_hash(content: str) -> bytes:

@@ -28,6 +28,7 @@ from mdd.search.roots import MirrorRoot
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CONFLUENCE_MIRROR = FIXTURES / "confluence-mirror"
+DEEPLY_NESTED_YAML = "x: " + "[" * 2000
 SHAREPOINT_MIRROR = FIXTURES / "sharepoint-mirror"
 
 
@@ -145,6 +146,26 @@ class TestReadFrontmatter:
         title, page_id = _read_frontmatter(tmp_path / "no-such.md")
         assert title is None
         assert page_id is None
+
+    def test_deeply_nested_frontmatter_falls_back_to_h1(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.md"
+        f.write_text(f"---\n{DEEPLY_NESTED_YAML}\n---\n\n# Body heading\n")
+        title, page_id = _read_frontmatter(f)
+        assert title == "Body heading"
+        assert page_id is None
+
+    def test_deeply_nested_frontmatter_does_not_break_formatting(self, tmp_path: Path) -> None:
+        f = tmp_path / "page.md"
+        f.write_text(f"---\n{DEEPLY_NESTED_YAML}\n---\n\n# Body heading\n")
+        root = MirrorRoot(
+            path=tmp_path,
+            mirror_name="confluence/TEST",
+            source_type="confluence",
+            identifier="TEST",
+        )
+        rg_line = _make_rg_json_line(str(f), 5, "# Body heading")
+        output = format_human(rg_line, [root])
+        assert "Body heading" in output
 
     def test_falls_back_to_h1_when_frontmatter_lacks_title(self, tmp_path: Path) -> None:
         # Confluence sync stores page_id in frontmatter but the title as H1.

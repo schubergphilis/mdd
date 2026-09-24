@@ -21,10 +21,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from mdd.search.color import NO_COLOR, Color
 from mdd.search.filters import frontmatter_line_range, is_frontmatter_line
+from mdd.utils.frontmatter import parse_yaml_mapping
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -217,13 +216,10 @@ def _read_frontmatter_block(path: Path) -> str | None:
 
 def _parse_yaml_mapping(yaml_text: str) -> dict[str, Any] | None:
     """Parse *yaml_text* and return it if it is a mapping, else ``None``."""
-    try:
-        fm: Any = yaml.safe_load(yaml_text)
-    except yaml.YAMLError:
+    fm = parse_yaml_mapping(yaml_text)
+    if fm is None:
         return None
-    if not isinstance(fm, dict):
-        return None
-    return fm  # pyright: ignore[reportUnknownVariableType]
+    return dict(fm)
 
 
 def _extract_page_id(fm: dict[str, Any]) -> str | None:
