@@ -130,7 +130,10 @@ def disambiguate(path: Path, page_id: str) -> Path:
         return path
     stem = path.stem
     suffix = path.suffix
-    candidate = path.with_name(f"{stem}({page_id}){suffix}")
+    # The id may come straight from an API response, so it is sanitised like
+    # a title before it becomes part of the file name.
+    safe_id = sanitize(page_id)
+    candidate = path.with_name(f"{stem}({safe_id}){suffix}")
     if not candidate.exists():
         return candidate
     # Also check if the disambiguated candidate already belongs to this page
@@ -140,7 +143,7 @@ def disambiguate(path: Path, page_id: str) -> Path:
     # broken caller cannot loop forever; 9 collisions on a single page-id
     # already indicates something is very wrong.
     for counter in range(2, 11):
-        candidate = path.with_name(f"{stem}({page_id})({counter}){suffix}")
+        candidate = path.with_name(f"{stem}({safe_id})({counter}){suffix}")
         if not candidate.exists():
             return candidate
     raise RuntimeError(
