@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import random
+import re
+import time
+
 import pytest
 
-from mdd.converters.quarto_source import prepare_quarto_source
+from mdd.converters.quarto_source import (
+    _backtick_fence_spans,  # pyright: ignore[reportPrivateUsage]
+    _html_comment_spans,  # pyright: ignore[reportPrivateUsage]
+    prepare_quarto_source,
+)
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 
 _FILTER_BLOCK = "---\nfilters: [/tmp/evil.lua]\n---\n"
@@ -118,6 +126,24 @@ class TestFrontmatterAllowList:
         assert prepared.dropped_keys == ["filters"]
 
 
+class TestExtraMetadata:
+    def test_extra_metadata_is_added_after_the_filter(self) -> None:
+        prepared = prepare_quarto_source(
+            "---\ntitle: T\nfilters: [evil.lua]\n---\nbody\n",
+            extra_metadata={"filters": ["/opt/mdd/guard.lua"]},
+        )
+        assert prepared.text == "---\ntitle: T\nfilters:\n- /opt/mdd/guard.lua\n---\nbody\n"
+        assert prepared.dropped_keys == ["filters"]
+
+    def test_extra_metadata_creates_frontmatter(self) -> None:
+        prepared = prepare_quarto_source("body\n", extra_metadata={"filters": ["g.lua"]})
+        assert prepared.text == "---\nfilters:\n- g.lua\n---\nbody\n"
+
+    def test_extra_metadata_is_not_rewritten(self) -> None:
+        prepared = prepare_quarto_source("body\n", extra_metadata={"x": "&amp;"})
+        assert _frontmatter(prepared.text) == {"x": "&amp;"}
+
+
 class TestMetadataStrings:
     def test_shortcodes_in_metadata_strings_are_escaped(self) -> None:
         src = (
@@ -136,6 +162,13 @@ class TestMetadataStrings:
             "&#123;{< env HOME >}}",
             "{{\\< env HOME \\>}}",
             "\\{\\{< env HOME >\\}\\}",
+            "&amp;#123;&amp;#123;&amp;lt; env HOME &amp;gt;&amp;#125;&amp;#125;",
+            "&amp;#123;{< env HOME >}}",
+            "\\&#123;\\&#123;\\&lt; env HOME \\&gt;\\&#125;\\&#125;",
+            "\\\\{\\\\{\\\\< env HOME \\\\>\\\\}\\\\}",
+            "&#92;{&#92;{&#92;< env HOME &#92;>&#92;}&#92;}",
+            "&#123;&#123;&lt; env HOME &gt;&#125;&#125;",
+            "&amp;amp;amp;#123;{< env HOME >}}",
         ],
     )
     def test_entity_and_backslash_spellings_in_metadata_are_escaped(self, spelling: str) -> None:
@@ -146,6 +179,21 @@ class TestMetadataStrings:
     def test_plain_entities_in_metadata_are_decoded_only(self) -> None:
         prepared = prepare_quarto_source("---\ntitle: 'Q &amp; A &lt;3'\n---\nbody\n")
         assert _frontmatter(prepared.text)["title"] == "Q & A <3"
+
+    def test_double_encoded_plain_text_decodes_to_what_pandoc_would_show(self) -> None:
+        prepared = prepare_quarto_source("---\ntitle: 'Q &amp;amp; A'\n---\nbody\n")
+        assert _frontmatter(prepared.text)["title"] == "Q & A"
+
+    def test_deeply_nested_encoding_loses_its_escape_characters(self) -> None:
+        """A string still decoding after many passes keeps no ``&`` or backslash for pandoc."""
+        nested = "&amp;" + "amp;" * 20 + "lt;{< env HOME >}} \\x"
+        prepared = prepare_quarto_source(f"---\ntitle: '{nested}'\n---\nbody\n")
+        title = _frontmatter(prepared.text)["title"]
+        assert isinstance(title, str)
+        assert "&" not in title
+        assert "\\" not in title
+        assert "{{<" not in title.replace("{{{<", "")
+        assert title.endswith("{< env HOME >}}} x")
 
     def test_non_string_scalars_pass_through(self) -> None:
         prepared = prepare_quarto_source("---\ntitle: 5\ntoc: true\ntoc-depth: 2\n---\nbody\n")
@@ -335,3 +383,84 @@ class TestBodyShortcodes:
     def test_shortcodes_are_escaped_inside_code_too(self, src: str) -> None:
         """Quarto expands shortcodes in code blocks and inline code as well."""
         assert prepare_quarto_source(src).text == src.replace("{{<", "{{{<").replace(">}}", ">}}}")
+
+
+# The expressions Quarto itself uses to strip HTML comments and backtick fences
+# before looking for YAML blocks. The scanners in the module must find exactly
+# the same spans.
+_JS_WHITESPACE = r"\t\n\v\f\r    -     　﻿"
+_REFERENCE_COMMENT_RE = re.compile(r"<!--[\W\w]*?-->")
+_REFERENCE_FENCE_RE = re.compile(
+    r"^([\t >]*`{3,})[^`\n]*\n[\W\w]*?\n\1[" + _JS_WHITESPACE + r"]*$", re.MULTILINE
+)
+_TOKENS = [
+    "```",
+    "````",
+    "`",
+    "\n",
+    "\n",
+    "\n",
+    " ",
+    "  ",
+    "\t",
+    ">",
+    "<!--",
+    "-->",
+    "--",
+    "-",
+    "<!",
+    "a",
+    "---",
+    "...",
+    " ",
+    "\x85",
+    "\v",
+]
+
+
+def _reference_spans(pattern: re.Pattern[str], text: str) -> list[tuple[int, int]]:
+    return [m.span() for m in pattern.finditer(text)]
+
+
+class TestScannersMatchQuartoExpressions:
+    def test_random_inputs(self) -> None:
+        rng = random.Random(20260924)  # noqa: S311 - reproducible test inputs
+        for _ in range(5000):
+            text = "".join(rng.choice(_TOKENS) for _ in range(rng.randint(0, 30)))
+            assert _html_comment_spans(text) == _reference_spans(_REFERENCE_COMMENT_RE, text), repr(
+                text
+            )
+            assert _backtick_fence_spans(text) == _reference_spans(_REFERENCE_FENCE_RE, text), repr(
+                text
+            )
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "",
+            "```\n",
+            "```\n```",
+            "```\n\n```",
+            "```\nx\n```",
+            "```\nx\n```\n",
+            "```\nx\n``` \n\n  \nnext",
+            "```\nx\n```\n \n",
+            "> ```\n> x\n> ```\n",
+            "```\n```\n```\n```\n",
+            "<!-->-->",
+            "<!--<!-- -->-->",
+        ],
+    )
+    def test_edge_cases(self, text: str) -> None:
+        assert _html_comment_spans(text) == _reference_spans(_REFERENCE_COMMENT_RE, text)
+        assert _backtick_fence_spans(text) == _reference_spans(_REFERENCE_FENCE_RE, text)
+
+
+class TestLargeInputs:
+    @pytest.mark.parametrize("unit", ["<!--\n", "```a\nx\n", "> ```\n", "---\nx\n"])
+    def test_preparation_time_grows_slowly(self, unit: str) -> None:
+        """Unclosed openers are each looked at once, not rescanned to the end of the text."""
+        body = "# t\n\n" + unit * (500_000 // len(unit))
+        started = time.perf_counter()
+        prepare_quarto_source(body)
+        assert time.perf_counter() - started < 10

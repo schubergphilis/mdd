@@ -33,6 +33,12 @@ This is the **push side** of the bidirectional Office story. The pull side
 **Render via Quarto**
 - Reuse the Quarto invocation pattern from [S04](S04-new-command.md) (`mdd new`):
   `quarto render <md> --to <docx|pptx> --reference-doc=<template>`.
+- The render goes through the same preparation as SharePoint renders
+  ([S18](S18-sharepoint-sync.md), "Quarto sees presentation metadata
+  only" and "Images and the render directory"): only the page's own
+  `<stem>-attachments/` images are embedded, other image targets
+  become alt text with a warning, and Quarto gets a minimal
+  environment.
 - Reference template default: bundled with `mdd` under
   `templates/quarto/`. Override per-mirror via
   `confluence.publish_office_template_dir`.

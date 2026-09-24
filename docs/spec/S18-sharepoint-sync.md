@@ -211,14 +211,41 @@ Quarto opens, and mdd passes the template on the command line), every
 `---` that Quarto's own metadata scanner would take as the start of a
 YAML block becomes `***`, and `{{< … >}}` shortcodes are escaped
 everywhere, including inside code and in metadata strings, so they
-render literally. Quarto finds metadata blocks with regular
+render literally. Entities and backslash escapes in metadata strings
+are decoded until the text stops changing before the shortcodes are
+escaped, because pandoc decodes one more layer when it reads them.
+Quarto finds metadata blocks with regular
 expressions rather than a Markdown parser (HTML comments and
 same-prefix backtick fences are stripped first; tilde fences and
 fences inside list items are not code to it), so the rewrite
-reproduces that scanner instead of tracking CommonMark fences. Quarto
-directives that run code or read files (`filters`,
+reproduces that scanner instead of tracking CommonMark fences. It
+does so with scanners that run in near-linear time, so a
+large page of unclosed `<!--` or fence openers cannot stall a sync.
+
+**Images and the render directory.** The render runs in a fresh
+temporary directory that holds only the prepared copy (always named
+`source.md`, so it is never a `.qmd` that runs code), the page's own
+`<stem>-attachments/` directory (regular files only; symlinks are
+skipped) and a `_quarto.yml` with `project: {type: default}`, which
+stops Quarto from applying a `_quarto.yml` found in a parent of the
+temporary directory. mdd adds its own Lua filter (bundled as
+`templates/quarto/image-guard.lua`) to the prepared frontmatter. It
+replaces with its alt text every image whose percent-decoded target
+has a URI scheme (other than `data:image/`), starts with `/` or `\`,
+contains `\` or has a `..` segment, and applies the same check to
+image-valued attributes such as a slide's `background-image`. Remote
+images, absolute paths and paths outside the page's attachments are
+therefore never read or fetched; each dropped target is reported as a
+render warning. Images under `<stem>-attachments/`, the location the
+office converters write them to, are embedded. Quarto runs with only
+`PATH`, `HOME`, `TMPDIR`, `LANG` and `LC_*` from mdd's environment,
+so tokens and credentials in that environment are out of its reach.
+
+Quarto directives that run code or read files (`filters`,
 `metadata-files`, `bibliography`, `include-*`, `{{< include >}}`,
-`{{< env >}}`) therefore never take effect, whoever authored the file.
+`{{< env >}}`, images and slide backgrounds outside the page's
+attachments, a parent `_quarto.yml`) therefore never take effect,
+whoever authored the file.
 Dropped keys are logged and surfaced as render warnings. Line endings
 in the temporary copy are normalised to LF and a leading byte-order
 mark is dropped; the mirror `.md` on disk is never modified.
