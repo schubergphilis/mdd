@@ -12,6 +12,10 @@ Behaviour contract:
 - Caller passes a per-conversion ``cache: dict[str, Path]`` keyed on
   ``sha1(blob)[:16]``; the second call with the same blob skips disk
   I/O and returns the cached path with ``dedup_hit=True``.
+- The blob's *actual* format decides the pipeline, not the format the
+  container declared for it. Every blob is identified from its header
+  first; a blob that no supported decoder recognises is dropped, never
+  written under an image extension.
 - Unknown / unrecognised formats: call ``on_drop(reason)`` and return
   ``None``. Never raise; the deck must survive a single bad image.
 
@@ -66,6 +70,29 @@ _PNG_ENCODE_KWARGS: dict[str, object] = {"optimize": True}
 # Longest-edge cap before encoding. Above this we resize with LANCZOS.
 # Markdown viewers don't benefit from above-4k; it's just bloat.
 _MAX_LONGEST_EDGE = 4096
+
+# The only Pillow decoders a blob may be identified with. Passing this
+# allow-list to every ``Image.open`` keeps the remaining registered
+# plugins (EPS via Ghostscript, PSD, ...) out of the pipeline entirely.
+_SNIFF_FORMATS: list[str] = ["PNG", "JPEG", "GIF", "TIFF", "BMP"]
+
+# Pillow format name per effective format, for the ``formats=`` allow-list.
+_PILLOW_FORMAT: dict[str, str] = {
+    "png": "PNG",
+    "jpg": "JPEG",
+    "jpeg": "JPEG",
+    "gif": "GIF",
+    "tiff": "TIFF",
+    "tif": "TIFF",
+    "bmp": "BMP",
+}
+
+# Windows metafile signatures. Pillow does not decode these, so they are
+# recognised by hand before the external rasteriser is invoked.
+_WMF_PLACEABLE_MAGIC = b"\xd7\xcd\xc6\x9a"
+_WMF_HEADER_MAGICS: tuple[bytes, ...] = (b"\x01\x00\x09\x00", b"\x02\x00\x09\x00")
+_EMF_SIGNATURE = b" EMF"
+_EMF_SIGNATURE_OFFSET = 40
 
 
 @dataclass(frozen=True)
@@ -132,7 +159,7 @@ def _encode_tiff_to_jpeg(blob: bytes) -> bytes:
     # lazy: Pillow ~1.2s cold-import; load only when we actually transcode TIFF
     from PIL import Image  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
 
-    with Image.open(io.BytesIO(blob)) as img:
+    with Image.open(io.BytesIO(blob), formats=["TIFF"]) as img:
         img = _maybe_resize(img)
         img = _coerce_jpeg_mode(img)
         out = io.BytesIO()
@@ -140,8 +167,11 @@ def _encode_tiff_to_jpeg(blob: bytes) -> bytes:
         return out.getvalue()
 
 
-def _probe_size(blob: bytes) -> tuple[int, int] | None:
-    """Return (width, height) for *blob* without fully decoding, or None on failure."""
+def _probe_size(blob: bytes, pillow_format: str) -> tuple[int, int] | None:
+    """Return (width, height) for *blob* without fully decoding, or None on failure.
+
+    Only the *pillow_format* decoder is consulted.
+    """
     # lazy: Pillow ~1.2s cold-import; load only when we actually probe image dims
     from PIL import (  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
         Image,
@@ -149,10 +179,56 @@ def _probe_size(blob: bytes) -> tuple[int, int] | None:
     )
 
     try:
-        with Image.open(io.BytesIO(blob)) as img:
+        with Image.open(io.BytesIO(blob), formats=[pillow_format]) as img:
             return img.size  # pyright: ignore[reportAny, reportReturnType]
     except OSError, ValueError, UnidentifiedImageError:
         return None
+
+
+def _sniff_format(blob: bytes) -> str | None:
+    """Identify *blob* from its header using only the supported decoders.
+
+    Returns the lowercased Pillow format name (``png``, ``jpeg``, ``gif``,
+    ``tiff``, ``bmp``) or ``None`` when none of them recognises the blob.
+    Only the header is parsed; pixel data is not decoded.
+    """
+    # lazy: Pillow ~1.2s cold-import; load only when we actually identify a blob
+    from PIL import (  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
+        Image,
+        UnidentifiedImageError,
+    )
+
+    try:
+        with Image.open(io.BytesIO(blob), formats=_SNIFF_FORMATS) as img:
+            detected: str | None = img.format  # pyright: ignore[reportAny]
+    except OSError, ValueError, UnidentifiedImageError:
+        return None
+    return detected.lower() if detected else None
+
+
+def _sniff_metafile_format(blob: bytes) -> str | None:
+    """Return ``"wmf"`` / ``"emf"`` when *blob* carries that signature, else None."""
+    if blob.startswith(_WMF_PLACEABLE_MAGIC) or blob.startswith(_WMF_HEADER_MAGICS):
+        return "wmf"
+    end = _EMF_SIGNATURE_OFFSET + len(_EMF_SIGNATURE)
+    if blob[_EMF_SIGNATURE_OFFSET:end] == _EMF_SIGNATURE:
+        return "emf"
+    return None
+
+
+def _effective_format(blob: bytes, declared: str) -> str | None:
+    """Decide which pipeline *blob* takes from its bytes, not from *declared*.
+
+    Raster blobs are identified by header. Metafiles (which Pillow does not
+    read) are only accepted when the container declared them as WMF/EMF
+    *and* the bytes carry a metafile signature. Anything else is ``None``.
+    """
+    sniffed = _sniff_format(blob)
+    if sniffed is not None:
+        return sniffed
+    if declared in _RASTERIZE_TO_PNG_FORMATS:
+        return _sniff_metafile_format(blob)
+    return None
 
 
 def _resize_passthrough(blob: bytes, pillow_format: str) -> bytes:
@@ -160,7 +236,7 @@ def _resize_passthrough(blob: bytes, pillow_format: str) -> bytes:
     # lazy: Pillow ~1.2s cold-import; load only when we actually resize oversize images
     from PIL import Image  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
 
-    with Image.open(io.BytesIO(blob)) as img:
+    with Image.open(io.BytesIO(blob), formats=[pillow_format]) as img:
         img = _maybe_resize(img)
         out = io.BytesIO()
         if pillow_format == "JPEG":
@@ -183,7 +259,7 @@ def _reencode_png(blob: bytes) -> bytes:
     # lazy: Pillow ~1.2s cold-import; load only when we actually re-encode a PNG
     from PIL import Image  # pyright: ignore[reportMissingImports]  # noqa: PLC0415
 
-    with Image.open(io.BytesIO(blob)) as img:
+    with Image.open(io.BytesIO(blob), formats=["PNG"]) as img:
         out = io.BytesIO()
         img.save(out, format="PNG", **_PNG_ENCODE_KWARGS)  # pyright: ignore[reportAny]
         return out.getvalue()
@@ -293,7 +369,7 @@ def _rasterize_to_png(blob: bytes, fmt: str) -> bytes | None:
 
 def _resize_png(blob: bytes) -> bytes:
     """Apply the > 4k resize cap to a freshly-rasterized PNG."""
-    size = _probe_size(blob)
+    size = _probe_size(blob, "PNG")
     if size is None or max(size) <= _MAX_LONGEST_EDGE:
         return blob
     return _resize_passthrough(blob, "PNG")
@@ -322,14 +398,6 @@ def _write_blob(
     return ImageWriteResult(rel_path=rel, dedup_hit=False)
 
 
-_PASS_THROUGH_PILLOW_FORMAT: dict[str, str] = {
-    "png": "PNG",
-    "jpg": "JPEG",
-    "jpeg": "JPEG",
-    "gif": "GIF",
-}
-
-
 def _pass_through_or_resize(
     attachments_dir: Path,
     blob: bytes,
@@ -347,7 +415,8 @@ def _pass_through_or_resize(
     format are resized + re-encoded.
     """
     ext = _pass_through_ext(fmt)
-    size = _probe_size(blob)
+    pillow_format = _PILLOW_FORMAT[fmt]
+    size = _probe_size(blob, pillow_format)
     if size is None or max(size) <= _MAX_LONGEST_EDGE:
         if fmt == "png" and size is not None:
             blob = _optimize_png_lossless(blob)
@@ -360,7 +429,7 @@ def _pass_through_or_resize(
     if cached is not None:
         return ImageWriteResult(rel_path=cached, dedup_hit=True)
     try:
-        resized = _resize_passthrough(blob, _PASS_THROUGH_PILLOW_FORMAT[fmt])
+        resized = _resize_passthrough(blob, pillow_format)
     except OSError, ValueError:
         on_drop(fmt.upper())
         return None
@@ -427,6 +496,13 @@ def write_image(
     ``attachments_dir`` on success — the second call with the same
     blob hits the cache and skips disk I/O.
 
+    *declared_format* is what the container claims the blob is. The
+    pipeline is chosen by the format the bytes actually have (see
+    :func:`_effective_format`); the declared format only matters for
+    WMF/EMF, which Pillow cannot identify. A JPEG declared as PNG is
+    therefore written as ``.jpg``, and a blob no supported decoder
+    recognises is dropped rather than written under an image extension.
+
     Per-format pipeline:
 
     - PNG/JPG/GIF: pass through verbatim if under the 4k cap;
@@ -437,13 +513,19 @@ def write_image(
     - WMF/EMF: rasterize to PNG via LibreOffice (preferred) or the
       ``wmf2svg``+``rsvg-convert`` fallback. No backend on PATH →
       drop with reason. PNG output is also subject to the 4k cap.
-    - Anything else: drop with ``on_drop(declared_format.upper())``.
+    - Anything else: drop with ``on_drop(<format>.upper())``, where the
+      reason is the identified format, or the declared one when the
+      blob could not be identified at all.
 
     The cache is keyed on the SOURCE blob so duplicate references
     inside a conversion always skip decode + encode work even when
     the on-disk format differs.
     """
-    fmt = _normalise_format(declared_format)
+    declared = _normalise_format(declared_format)
+    fmt = _effective_format(blob, declared)
+    if fmt is None:
+        on_drop(declared_format.upper())
+        return None
 
     if fmt in _PASS_THROUGH_FORMATS:
         return _pass_through_or_resize(attachments_dir, blob, fmt, cache, on_drop)
@@ -466,5 +548,5 @@ def write_image(
             on_drop(fmt.upper())
         return result
 
-    on_drop(declared_format.upper())
+    on_drop(fmt.upper())
     return None

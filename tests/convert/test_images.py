@@ -32,6 +32,24 @@ def _other_png() -> bytes:
     )
 
 
+def _jpeg_blob(size: tuple[int, int] = (64, 48)) -> bytes:
+    """A real JPEG blob (solid colour) for format-identification tests."""
+    import io as _io
+
+    from PIL import Image
+
+    img = Image.new("RGB", size, color=(200, 100, 50))
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=92)
+    return buf.getvalue()
+
+
+# Placeable WMF header followed by filler; enough for signature detection.
+_FAKE_WMF = b"\xd7\xcd\xc6\x9a" + b"\x00" * 60
+# EMF: EMR_HEADER record type, then the " EMF" signature at byte offset 40.
+_FAKE_EMF = b"\x01\x00\x00\x00" + b"\x00" * 36 + b" EMF" + b"\x00" * 40
+
+
 class TestWriteImagePassThrough:
     """Known-format blobs (PNG/JPG/GIF) round-trip unchanged."""
 
@@ -54,17 +72,37 @@ class TestWriteImagePassThrough:
     def test_jpeg_normalises_to_jpg(self, tmp_path: Path) -> None:
         from mdd.convert.images import write_image
 
-        # Reuse the PNG blob — write_image trusts the declared format.
         cache: dict[str, Path] = {}
         result = write_image(
             tmp_path / "att",
-            _minimal_png(),
+            _jpeg_blob(),
             "jpeg",
             cache=cache,
             on_drop=lambda _r: None,
         )
         assert result is not None
         assert result.rel_path.suffix == ".jpg"
+
+    def test_jpeg_declared_as_png_is_written_as_jpg(self, tmp_path: Path) -> None:
+        """The bytes decide the extension, not the format the container declared."""
+        from mdd.convert.images import write_image
+
+        dropped: list[str] = []
+        jpg = _jpeg_blob()
+        result = write_image(tmp_path / "att", jpg, "png", cache={}, on_drop=dropped.append)
+        assert result is not None
+        assert result.rel_path.suffix == ".jpg"
+        assert (tmp_path / "att" / result.rel_path).read_bytes() == jpg
+        assert dropped == []
+
+    def test_png_declared_as_jpeg_is_written_as_png(self, tmp_path: Path) -> None:
+        from mdd.convert.images import write_image
+
+        result = write_image(
+            tmp_path / "att", _minimal_png(), "jpeg", cache={}, on_drop=lambda _r: None
+        )
+        assert result is not None
+        assert result.rel_path.suffix == ".png"
 
 
 class TestWriteImageDedup:
@@ -228,7 +266,7 @@ class TestWriteImageWmfRasterize:
 
         result = write_image(
             tmp_path / "att",
-            b"<<fake wmf bytes>>",
+            _FAKE_WMF,
             "wmf",
             cache={},
             on_drop=lambda _r: None,
@@ -251,6 +289,28 @@ class TestWriteImageWmfRasterize:
         dropped: list[str] = []
         result = write_image(
             tmp_path / "att",
+            _FAKE_WMF,
+            "wmf",
+            cache={},
+            on_drop=dropped.append,
+        )
+        assert result is None
+        assert dropped == ["WMF"]
+
+    def test_wmf_without_metafile_signature_never_reaches_rasterizer(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Bytes declared WMF but lacking a WMF/EMF header are dropped up front."""
+        from mdd.convert import images as images_mod
+        from mdd.convert.images import write_image
+
+        def _boom(_blob: bytes, _fmt: str) -> bytes:
+            raise AssertionError("rasterizer must not run for unidentified bytes")
+
+        monkeypatch.setattr(images_mod, "_rasterize_to_png", _boom)
+        dropped: list[str] = []
+        result = write_image(
+            tmp_path / "att",
             b"<<fake wmf bytes>>",
             "wmf",
             cache={},
@@ -258,6 +318,62 @@ class TestWriteImageWmfRasterize:
         )
         assert result is None
         assert dropped == ["WMF"]
+        assert not (tmp_path / "att").exists()
+
+    @pytest.mark.parametrize(
+        ("blob", "declared", "expected_ext"),
+        [
+            (_FAKE_WMF, "wmf", "wmf"),
+            (b"\x01\x00\x09\x00\x00\x03" + b"\x00" * 40, "wmf", "wmf"),
+            (_FAKE_EMF, "emf", "emf"),
+            # Declared/actual mismatch: the signature wins.
+            (_FAKE_EMF, "wmf", "emf"),
+        ],
+    )
+    def test_metafile_signature_reaches_libreoffice_backend(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        blob: bytes,
+        declared: str,
+        expected_ext: str,
+    ) -> None:
+        """Real WMF/EMF headers still go to the external rasterizer (subprocess mocked)."""
+        import io as _io
+        import subprocess
+        from pathlib import Path as _Path
+
+        from PIL import Image
+
+        from mdd.convert import images as images_mod
+        from mdd.convert.images import write_image
+
+        img = Image.new("RGB", (8, 8), color=(1, 2, 3))
+        buf = _io.BytesIO()
+        img.save(buf, format="PNG")
+        png_payload = buf.getvalue()
+
+        calls: list[list[str]] = []
+
+        def _fake_which(name: str) -> str | None:
+            return "/fake/bin/soffice" if name == "soffice" else None
+
+        def _fake_run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            calls.append(argv)
+            outdir = _Path(argv[argv.index("--outdir") + 1])
+            (outdir / "in.png").write_bytes(png_payload)
+            return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+        monkeypatch.setattr(images_mod.shutil, "which", _fake_which)
+        monkeypatch.setattr(images_mod.subprocess, "run", _fake_run)
+
+        result = write_image(tmp_path / "att", blob, declared, cache={}, on_drop=lambda _r: None)
+        assert result is not None
+        assert result.rel_path.suffix == ".png"
+        assert (tmp_path / "att" / result.rel_path).read_bytes() == png_payload
+        assert len(calls) == 1
+        assert calls[0][0] == "/fake/bin/soffice"
+        assert calls[0][-1].endswith(f"in.{expected_ext}")
 
     def test_emf_also_supported(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import io as _io
@@ -278,7 +394,7 @@ class TestWriteImageWmfRasterize:
         monkeypatch.setattr(images_mod, "_rasterize_to_png", _stub_ok)
         result = write_image(
             tmp_path / "att",
-            b"<<fake emf>>",
+            _FAKE_EMF,
             "emf",
             cache={},
             on_drop=lambda _r: None,
@@ -337,6 +453,89 @@ class TestWriteImageUnknownFormats:
         )
         assert result is None
         assert dropped == ["TIFF"]
+
+
+class TestWriteImageIdentifiesByContent:
+    """The pipeline is chosen by what the bytes are, not by the declared format."""
+
+    def test_postscript_declared_as_png_is_dropped_without_ghostscript(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An EPS body under a raster label must never reach the EPS decoder."""
+        from PIL import EpsImagePlugin
+
+        from mdd.convert.images import write_image
+
+        def _no_ghostscript(*_args: object, **_kwargs: object) -> object:
+            raise AssertionError("Ghostscript must not be invoked")
+
+        monkeypatch.setattr(EpsImagePlugin, "Ghostscript", _no_ghostscript)
+        eps = b"%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\n0 0 10 10 rectfill\nshowpage\n"
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", eps, "png", cache={}, on_drop=dropped.append)
+        assert result is None
+        assert dropped == ["PNG"]
+        assert not (tmp_path / "att").exists()
+
+    def test_random_bytes_declared_as_tiff_are_dropped_and_not_written(
+        self, tmp_path: Path
+    ) -> None:
+        import hashlib
+
+        from mdd.convert.images import write_image
+
+        # Deterministic high-entropy bytes with no recognisable image header.
+        junk = b"".join(hashlib.sha256(bytes([i])).digest() for i in range(16))
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", junk, "tiff", cache={}, on_drop=dropped.append)
+        assert result is None
+        assert dropped == ["TIFF"]
+        assert not (tmp_path / "att").exists()
+
+    def test_tiff_declared_as_png_is_transcoded_to_jpg(self, tmp_path: Path) -> None:
+        from mdd.convert.images import write_image
+
+        result = write_image(
+            tmp_path / "att", _tiff_blob(), "png", cache={}, on_drop=lambda _r: None
+        )
+        assert result is not None
+        assert result.rel_path.suffix == ".jpg"
+        data = (tmp_path / "att" / result.rel_path).read_bytes()
+        assert data[:3] == b"\xff\xd8\xff"
+
+    def test_bmp_is_identified_and_dropped_by_its_real_format(self, tmp_path: Path) -> None:
+        """BMP is recognised (so it cannot masquerade as PNG) but not supported."""
+        import io as _io
+
+        from PIL import Image
+
+        from mdd.convert.images import write_image
+
+        buf = _io.BytesIO()
+        Image.new("RGB", (4, 4), color=(9, 9, 9)).save(buf, format="BMP")
+        dropped: list[str] = []
+        result = write_image(
+            tmp_path / "att", buf.getvalue(), "png", cache={}, on_drop=dropped.append
+        )
+        assert result is None
+        assert dropped == ["BMP"]
+        assert not (tmp_path / "att").exists()
+
+    def test_metafile_signature_is_ignored_under_a_raster_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """WMF bytes declared as PNG are dropped; the rasterizer is only for declared WMF/EMF."""
+        from mdd.convert import images as images_mod
+        from mdd.convert.images import write_image
+
+        def _boom(_blob: bytes, _fmt: str) -> bytes:
+            raise AssertionError("rasterizer must not run")
+
+        monkeypatch.setattr(images_mod, "_rasterize_to_png", _boom)
+        dropped: list[str] = []
+        result = write_image(tmp_path / "att", _FAKE_WMF, "png", cache={}, on_drop=dropped.append)
+        assert result is None
+        assert dropped == ["PNG"]
 
 
 def _tiff_blob(colour: tuple[int, int, int] = (128, 64, 200)) -> bytes:
