@@ -202,9 +202,39 @@ _BLOCK_READERS: dict[str, Callable[[Any, IRContext | None], list[Block]]] = {
 }
 
 
+# Block containers nested deeper than this are kept verbatim as a RawBlock
+# instead of being descended into. Every level of nesting costs several
+# Python frames in the reader and in each normalisation pass, so the bound
+# keeps arbitrarily deep remote content within the interpreter's recursion
+# limit while still covering any realistic page.
+MAX_BLOCK_DEPTH = 64
+
+
 def read_block(node: Any, ctx: IRContext | None = None) -> list[Block]:
-    """Read one block-level element into IR nodes. May return >1 for layouts."""
+    """Read one block-level element into IR nodes. May return >1 for layouts.
+
+    Tracks nesting depth on ``ctx`` (when given) and demotes anything nested
+    deeper than ``MAX_BLOCK_DEPTH`` levels to a ``RawBlock`` fallback.
+    """
     tag = node.tag if isinstance(node.tag, str) else ""
+    if ctx is None:
+        return _dispatch_block(node, tag, ctx)
+    if ctx.depth >= MAX_BLOCK_DEPTH:
+        return [
+            block_fallback(
+                node,
+                ctx=ctx,
+                reason=f"block nested deeper than {MAX_BLOCK_DEPTH} levels: {tag}",
+            )
+        ]
+    ctx.depth += 1
+    try:
+        return _dispatch_block(node, tag, ctx)
+    finally:
+        ctx.depth -= 1
+
+
+def _dispatch_block(node: Any, tag: str, ctx: IRContext | None) -> list[Block]:
     if tag in HEADING_TAGS:
         return _read_heading(node, ctx)
     reader = _BLOCK_READERS.get(tag)

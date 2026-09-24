@@ -85,6 +85,11 @@ def create_remote_pages(events: list[SyncEvent], ctx: PullCtx) -> None:
         except (ConfluenceError, OSError) as exc:
             log.error("new %s: %s", page_id, exc)
             ctx.summary.failures.append(f"new {page_id}: {exc}")
+        except Exception as exc:
+            # A page whose body cannot be parsed or rendered must not abort
+            # the run: record it and continue with the remaining pages.
+            log.exception("new %s: %s", page_id, exc)
+            ctx.summary.failures.append(f"new {page_id}: {exc}")
 
 
 def _pull_one_content(
@@ -113,6 +118,11 @@ def _pull_one_content(
         log.info("pull: %s", current_path.name)
     except (ConfluenceError, OSError) as exc:
         log.error("pull %s: %s", page_id, exc)
+        ctx.summary.failures.append(f"pull {page_id}: {exc}")
+    except Exception as exc:
+        # A page whose body cannot be parsed or rendered must not abort
+        # the run: record it and continue with the remaining pages.
+        log.exception("pull %s: %s", page_id, exc)
         ctx.summary.failures.append(f"pull {page_id}: {exc}")
 
 

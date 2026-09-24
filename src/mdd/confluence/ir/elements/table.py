@@ -14,6 +14,29 @@ if TYPE_CHECKING:
 
 _TABLE_SECTION_TAGS = frozenset({"thead", "tbody", "tfoot"})
 
+# ``colspan`` / ``rowspan`` come straight from the remote page body. Values
+# outside this range are not meaningful for a real table and would otherwise
+# drive list expansion proportional to the declared span rather than to the
+# document size.
+_SPAN_MIN = 1
+_SPAN_MAX = 1000
+
+
+def read_span_attr(node: Any, name: str) -> int:
+    """Read a ``colspan``/``rowspan`` attribute as a bounded positive int.
+
+    Missing, empty or non-numeric values fall back to 1; numeric values are
+    clamped to ``[_SPAN_MIN, _SPAN_MAX]``. A digit string longer than the
+    maximum has is clamped without ever reaching ``int()``, so arbitrarily
+    long attribute values cost nothing to read.
+    """
+    raw = (node.get(name) or "").strip()
+    if not raw.isascii() or not raw.isdigit():
+        return _SPAN_MIN
+    if len(raw) > len(str(_SPAN_MAX)):
+        return _SPAN_MAX
+    return min(max(int(raw), _SPAN_MIN), _SPAN_MAX)
+
 
 def _read_section_rows(
     section: Any, ctx: IRContext | None, *, default_header: bool
@@ -100,8 +123,8 @@ def read_table_row(
         tag = ch.tag if isinstance(ch.tag, str) else ""
         if tag in {"td", "th"}:
             is_header = tag == "th" or default_header
-            rowspan = int(ch.get("rowspan", "1") or "1")
-            colspan = int(ch.get("colspan", "1") or "1")
+            rowspan = read_span_attr(ch, "rowspan")
+            colspan = read_span_attr(ch, "colspan")
             cells.append(
                 TableCell(
                     children=read_blocks_from_container(ch, ctx),

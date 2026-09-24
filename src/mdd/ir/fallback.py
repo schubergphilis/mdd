@@ -43,6 +43,10 @@ class IRContext:
     """
 
     fallbacks: list[FallbackEmitted] = field(default_factory=list)
+    # Current block-nesting depth while a reader descends into containers.
+    # Readers increment on entry and decrement on exit so they can stop
+    # descending past a fixed limit.
+    depth: int = 0
 
     def record(self, event: FallbackEmitted) -> None:
         self.fallbacks.append(event)
