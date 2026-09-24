@@ -1,6 +1,6 @@
 ---
 name: spec-hygiene-check
-description: Run `mise run spec-check` to validate docs/spec/*.md files for well-formedness, broken sibling links, Status section presence, and API endpoint citation hygiene. Invoke before opening a PR that touches docs/spec/, after drafting a spec batch, or before requesting spec review.
+description: Run `mise run spec-check` to validate docs/spec/*.md files for well-formedness, broken sibling links, Status section presence, API endpoint citation hygiene, and plan/research cross-references. Invoke before opening a PR that touches docs/spec/, after drafting a spec batch, or before requesting spec review.
 ---
 
 # Spec hygiene check
@@ -55,6 +55,18 @@ Runs `mise run spec-check`, which executes `scripts/spec-check.py` against all
    must either be a clickable Markdown link or have `TBD:` on the same line.
    Plain bare URLs to API paths are flagged as under-cited.
    Reports `<file>:<line>: api-cite: bare API URL without link or TBD: marker`.
+
+6. **Plan and research references** — specs must stand alone, so the check
+   flags relative links into a `plan/` or `research/` directory, `PNN` /
+   `RNN` tokens (two or more digits, so the `R1`..`R4` round-trip flavours
+   pass), and prose forms such as `research 004`, `research doc 004` or
+   `research note R04`. The credit sentence `Originates from research note
+   RNN.` is allowed. Paragraphs are matched with whitespace normalized, so a
+   reference split by a line wrap is still caught. Code fences are skipped.
+   Reports `<file>:<line>: xref: ...`. This catches the linkable and
+   numbered forms only: an unnumbered label pointing into another document
+   ("User chose Option A") still passes, so a clean run does not prove a
+   spec is self-contained.
 
 ## Exit behaviour
 
