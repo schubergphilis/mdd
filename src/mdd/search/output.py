@@ -328,14 +328,16 @@ def _relative_display_path(path: Path, mirror: MirrorRoot | None) -> str:
     return str(path)
 
 
-# C0 controls except TAB (\x09), DEL, and C1 controls. LF/CR never appear in a
-# single rg line, so they are neutralised too.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]")
+# C0 controls except TAB (\x09), DEL, C1 controls, and the explicit bidi
+# embedding/override/isolate controls (U+202A..U+202E, U+2066..U+2069), which
+# reorder how a terminal displays the rest of the line. LF/CR never appear in
+# a single rg line, so they are neutralised too.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f\u202a-\u202e\u2066-\u2069]")
 _CONTROL_PLACEHOLDER = "\ufffd"
 
 
 def neutralise_controls(text: str) -> str:
-    """Replace terminal control characters in *text* with U+FFFD.
+    """Replace terminal control and bidi override characters in *text* with U+FFFD.
 
     Mirror content is printed verbatim in human mode, so a line containing
     an escape sequence would otherwise be interpreted by the terminal. Each
