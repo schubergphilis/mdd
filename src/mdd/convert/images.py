@@ -400,18 +400,23 @@ def _write_blob(
     blob: bytes,
     ext: str,
     cache: dict[str, Path],
+    *,
+    root: Path | None = None,
 ) -> ImageWriteResult:
-    """Content-addressed write; idempotent on the same conversion + filesystem."""
+    """Content-addressed write; idempotent on the same conversion + filesystem.
+
+    No directory between *root* and the written file may be a symlink.
+    """
     digest = _content_hash(blob)
     cached = cache.get(digest)
     if cached is not None:
         return ImageWriteResult(rel_path=cached, dedup_hit=True)
 
     filename = f"image_{digest}.{ext}"
-    mkdir_no_symlink(attachments_dir)
+    mkdir_no_symlink(attachments_dir, root=root)
     dest = attachments_dir / filename
     if not dest.exists():
-        atomic_write_bytes(dest, blob)
+        atomic_write_bytes(dest, blob, root=root)
 
     rel = Path(filename)
     cache[digest] = rel
@@ -424,6 +429,8 @@ def _pass_through_or_resize(
     fmt: str,
     cache: dict[str, Path],
     on_drop: Callable[[str], None],
+    *,
+    root: Path | None = None,
 ) -> ImageWriteResult | None:
     """Write an in-bounds image, resizing only when it exceeds the 4k cap.
 
@@ -440,7 +447,7 @@ def _pass_through_or_resize(
     if size is None or max(size) <= _MAX_LONGEST_EDGE:
         if fmt == "png" and size is not None:
             blob = _optimize_png_lossless(blob)
-        return _write_blob(attachments_dir, blob, ext, cache)
+        return _write_blob(attachments_dir, blob, ext, cache, root=root)
 
     # Cache check on the SOURCE blob — duplicate oversized inputs skip
     # the decode + resize + encode work the second time around.
@@ -453,7 +460,7 @@ def _pass_through_or_resize(
     except OSError, ValueError:
         on_drop(fmt.upper())
         return None
-    result = _write_blob(attachments_dir, resized, ext, cache={})
+    result = _write_blob(attachments_dir, resized, ext, cache={}, root=root)
     cache[digest] = result.rel_path
     return result
 
@@ -464,6 +471,8 @@ def _convert_then_write(
     out_ext: str,
     cache: dict[str, Path],
     convert: Callable[[bytes], bytes | None],
+    *,
+    root: Path | None = None,
 ) -> ImageWriteResult | None:
     """Source-blob-cached convert + write: ``convert(blob)`` → file.
 
@@ -480,7 +489,7 @@ def _convert_then_write(
     converted = convert(blob)
     if converted is None:
         return None
-    result = _write_blob(attachments_dir, converted, out_ext, cache={})
+    result = _write_blob(attachments_dir, converted, out_ext, cache={}, root=root)
     cache[digest] = result.rel_path
     return result
 
@@ -508,8 +517,12 @@ def write_image(
     *,
     cache: dict[str, Path],
     on_drop: Callable[[str], None],
+    root: Path | None = None,
 ) -> ImageWriteResult | None:
     """Write *blob* into *attachments_dir* (content-addressed) or skip.
+
+    When *root* is given, no directory between *root* and the written
+    file may be a symlink.
 
     Returns ``None`` for unknown formats (after calling ``on_drop``).
     Returns an :class:`ImageWriteResult` with ``rel_path`` relative to
@@ -548,10 +561,10 @@ def write_image(
         return None
 
     if fmt in _PASS_THROUGH_FORMATS:
-        return _pass_through_or_resize(attachments_dir, blob, fmt, cache, on_drop)
+        return _pass_through_or_resize(attachments_dir, blob, fmt, cache, on_drop, root=root)
 
     if fmt in _TRANSCODE_TO_JPEG_FORMATS:
-        result = _convert_then_write(attachments_dir, blob, "jpg", cache, _convert_tiff)
+        result = _convert_then_write(attachments_dir, blob, "jpg", cache, _convert_tiff, root=root)
         if result is None:
             on_drop("TIFF")
         return result
@@ -563,6 +576,7 @@ def write_image(
             "png",
             cache,
             lambda b: _convert_wmf_or_emf(b, fmt),
+            root=root,
         )
         if result is None:
             on_drop(fmt.upper())

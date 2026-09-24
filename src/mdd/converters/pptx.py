@@ -21,7 +21,9 @@ class PptxConverter:
     extensions: tuple[str, ...] = (".pptx",)
     output_suffix: str = ".md"
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         # test-seam: re-imported here so monkeypatch on
         # ``mdd.convert.pptx.convert_pptx`` reaches this call site.
         from mdd.convert.pptx import convert_pptx  # noqa: PLC0415
@@ -29,7 +31,7 @@ class PptxConverter:
         if dest is None:
             dest = src.parent / (src.name + self.output_suffix)
         try:
-            convert_pptx(src, dest)
+            convert_pptx(src, dest, root=root)
         except CorruptSourceError:
             # Caller (sync dispatcher) records this as a soft skip — do not
             # log an ERROR here, that would double-count and confuse users.

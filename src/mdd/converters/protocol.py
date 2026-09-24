@@ -34,12 +34,18 @@ class Converter(Protocol):
     output_suffix: str
     """Suffix appended to the full source filename, e.g. '.md' → Foo.docx.md."""
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         """Convert *src* and return a ConvertResult.
 
         If *dest* is None, the output is placed adjacent to *src*
         (src.parent / (src.name + output_suffix)).  If *dest* is given, the
         converter writes there directly.
+
+        *root* is the operator-named output base. When given, the converter
+        refuses to write through a symlink at any directory between *root*
+        and the files it writes; *root* itself may be a symlink.
         """
         ...
 

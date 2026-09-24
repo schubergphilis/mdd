@@ -477,11 +477,11 @@ def _apply_rename_or_move(
     return mirror.tracked[page_state.page_id].path
 
 
-def _apply_archive_refresh(event: SyncEvent, page_state: _PageState) -> None:
+def _apply_archive_refresh(event: SyncEvent, page_state: _PageState, repo_dir: Path) -> None:
     """Flip frontmatter ``confluence.status`` via the archive handler."""
     mirror = _make_single_mirror(page_state)
     summary = SyncSummary()
-    apply_archive_unarchive([event], mirror, summary)
+    apply_archive_unarchive([event], mirror, summary, output_dir=repo_dir)
     if summary.failures:
         raise ApplyError("; ".join(summary.failures))
 
@@ -531,6 +531,7 @@ def _refresh_metadata_after_mutate(
     *,
     extra_updates: dict[str, Any] | None = None,
     new_title_for_slug: str | None = None,
+    root: Path | None = None,
 ) -> None:
     """Rewrite ``confluence.version`` / ``updated_at`` / ``url`` from the API response.
 
@@ -558,7 +559,7 @@ def _refresh_metadata_after_mutate(
     if extra_updates:
         conf.update(extra_updates)
     fm["confluence"] = conf
-    write_frontmatter(md_path, fm, body)
+    write_frontmatter(md_path, fm, body, root=root)
 
 
 # ---------------------------------------------------------------------------
@@ -701,7 +702,9 @@ def _finish_rename(
         # frontmatter is a deprecated audit field no consumer reads.
         # Pass new_title_for_slug so the `confluence.url` trailing slug
         # is refreshed to match the new title.
-        _refresh_metadata_after_mutate(new_path, api_result, new_title_for_slug=new_title)
+        _refresh_metadata_after_mutate(
+            new_path, api_result, new_title_for_slug=new_title, root=repo_dir
+        )
     except (ApplyError, OSError) as exc:
         log.error("%s", _recovery_hint(exc))
         return 1
@@ -893,6 +896,7 @@ def _finish_move(
             new_path,
             api_result,
             extra_updates={"parent_id": new_parent_id},
+            root=repo_dir,
         )
     except (ApplyError, ConfluenceError, OSError) as exc:
         log.error("%s", _recovery_hint(exc))
@@ -971,7 +975,7 @@ def _finish_archive(
     new_status_lc = "archived" if action == "archive" else "current"
     event = _build_event(kind, page_state, new_status=new_status_lc)
     try:
-        _apply_archive_refresh(event, page_state)
+        _apply_archive_refresh(event, page_state, repo_dir)
         # The archive handler only flips status; we still need to write the
         # bumped version / updated_at from the API response.  Status is
         # lowercase end-to-end.
@@ -979,6 +983,7 @@ def _finish_archive(
             page_state.md_path,
             api_result,
             extra_updates={"status": new_status_lc},
+            root=repo_dir,
         )
     except (ApplyError, OSError) as exc:
         log.error("%s", _recovery_hint(exc))

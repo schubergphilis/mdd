@@ -22,6 +22,20 @@ class SymlinkRefusedError(OSError):
         self.path = path
 
 
+class OutsideRootError(OSError, ValueError):
+    """Raised when a path that must sit below a root does not.
+
+    It is an :class:`OSError` so that callers which report per-file write
+    failures report this one too, and a :class:`ValueError` because that is
+    what :meth:`pathlib.PurePath.relative_to` raises for the same condition.
+    """
+
+    def __init__(self, path: Path, root: Path) -> None:
+        super().__init__(f"refusing to write outside {root}: {path}")
+        self.path = path
+        self.root = root
+
+
 def refuse_symlink(path: Path) -> None:
     """Raise :class:`SymlinkRefusedError` if *path* is a symlink.
 
@@ -36,16 +50,22 @@ def refuse_symlink_below(path: Path, root: Path | None) -> None:
     """Refuse *path* if it, or any directory between *root* and it, is a symlink.
 
     *root* itself is not checked, so an operator may point the mirror root at a
-    symlinked directory. With ``root=None`` only *path* itself is checked.
+    symlinked directory; that holds when *path* is *root* too. With
+    ``root=None`` only *path* itself is checked.
 
     Raises:
-        SymlinkRefusedError: A symlink was found at or below *root*.
-        ValueError: *path* is not lexically below *root*.
+        SymlinkRefusedError: A symlink was found below *root*.
+        OutsideRootError: *path* is not lexically below *root*.
     """
+    if root is not None and path == root:
+        return
     refuse_symlink(path)
     if root is None:
         return
-    rel = path.relative_to(root)
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        raise OutsideRootError(path, root) from None
     current = root
     for part in rel.parts[:-1]:
         current = current / part

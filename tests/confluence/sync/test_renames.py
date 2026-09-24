@@ -179,3 +179,140 @@ def test_apply_archive_unarchive_ignores_other_kinds(kind: EventKind, tmp_path: 
     )
     apply_archive_unarchive([event], mirror, summary)
     assert summary.failures == []
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+def test_move_into_symlinked_title_dir_is_refused(tmp_path: Path) -> None:
+    """A MOVE whose target directory is a committed symlink is reported, not followed."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    mirror_root = tmp_path / "mirror"
+    mirror_root.mkdir()
+    _init_git_repo(mirror_root)
+    old_path = mirror_root / "Page.md"
+    _write_md(old_path, title="Page")
+    _plant_symlink(mirror_root / "Eng", outside)
+    _git_add_and_commit(mirror_root)
+
+    mirror = _FakeMirror({"12345": _make_local_page(old_path, title="Page")})
+    summary = SyncSummary()
+    event = SyncEvent(
+        kind=EventKind.MOVE,
+        page_id="12345",
+        desired=_make_desired(title="Page"),
+        current_path=str(old_path),
+    )
+
+    apply_renames_moves(
+        [event],
+        mirror,
+        mirror_root,
+        page_to_outdir={"12345": mirror_root / "Eng"},
+        used_paths=set(),
+        summary=summary,
+    )
+
+    assert summary.moved == 0
+    assert len(summary.failures) == 1
+    assert "symlink" in summary.failures[0]
+    assert list(outside.iterdir()) == []
+    assert old_path.is_file()
+
+
+def test_move_outside_mirror_root_is_reported(tmp_path: Path) -> None:
+    """A target that is not below the mirror root becomes a per-page failure."""
+    mirror_root = tmp_path / "mirror"
+    mirror_root.mkdir()
+    _init_git_repo(mirror_root)
+    old_path = mirror_root / "Page.md"
+    _write_md(old_path, title="Page")
+    _git_add_and_commit(mirror_root)
+    elsewhere = tmp_path / "elsewhere"
+
+    mirror = _FakeMirror({"12345": _make_local_page(old_path, title="Page")})
+    summary = SyncSummary()
+    event = SyncEvent(
+        kind=EventKind.MOVE,
+        page_id="12345",
+        desired=_make_desired(title="Page"),
+        current_path=str(old_path),
+    )
+
+    apply_renames_moves(
+        [event],
+        mirror,
+        mirror_root,
+        page_to_outdir={"12345": elsewhere},
+        used_paths=set(),
+        summary=summary,
+    )
+
+    assert len(summary.failures) == 1
+    assert "outside" in summary.failures[0]
+    assert not elsewhere.exists()
+
+
+def test_rename_under_symlinked_mirror_root_succeeds(tmp_path: Path) -> None:
+    """The mirror root itself may be a symlink."""
+    real = tmp_path / "real"
+    real.mkdir()
+    _init_git_repo(real)
+    _write_md(real / "Old.md", title="Old")
+    _git_add_and_commit(real)
+    link = tmp_path / "link"
+    _plant_symlink(link, real)
+    old_path = link / "Old.md"
+
+    mirror = _FakeMirror({"12345": _make_local_page(old_path, title="Old")})
+    summary = SyncSummary()
+    event = SyncEvent(
+        kind=EventKind.RENAME,
+        page_id="12345",
+        desired=_make_desired(title="New"),
+        current_path=str(old_path),
+    )
+
+    apply_renames_moves(
+        [event],
+        mirror,
+        link,
+        page_to_outdir={},
+        used_paths=set(),
+        summary=summary,
+    )
+
+    assert summary.failures == []
+    assert "# New\n" in (real / "New.md").read_text(encoding="utf-8")
+
+
+def test_archive_refuses_page_below_symlinked_dir(tmp_path: Path) -> None:
+    """With a mirror root, a page reached through a symlinked directory is not rewritten."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = outside / "Page.md"
+    _write_md(target, title="Page")
+    before = target.read_text(encoding="utf-8")
+    mirror_root = tmp_path / "mirror"
+    mirror_root.mkdir()
+    _plant_symlink(mirror_root / "Eng", outside)
+    md_path = mirror_root / "Eng" / "Page.md"
+
+    mirror = _FakeMirror({"12345": _make_local_page(md_path, title="Page")})
+    summary = SyncSummary()
+    event = SyncEvent(
+        kind=EventKind.ARCHIVE,
+        page_id="12345",
+        desired=_make_desired(title="Page", status="archived"),
+        current_path=str(md_path),
+    )
+
+    apply_archive_unarchive([event], mirror, summary, output_dir=mirror_root)
+
+    assert len(summary.failures) == 1
+    assert target.read_text(encoding="utf-8") == before

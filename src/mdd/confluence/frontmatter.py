@@ -49,8 +49,11 @@ def read(path: Path) -> tuple[dict[str, Any], str]:
     return dict(parsed), body
 
 
-def write(path: Path, frontmatter: dict[str, Any], body: str) -> None:
+def write(path: Path, frontmatter: dict[str, Any], body: str, *, root: Path | None = None) -> None:
     """Atomically write a Markdown file with YAML frontmatter.
+
+    Refuses to write through a symlink at *path*, or at any directory
+    between *root* and *path* when *root* is given.
 
     Uses a .tmp file + os.fsync + rename for atomicity.
     Frontmatter is serialized with sort_keys=False, block style.
@@ -66,7 +69,7 @@ def write(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     )
     content = f"---\n{fm_str}---\n{body}"
 
-    atomic_write_text(path, content)
+    atomic_write_text(path, content, root=root)
 
 
 def pin_mtime_to_exported_at(path: Path, frontmatter: dict[str, Any]) -> None:

@@ -25,7 +25,12 @@ from mdd.converters.models import SvgConfig, SvgWrapper
 from mdd.converters.protocol import ConvertResult
 from mdd.utils.frontmatter import parse_yaml_mapping
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text, refuse_symlink
+from mdd.utils.safe_write import (
+    atomic_write_text,
+    mkdir_no_symlink,
+    refuse_symlink,
+    refuse_symlink_below,
+)
 from mdd.utils.svg_runner import RendererUnavailableError, SvgRenderer, get_renderer
 
 log = get_logger(__name__)
@@ -329,10 +334,13 @@ class SvgToPngConverter:
                 sys.exit(1)
         return self._renderer
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         """Rasterize *src* SVG to PNG.
 
-        The PNG is placed adjacent to *src* unless *dest* is given.
+        The PNG is placed adjacent to *src* unless *dest* is given. No
+        directory between *root* and *dest* may be a symlink.
         """
         if dest is None:
             dest = src.parent / (src.name + self.output_suffix)
@@ -379,11 +387,11 @@ class SvgToPngConverter:
 
         # --- Render ---
         tmp = dest.with_suffix(".png.tmp")
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        mkdir_no_symlink(dest.parent, root=root)
         # The external renderer opens tmp itself, so a symlink there (or at
         # dest, which the rename lands on) is refused up front.
         refuse_symlink(tmp)
-        refuse_symlink(dest)
+        refuse_symlink_below(dest, root)
         try:
             renderer.render(src, tmp, scale=effective_scale, bg=background)
         except Exception as exc:

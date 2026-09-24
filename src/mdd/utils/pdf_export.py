@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import SymlinkRefusedError, refuse_symlink
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -22,7 +23,8 @@ def find_stale_files(directory: Path, extension: str) -> list[Path]:
 
     A file needs export if no corresponding PDF exists or the source is newer.
     Excludes symlinks and files in the 'templates' directory. Files whose
-    name contains control characters are skipped with a warning.
+    name contains control characters, or whose ``.pdf`` sibling is a
+    symlink, are skipped with a warning.
     """
     stale_files: list[Path] = []
 
@@ -36,6 +38,9 @@ def find_stale_files(directory: Path, extension: str) -> list[Path]:
             continue
 
         pdf_path = Path(str(source_path) + ".pdf")
+        if pdf_path.is_symlink():
+            log.warning("Skipping %s: %s is a symlink", source_path.name, pdf_path.name)
+            continue
 
         if not pdf_path.exists() or source_path.stat().st_mtime > pdf_path.stat().st_mtime:
             stale_files.append(source_path)
@@ -49,9 +54,14 @@ def export_to_pdf_via_applescript(source_path: Path, applescript: str, app_name:
     *applescript* must define an ``on run argv`` handler; the resolved source
     path and the PDF path are passed as ``argv`` items 1 and 2. The ``--``
     separator stops osascript from reading the paths as options.
+
+    Refuses to export when the ``.pdf`` destination is a symlink. Only the
+    destination's directory is resolved, so the Office app writes to the
+    ``.pdf`` name itself rather than to wherever a link there points.
     """
     try:
         pdf_path = Path(str(source_path) + ".pdf")
+        refuse_symlink(pdf_path)
 
         _ = subprocess.run(
             [
@@ -60,14 +70,14 @@ def export_to_pdf_via_applescript(source_path: Path, applescript: str, app_name:
                 applescript,
                 "--",
                 str(source_path.resolve()),
-                str(pdf_path.resolve()),
+                str(pdf_path.parent.resolve() / pdf_path.name),
             ],
             capture_output=True,
             text=True,
             check=True,
         )
 
-        if not pdf_path.exists():
+        if pdf_path.is_symlink() or not pdf_path.is_file():
             log.error("%s did not create PDF for %s", app_name, source_path.name)
             return False
 
@@ -77,6 +87,9 @@ def export_to_pdf_via_applescript(source_path: Path, applescript: str, app_name:
         log.exception("AppleScript failed for %s", source_path.name)
         if e.stderr:
             log.error("%s", e.stderr.strip())
+        return False
+    except SymlinkRefusedError as exc:
+        log.error("Skipping %s: %s", source_path.name, exc)
         return False
     except OSError:
         log.exception("File operation failed for %s", source_path.name)

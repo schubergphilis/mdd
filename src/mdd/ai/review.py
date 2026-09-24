@@ -41,7 +41,7 @@ from mdd.ai.judges import (
 from mdd.ai.reports import choose_report_path, render_report
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text
+from mdd.utils.safe_write import atomic_write_text, mkdir_no_symlink
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -417,6 +417,28 @@ def _run_stale(
 # ---------------------------------------------------------------------------
 
 
+def _write_report(cfg: ReviewConfig, report_md: str, *, run_date: str, scope: str) -> Path:
+    """Write *report_md* to its output location and return the path written."""
+    # An explicit output file or directory is operator-chosen and trusted, so
+    # only the report file itself is checked. The default ``docs/review``
+    # lives inside the working tree, so no directory below cwd may be a symlink.
+    root: Path | None = None
+    if cfg.output_path is not None:
+        report_path = cfg.output_path
+    elif cfg.output_dir is not None:
+        report_path = choose_report_path(cfg.output_dir, run_date, scope)
+    else:
+        root = Path.cwd()
+        report_path = choose_report_path(root / "docs" / "review", run_date, scope)
+
+    if root is None:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        mkdir_no_symlink(report_path.parent, root=root)
+    atomic_write_text(report_path, report_md, root=root)
+    return report_path
+
+
 def run_review(cfg: ReviewConfig, client: Client) -> Path:
     """Run the configured review modes and write a report file.
 
@@ -473,17 +495,7 @@ def run_review(cfg: ReviewConfig, client: Client) -> Path:
         summary=summary,
     )
 
-    # Determine output path
-    if cfg.output_path is not None:
-        report_path = cfg.output_path
-    else:
-        out_dir = cfg.output_dir or (Path.cwd() / "docs" / "review")
-        report_path = choose_report_path(out_dir, run_date, scope)
-
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(report_path, report_md)
-
-    return report_path
+    return _write_report(cfg, report_md, run_date=run_date, scope=scope)
 
 
 def print_run_summary(report_path: Path, summary: ReviewSummary) -> None:

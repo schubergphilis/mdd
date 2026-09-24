@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, cast
 
 from mdd.converters import converter_for
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import SymlinkRefusedError
 
 if TYPE_CHECKING:
     from mdd.cli import CommonParents, SubParsers
+    from mdd.converters import Converter
 
 log = get_logger(__name__)
 
@@ -35,16 +37,37 @@ __all__ = [
     "collect_files",
     "dest_path",
     "register",
+    "warn_if_symlink",
 ]
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".docx", ".pptx", ".pdf"})
 
 
 def collect_files(path: Path) -> list[Path]:
-    """Collect all supported files under path (or return [path] if a file)."""
+    """Collect all supported files under path (or return [path] if a file).
+
+    Symlinked entries found while walking a directory are skipped with a
+    log line. A file named directly is operator-chosen, so it is followed
+    even when it is a symlink, with a warning.
+    """
     if path.is_file():
+        warn_if_symlink(path)
         return [path]
-    return sorted(f for f in path.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS)
+    files: list[Path] = []
+    for f in sorted(path.rglob("*")):
+        if f.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        if f.is_symlink():
+            log.warning("skipping symlink: %s", f)
+            continue
+        files.append(f)
+    return files
+
+
+def warn_if_symlink(path: Path) -> None:
+    """Log a warning when an explicitly named source file is a symlink."""
+    if path.is_symlink():
+        log.warning("following symlink named on the command line: %s", path)
 
 
 def _convert_file(
@@ -54,7 +77,11 @@ def _convert_file(
     force: bool,
     dry_run: bool,
 ) -> bool:
-    """Convert one file. Returns True on success."""
+    """Convert one file. Returns True on success.
+
+    The output base (``dest_root``, or ``src_root`` for in-place output) is
+    operator-named; no directory below it may be a symlink.
+    """
     out = dest_path(src, src_root, dest_root)
     if not force and out.exists() and src.stat().st_mtime <= out.stat().st_mtime:
         return True
@@ -73,12 +100,20 @@ def _convert_file(
         log.warning("unsupported extension %r for %s", ext, src)
         return False
 
+    return _run_converter(converter, src, out, root=dest_root or src_root)
+
+
+def _run_converter(converter: Converter, src: Path, out: Path, *, root: Path) -> bool:
+    """Run *converter* on *src*, writing *out* below *root*. Returns True on success."""
     try:
-        converter.convert(src, dest=out)
-        return True
+        _ = converter.convert(src, dest=out, root=root)
+    except SymlinkRefusedError as e:
+        log.error("converting %s: %s", src, e)
+        return False
     except Exception as e:
         log.exception("converting %s: %s", src, e)
         return False
+    return True
 
 
 def _resolve_sources(
@@ -91,6 +126,7 @@ def _resolve_sources(
         if not src.exists():
             log.error("path does not exist: %s", src)
             return None
+        warn_if_symlink(src)
         return src.parent, [src]
     if path_arg:
         path = Path(path_arg)

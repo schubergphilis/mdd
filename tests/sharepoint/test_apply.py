@@ -209,7 +209,7 @@ class TestApplyDocxToMd:
             d.parent.mkdir(parents=True, exist_ok=True)
             d.write_text("# regenerated\n", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "docling-docx"
 
@@ -240,7 +240,7 @@ class TestApplyDocxToMd:
         def fake_convert(s: Path, d: Path) -> None:
             d.write_text("# regenerated\n", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "docling-docx"
 
@@ -386,7 +386,7 @@ class TestApplyFirstSyncDocx:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text("# Converted", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "docling-docx"
 
@@ -408,7 +408,7 @@ class TestApplyFirstSyncDocx:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text("# Converted", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "x"
 
@@ -434,7 +434,7 @@ class TestApplyFirstSyncDocx:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text("# Converted\n", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "docling-docx"
 
@@ -652,3 +652,44 @@ class TestApplyIoRefusesSymlinks:
             backup_office_file(office, site_root)
 
         assert list(outside.iterdir()) == []
+
+    def test_atomic_write_refuses_symlinked_dir_below_root(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        _plant_symlink(tmp_path / "sub", outside)
+
+        with pytest.raises(SymlinkRefusedError):
+            atomic_write_text(tmp_path / "sub" / "deeper" / "Foo.docx.md", "x", root=tmp_path)
+
+        assert list(outside.iterdir()) == []
+
+    def test_do_convert_passes_root_to_converter(self, tmp_path: Path) -> None:
+        from mdd.sharepoint.apply.convert import do_convert
+
+        conv = MagicMock()
+        with patch("mdd.sharepoint.apply.convert.converter_for", return_value=conv):
+            _ = do_convert(tmp_path / "a.docx", tmp_path / "a.docx.md", root=tmp_path)
+
+        conv.convert.assert_called_once_with(
+            tmp_path / "a.docx", dest=tmp_path / "a.docx.md", root=tmp_path
+        )
+
+    def test_docx_to_md_passes_output_root(self, tmp_path: Path) -> None:
+        from mdd.sharepoint.apply.actions import apply_docx_to_md
+
+        docx = tmp_path / "Report.docx"
+        docx.write_bytes(b"docx body")
+        md = tmp_path / "mirror" / "Report.docx.md"
+        seen: list[Path | None] = []
+
+        def fake_convert(_s: Path, d: Path, *, root: Path | None = None) -> str:
+            seen.append(root)
+            d.parent.mkdir(parents=True, exist_ok=True)
+            d.write_text("# regenerated\n", encoding="utf-8")
+            return "docling-docx"
+
+        with patch("mdd.sharepoint.apply.actions.do_convert", side_effect=fake_convert):
+            _ = apply_docx_to_md(docx, md, output_root=tmp_path / "mirror")
+
+        assert seen == [tmp_path / "mirror"]
+        assert md.is_file()

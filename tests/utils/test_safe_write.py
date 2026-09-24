@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from mdd.utils.safe_write import (
+    OutsideRootError,
     SymlinkRefusedError,
     atomic_write_bytes,
     atomic_write_text,
@@ -93,13 +94,27 @@ class TestRefuseSymlinkBelow:
         _symlink(root_link, real)
         refuse_symlink_below(root_link / "a" / "b.txt", root_link)
 
+    def test_path_equal_to_symlinked_root_passes(self, tmp_path: Path) -> None:
+        real = tmp_path / "real"
+        real.mkdir()
+        root_link = tmp_path / "root_link"
+        _symlink(root_link, real)
+        refuse_symlink_below(root_link, root_link)
+        mkdir_no_symlink(root_link, root=root_link)
+
     def test_real_chain_passes(self, tmp_path: Path) -> None:
         (tmp_path / "a" / "b").mkdir(parents=True)
         refuse_symlink_below(tmp_path / "a" / "b" / "c.txt", tmp_path)
 
     def test_path_outside_root_raises_value_error(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="not in the subpath"):
+        with pytest.raises(ValueError, match="refusing to write outside"):
             refuse_symlink_below(tmp_path.parent / "elsewhere.txt", tmp_path)
+
+    def test_path_outside_root_is_an_os_error(self, tmp_path: Path) -> None:
+        with pytest.raises(OSError, match="refusing to write outside") as info:
+            refuse_symlink_below(tmp_path.parent / "elsewhere.txt", tmp_path)
+        assert isinstance(info.value, OutsideRootError)
+        assert info.value.root == tmp_path
 
 
 # ---------------------------------------------------------------------------

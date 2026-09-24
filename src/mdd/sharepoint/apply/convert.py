@@ -20,10 +20,11 @@ def converter_version(ext: str) -> str:  # noqa: ARG001
     return "unknown"
 
 
-def do_convert(src: Path, dest: Path) -> str:
+def do_convert(src: Path, dest: Path, *, root: Path | None = None) -> str:
     """Run the forward converter for *src* and write Markdown to *dest*.
 
-    Dispatches through :data:`mdd.converters.CONVERTERS`.
+    Dispatches through :data:`mdd.converters.CONVERTERS`. No directory
+    between *root* and the files the converter writes may be a symlink.
 
     Returns the converter name string (for the ``converter`` frontmatter field).
     Raises RuntimeError if no converter is registered for the extension.
@@ -33,7 +34,7 @@ def do_convert(src: Path, dest: Path) -> str:
         raise RuntimeError(
             f"No converter registered for extension {src.suffix!r}. Cannot convert to Markdown."
         )
-    conv.convert(src, dest=dest)
+    conv.convert(src, dest=dest, root=root)
     return f"docling-{src.suffix.lstrip('.').lower()}"
 
 

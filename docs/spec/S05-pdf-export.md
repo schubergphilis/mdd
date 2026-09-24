@@ -20,6 +20,11 @@
 - `mdd pdf [dir]` runs both
 - Staleness: only export if PDF missing or source is newer than PDF
 - Excludes symlinks and files in `templates/` directory
+- Skips (with a warning) a source whose `.pdf` sibling is a symlink. The
+  destination handed to the Office app is the resolved directory plus the
+  `.pdf` name, never the resolved `.pdf` path, so the app cannot be pointed at
+  a link target; a `.pdf` that is a symlink after the export counts as a
+  failure. The `[dir]` argument itself may be a symlink
 - Skips (with a warning) files whose name contains control characters
 - Double-extension output: `file.pptx.pdf`, `file.docx.pdf`
 - Defaults to current directory if no `[dir]` argument

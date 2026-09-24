@@ -20,6 +20,7 @@ from mdd.utils.git import (
     is_dirty as is_dirty,
 )
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import mkdir_no_symlink, refuse_symlink_below
 
 if TYPE_CHECKING:
     import subprocess
@@ -60,8 +61,16 @@ def git_mv(src: Path, dst: Path, repo_dir: Path) -> None:
     """Move *src* to *dst* using ``git mv``.
 
     Creates parent directories as needed (git doesn't do that for us).
+    ``git mv`` follows a symlinked directory in the destination, so *dst*
+    and every directory between *repo_dir* and it must be real: a symlink
+    raises :class:`~mdd.utils.safe_write.SymlinkRefusedError`, and a *dst*
+    outside *repo_dir* raises :class:`~mdd.utils.safe_write.OutsideRootError`.
+    Both are :class:`OSError`. A relative *dst* is taken relative to
+    *repo_dir*, where ``git mv`` runs.
     """
-    dst.parent.mkdir(parents=True, exist_ok=True)
+    target = dst if dst.is_absolute() else repo_dir / dst
+    mkdir_no_symlink(target.parent, root=repo_dir)
+    refuse_symlink_below(target, repo_dir)
     _git(["mv", "--", str(src), str(dst)], repo_dir)
 
 
