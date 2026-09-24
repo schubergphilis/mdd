@@ -175,7 +175,10 @@ established by the previous one:
   folder in the synced space (checked with `GET /pages/{id}`, then
   `GET /folders/{id}`, before anything is created), is skipped, not
   created; the skip is logged as a warning, listed in the run summary and
-  in the commit message with the file name and the reason. `mdd confluence create-page` on its own
+  in the commit message with the file name and the reason. A parent that
+  cannot be looked up (both requests fail, for example 403, 404 or a
+  network error) is reported as such, with the error, not as a parent in
+  another space. `mdd confluence create-page` on its own
   still takes the space from frontmatter when `--space` is not given.
 - **4e. Content edits — pulls** — per-page body fetch only for pages
   whose remote `version_number` advanced. Re-render storage → markdown,

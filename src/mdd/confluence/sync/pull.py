@@ -45,16 +45,44 @@ class CreateScope:
     space_id: str
 
 
-def _parent_space_id(client: ConfluenceClient, parent_id: str) -> str:
-    """Return the space id of page or folder *parent_id*, or ``""`` if it cannot be found."""
+_MAX_ERROR_NOTE_LEN = 120
+
+
+def _short_error(exc: Exception) -> str:
+    """Return the first line of *exc*, cut to a length that fits a summary note."""
+    lines = str(exc).strip().splitlines()
+    first = lines[0] if lines else type(exc).__name__
+    if len(first) > _MAX_ERROR_NOTE_LEN:
+        return first[: _MAX_ERROR_NOTE_LEN - 1] + "…"
+    return first
+
+
+def _parent_space_id(client: ConfluenceClient, parent_id: str) -> tuple[str, str]:
+    """Return ``(space_id, "")`` of page or folder *parent_id*, or ``("", error)`` on failure.
+
+    The page lookup comes first; when both lookups fail, the page lookup's
+    error is the one reported.
+    """
+    errors: list[ConfluenceError] = []
     for fetch in (client.get_page, client.get_folder):
         try:
             data = fetch(parent_id)
-        except ConfluenceError:
+        except ConfluenceError as exc:
+            errors.append(exc)
             continue
         space_id: Any = data.get("spaceId")  # pyright: ignore[reportAny]
-        return space_id if isinstance(space_id, str) else ""
-    return ""
+        return (space_id if isinstance(space_id, str) else ""), ""
+    return "", _short_error(errors[0])
+
+
+def _parent_reason(parent_id: str, scope: CreateScope) -> str | None:
+    """Return why *parent_id* cannot be the parent of a new page in *scope*, or None."""
+    parent_space_id, error = _parent_space_id(scope.client, parent_id)
+    if error:
+        return f"could not look up parent {parent_id!r}: {error}"
+    if parent_space_id != scope.space_id:
+        return f"parent {parent_id!r} is not in the synced space {scope.space_key}"
+    return None
 
 
 def _other_space_reason(block: ConfluenceBlock | None, scope: CreateScope) -> str | None:
@@ -63,8 +91,8 @@ def _other_space_reason(block: ConfluenceBlock | None, scope: CreateScope) -> st
         return None
     if block.space_key and block.space_key.casefold() != scope.space_key.casefold():
         return f"names space {block.space_key!r}, synced space is {scope.space_key}"
-    if block.parent_id and _parent_space_id(scope.client, block.parent_id) != scope.space_id:
-        return f"parent {block.parent_id!r} is not in the synced space {scope.space_key}"
+    if block.parent_id:
+        return _parent_reason(block.parent_id, scope)
     return None
 
 
