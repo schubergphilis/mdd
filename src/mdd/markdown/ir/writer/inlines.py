@@ -45,7 +45,7 @@ def render_inlines(
     markers escaped as well as its inline ones.
     """
     at_line_start = line_start
-    for tok in tokens:
+    for tok in _coalesce_text(tokens, mode):
         if isinstance(tok, Text):
             _render_text(tok, out, mode, line_start=at_line_start)
         else:
@@ -53,6 +53,31 @@ def render_inlines(
         at_line_start = isinstance(tok, LineBreak) or (
             isinstance(tok, Text) and tok.content.endswith("\n")
         )
+
+
+def _coalesce_text(
+    tokens: list[Inline], mode: Literal["normalising", "preserving"]
+) -> list[Inline]:
+    """Join runs of adjacent ``Text`` tokens that will be escaped.
+
+    The escapes look at neighbouring characters (``<`` before a letter,
+    ``{{``, ``_`` at a word edge), so a delimiter split over two ``Text``
+    tokens would otherwise slip through unescaped. Tokens that render
+    from ``raw_bytes`` are left alone.
+    """
+    out: list[Inline] = []
+    for tok in tokens:
+        prev = out[-1] if out else None
+        if (
+            isinstance(tok, Text)
+            and isinstance(prev, Text)
+            and _origin_raw_bytes_for(tok, mode) is None
+            and _origin_raw_bytes_for(prev, mode) is None
+        ):
+            out[-1] = Text(prev.content + tok.content)
+        else:
+            out.append(tok)
+    return out
 
 
 _Mode = Literal["normalising", "preserving"]

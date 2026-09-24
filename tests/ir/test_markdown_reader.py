@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mdd.ir.document import Document
 from mdd.ir.fallback import IRContext
 from mdd.ir.nodes import (
@@ -581,6 +583,28 @@ def test_escaped_inline_macro_marker_stays_text() -> None:
     assert [type(t).__name__ for t in p.inlines] == ["Text"]
     assert isinstance(p.inlines[0], Text)
     assert p.inlines[0].content == "{{confluence:toc}} and {{confluence-raw:PGI+eDwvYj4=}}"
+
+
+def test_image_alt_keeps_line_breaks() -> None:
+    doc = parse_markdown("![a\nb](x.png)")
+    p = doc.children[0]
+    assert isinstance(p, Paragraph)
+    img = p.inlines[0]
+    assert isinstance(img, Image)
+    assert img.alt == "a\nb"
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~~"])
+def test_fenced_div_close_ignores_colon_line_inside_code_fence(fence: str) -> None:
+    md = f":::callout-tip\n{fence}py\nx\n:::\ny\n{fence}\n\n:::\n\nafter\n"
+    doc = parse_markdown(md)
+    assert [type(b).__name__ for b in doc.children] == ["Callout", "Paragraph"]
+    callout = doc.children[0]
+    assert isinstance(callout, Callout)
+    assert len(callout.body) == 1
+    code = callout.body[0]
+    assert isinstance(code, CodeBlock)
+    assert code.content == "x\n:::\ny"
 
 
 def test_table_cell_inline_macro_marker_parses() -> None:

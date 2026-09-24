@@ -29,6 +29,12 @@ if TYPE_CHECKING:
     from mdd.ir.nodes import LayoutCell, LayoutSection
 
 
+# A run of ``#`` at the end of an ATX heading line, preceded by whitespace
+# (or standing alone), is the optional closing sequence and is dropped by
+# the reader. Escaping its first ``#`` keeps it as heading text.
+_HEADING_CLOSE_RE = re.compile(r"(?:(?<=\s)|^)(#+)\s*$")
+
+
 def _render_heading(
     block: Heading,
     out: list[str],
@@ -37,7 +43,9 @@ def _render_heading(
     mode: Literal["normalising", "preserving"] = "normalising",
 ) -> None:
     out.append(f"{indent}{'#' * block.level} ")
-    render_inlines(block.inlines, out, mode=mode)
+    body: list[str] = []
+    render_inlines(block.inlines, body, mode=mode)
+    out.append(_HEADING_CLOSE_RE.sub(r"\\\1", "".join(body), count=1))
 
 
 def _render_paragraph(
@@ -131,16 +139,43 @@ def fence_for(body: str, char: str, *, minimum: int = 3) -> str:
     return char * max(minimum, longest + 1)
 
 
+def _container_fence(body: list[str], fence_depth: int) -> str:
+    """Return the ``:`` fence for a container whose rendered body is *body*.
+
+    The reader closes a fenced div on the first line that is exactly its
+    opening fence, so the fence is the shortest run of at least
+    ``3 + fence_depth`` colons that no body line consists of. Nested
+    containers keep their longer depth-based fences; only a colon line
+    inside a code fence or plain-text body pushes the parent further.
+    """
+    taken = {
+        len(stripped)
+        for line in "".join(body).split("\n")
+        if (stripped := line.strip()) and not stripped.strip(":")
+    }
+    length = 3 + fence_depth
+    while length in taken:
+        length += 1
+    return ":" * length
+
+
+# A code fence whose info string is ``confluence-xml`` is read back as
+# raw storage markup, never as a code block.
+_RAW_FENCE_INFO = "confluence-xml"
+
+
 def _fence_info(language: str | None) -> str:
     """Reduce *language* to a single word that cannot alter the fence line.
 
     The info string ends at the first whitespace, and a backtick fence's
-    info string may not contain backticks.
+    info string may not contain backticks. The word reserved for raw
+    storage fences is dropped so a code block stays a code block.
     """
     if not language:
         return ""
     words = language.split()
-    return words[0].replace("`", "") if words else ""
+    word = words[0].replace("`", "") if words else ""
+    return "" if word == _RAW_FENCE_INFO else word
 
 
 def _render_code_block(
@@ -183,15 +218,17 @@ def _render_callout(
     fence_depth: int = 0,
 ) -> None:
     param_str = render_attr_dict(block.params)
-    fence = ":" * (3 + fence_depth)
+    body: list[str] = []
+    for i, child in enumerate(block.body):
+        if i > 0:
+            body.append("\n\n")
+        render_block(child, body, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    fence = _container_fence(body, fence_depth)
     head = f"{fence}callout-{block.kind}"
     if param_str:
         head += f" {{{param_str}}}"
     out.append(f"{indent}{head}\n")
-    for i, child in enumerate(block.body):
-        if i > 0:
-            out.append("\n\n")
-        render_block(child, out, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    out.extend(body)
     # Blank line before the close fence so the markdown reader's
     # fenced-div plugin terminates the block cleanly instead of
     # absorbing the literal close fence into the trailing paragraph.
@@ -209,18 +246,18 @@ def _render_confluence_macro(
     params = dict(block.params)
     params["name"] = block.name
     param_str = render_attr_dict(params)
-    fence = ":" * (3 + fence_depth)
-    if not block.rich_body and block.plain_body is not None:
-        fence = fence_for(block.plain_body, ":", minimum=3 + fence_depth)
-    out.append(f"{indent}{fence}confluence-macro {{{param_str}}}\n")
+    body: list[str] = []
     if block.rich_body:
         for i, child in enumerate(block.body):
             if i > 0:
-                out.append("\n\n")
-            render_block(child, out, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+                body.append("\n\n")
+            render_block(child, body, indent=indent, mode=mode, fence_depth=fence_depth + 1)
     elif block.plain_body is not None:
         for line in block.plain_body.splitlines():
-            out.append(f"{indent}{line}\n")  # noqa: PERF401
+            body.append(f"{indent}{line}\n")  # noqa: PERF401
+    fence = _container_fence(body, fence_depth)
+    out.append(f"{indent}{fence}confluence-macro {{{param_str}}}\n")
+    out.extend(body)
     # Same blank-line-before-close-fence as Callout — see comment there.
     out.append(f"\n\n{indent}{fence}")
 
@@ -264,11 +301,13 @@ def _render_layout(
     mode: Literal["normalising", "preserving"] = "normalising",
     fence_depth: int = 0,
 ) -> None:
-    fence = ":" * (3 + fence_depth)
-    out.append(f"{indent}{fence}layout")
+    body: list[str] = []
     for sec in block.sections:
-        out.append("\n")
-        render_layout_section(sec, out, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+        body.append("\n")
+        render_layout_section(sec, body, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    fence = _container_fence(body, fence_depth)
+    out.append(f"{indent}{fence}layout")
+    out.extend(body)
     out.append(f"\n{indent}{fence}")
 
 
@@ -328,11 +367,13 @@ def render_layout_section(
     mode: Literal["normalising", "preserving"] = "normalising",
     fence_depth: int = 1,
 ) -> None:
-    fence = ":" * (3 + fence_depth)
-    out.append(f'{indent}{fence}layout-section layout_type="{escape_attr(section.layout_type)}"')
+    body: list[str] = []
     for cell in section.cells:
-        out.append("\n")
-        render_layout_cell(cell, out, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+        body.append("\n")
+        render_layout_cell(cell, body, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    fence = _container_fence(body, fence_depth)
+    out.append(f'{indent}{fence}layout-section layout_type="{escape_attr(section.layout_type)}"')
+    out.extend(body)
     out.append(f"\n{indent}{fence}")
 
 
@@ -344,14 +385,16 @@ def render_layout_cell(
     mode: Literal["normalising", "preserving"] = "normalising",
     fence_depth: int = 2,
 ) -> None:
-    fence = ":" * (3 + fence_depth)
+    body: list[str] = []
+    for i, child in enumerate(cell.children):
+        if i > 0:
+            body.append("\n\n")
+        render_block(child, body, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    fence = _container_fence(body, fence_depth)
     # Blank lines around the inner block content keep the cell content from
     # being lazily absorbed into a paragraph that swallows the closing fence.
     out.append(f"{indent}{fence}layout-cell\n\n")
-    for i, child in enumerate(cell.children):
-        if i > 0:
-            out.append("\n\n")
-        render_block(child, out, indent=indent, mode=mode, fence_depth=fence_depth + 1)
+    out.extend(body)
     out.append(f"\n\n{indent}{fence}")
 
 

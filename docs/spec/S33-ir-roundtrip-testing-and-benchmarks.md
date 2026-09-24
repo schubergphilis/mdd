@@ -126,16 +126,27 @@ floor M1 ≥ 0.95 on every metric.
   `~~`, entity-shaped `&…;`, and a backslash before ASCII
   punctuation) everywhere, and block starters (`#`, `-`, `+`,
   `>`, `|`, `N.`/`N)`, `:::`, setext underlines and table
-  delimiter rows) at the start of a paragraph line. The escapes
+  delimiter rows) at the start of a paragraph line. Adjacent
+  `Text` nodes are escaped as one run, so a delimiter split over
+  two nodes (`{` + `{confluence:…}}`) is still caught. The escapes
   are chosen so the reader yields the same `Text` back; the
   literal characters are not otherwise significant to the
-  storage leg. Link and image titles escape `"` and `\`.
+  storage leg. Link and image titles escape `"` and `\`; a
+  heading whose text ends in a `#` run escapes it so the reader
+  does not drop it as the ATX closing sequence.
   Fenced bodies (`CodeBlock`, `confluence-xml` `RawBlock`,
   `confluence-macro` plain bodies) get a fence one character
   longer than the longest line-leading run of the fence
   character inside the body, so a body can never close its own
-  fence; the fence info string is cut at the first whitespace
-  and stripped of backticks.
+  fence; the fence info string is cut at the first whitespace,
+  stripped of backticks, and never `confluence-xml` for a
+  `CodeBlock`. Container fences (`:::callout-*`,
+  `:::confluence-macro`, `:::layout*`) are the shortest colon run
+  at or above the nesting-depth minimum that no line of the
+  rendered body consists of, so a colon line inside a nested
+  code block or plain body cannot close the container. The
+  reader's fenced-div rule also skips lines inside a code fence
+  when looking for its closing fence.
 - **Inline `<kbd>`/`<samp>` raw HTML.** Allowlist gap in the
   markdown reader's raw-HTML handling — see [S32](S32-ir-test-corpus-expansion.md)
   §"Fallback fixtures".

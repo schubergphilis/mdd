@@ -49,6 +49,39 @@ def fenced_div_plugin(md: MarkdownIt) -> None:
     )
 
 
+_CODE_FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def _line_text(state: StateBlock, line: int) -> str:
+    pos = state.bMarks[line] + state.tShift[line]
+    return state.src[pos : state.eMarks[line]]
+
+
+def _find_close_fence(
+    state: StateBlock, start: int, end: int, close_fence: str
+) -> tuple[int, bool]:
+    """Return ``(line, found)`` for the first line that is exactly *close_fence*.
+
+    Lines inside a fenced code block are skipped: a code body may contain
+    a colon run that would otherwise be taken as the closing fence.
+    """
+    line = start
+    code_fence: str | None = None
+    while line < end:
+        ln = _line_text(state, line).rstrip()
+        if code_fence is not None:
+            if ln.startswith(code_fence) and not ln.strip(code_fence[0]):
+                code_fence = None
+        elif ln == close_fence:
+            return line, True
+        else:
+            m = _CODE_FENCE_RE.match(ln)
+            if m and state.sCount[line] - state.blkIndent < 4:
+                code_fence = m.group(1)
+        line += 1
+    return end, False
+
+
 def _fenced_div_rule(
     state: StateBlock,
     startLine: int,
@@ -74,17 +107,7 @@ def _fenced_div_rule(
         return True
 
     open_line = startLine
-    nextLine = startLine + 1
-    found = False
-
-    while nextLine < endLine:
-        p = state.bMarks[nextLine] + state.tShift[nextLine]
-        mx = state.eMarks[nextLine]
-        ln = state.src[p:mx].rstrip()
-        if ln == ":" * fence_char_count:
-            found = True
-            break
-        nextLine += 1
+    nextLine, found = _find_close_fence(state, startLine + 1, endLine, ":" * fence_char_count)
 
     open_token = state.push(f"container_{name}_open", "div", 1)
     open_token.markup = ":" * fence_char_count
