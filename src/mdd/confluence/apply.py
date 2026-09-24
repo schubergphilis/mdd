@@ -158,7 +158,7 @@ def compute_rename_path(
 
     if candidate != current_path and (candidate.exists() or candidate in used_paths):
         # Collision: we need to add page_id suffix to both files
-        candidate = new_parent_dir / f"{safe_name} ({page_id}).md"
+        candidate = new_parent_dir / f"{safe_name} ({sanitize(page_id)}).md"
 
     used_paths.add(candidate)
     return candidate

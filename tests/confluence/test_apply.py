@@ -351,3 +351,10 @@ class TestComputeRenamePath:
         used: set[Path] = set()
         result = compute_rename_path(current, "", tmp_path, "../../escape", used)
         assert result == tmp_path / "page-escape.md"
+
+    def test_collision_suffix_uses_sanitised_id(self, tmp_path: Path) -> None:
+        (tmp_path / "Same.md").write_text("existing")
+        current = tmp_path / "old-page.md"
+        used: set[Path] = set()
+        result = compute_rename_path(current, "Same", tmp_path, "x/../../up", used)
+        assert result == tmp_path / "Same (x-up).md"

@@ -195,6 +195,12 @@ class TestDisambiguate:
         assert result == path
         assert not result.exists()
 
+    def test_collision_suffix_uses_sanitised_id(self, tmp_path: Path) -> None:
+        path = tmp_path / "Foo.md"
+        path.write_text("existing", encoding="utf-8")
+        result = disambiguate(path, "x/../../up")
+        assert result == tmp_path / "Foo(x-up).md"
+
     def test_double_collision_escalates_to_counter(self, tmp_path: Path) -> None:
         # Page A: Foo.md  — exists
         # Page B (titled "Foo(12345)"): also writes Foo(12345).md — exists
