@@ -3,9 +3,12 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 @dataclass
@@ -164,3 +167,29 @@ def repo_name(site_name: str, mapping: dict[str, MappingEntry]) -> str:
     if entry is not None:
         return entry.repo_name
     return normalize(site_name)
+
+
+def repo_name_collisions(
+    site_names: Iterable[str], mapping: dict[str, MappingEntry]
+) -> list[list[str]]:
+    """Return groups of distinct site names that share one repo name.
+
+    Repo names are compared case-insensitively, because the forges and
+    file systems a mirror ends up on commonly treat ``AI-ML`` and ``ai-ml``
+    as the same repository. Each group is sorted, and so is the result;
+    sites whose repo name is unique are left out.
+    """
+    by_key: dict[str, set[str]] = {}
+    for site_name in site_names:
+        by_key.setdefault(repo_name(site_name, mapping).casefold(), set()).add(site_name)
+    return sorted(sorted(names) for names in by_key.values() if len(names) > 1)
+
+
+def describe_collision(sites: list[str], mapping: dict[str, MappingEntry]) -> str:
+    """Return a one-line explanation of a group from :func:`repo_name_collisions`."""
+    names = ", ".join(repr(s) for s in sites)
+    repos = ", ".join(sorted({repr(repo_name(s, mapping)) for s in sites}))
+    return (
+        f"sites {names} map to the same mirror repo ({repos}, compared case-insensitively); "
+        "give each an explicit repo in sharepoint-mapping.yaml"
+    )

@@ -69,8 +69,10 @@ def git_mv(src: Path, dst: Path, repo_dir: Path) -> None:
     *repo_dir*, where ``git mv`` runs.
     """
     target = dst if dst.is_absolute() else repo_dir / dst
-    mkdir_no_symlink(target.parent, root=repo_dir)
+    # Check the full destination before creating any parent, so a refused
+    # destination leaves no new directories behind.
     refuse_symlink_below(target, repo_dir)
+    mkdir_no_symlink(target.parent, root=repo_dir)
     _git(["mv", "--", str(src), str(dst)], repo_dir)
 
 
@@ -151,7 +153,7 @@ def compute_rename_path(
     Returns:
         The new path (may include ``(page_id)`` suffix to disambiguate).
     """
-    safe_name = sanitize(new_title) if new_title else f"page-{page_id}"
+    safe_name = sanitize(new_title) if new_title else sanitize(f"page-{page_id}")
     candidate = new_parent_dir / f"{safe_name}.md"
 
     if candidate != current_path and (candidate.exists() or candidate in used_paths):

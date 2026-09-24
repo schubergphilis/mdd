@@ -466,7 +466,7 @@ def export_page(  # noqa: PLR0913
     markdown_body = render_markdown(doc)
     attachment_refs = collect_attachment_refs(doc)
 
-    page_name = sanitize(meta.title) if meta.title else f"page-{page_id}"
+    page_name = sanitize(meta.title) if meta.title else sanitize(f"page-{page_id}")
     mkdir_no_symlink(out_dir, root=root)
 
     # Settle the final .md path first: the attachments directory is keyed on
@@ -569,13 +569,16 @@ def build_path_map(
     for node in nodes:
         node_id = node["id"]
         title = node["title"]
-        safe_name = sanitize(title) if title else node_id
+        # Ids come from the API response, so they are sanitised like titles
+        # before becoming part of a directory name.
+        safe_id = sanitize(node_id)
+        safe_name = sanitize(title) if title else safe_id
 
         # Collision: same sanitized name at the same directory level
         if parent_dir not in used_dirs:
             used_dirs[parent_dir] = set()
         if safe_name in used_dirs[parent_dir]:
-            safe_name = f"{safe_name}({node_id})"
+            safe_name = f"{safe_name}({safe_id})"
         used_dirs[parent_dir].add(safe_name)
 
         if node["type"] == "folder":

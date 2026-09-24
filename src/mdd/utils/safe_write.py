@@ -55,7 +55,8 @@ def refuse_symlink_below(path: Path, root: Path | None) -> None:
 
     Raises:
         SymlinkRefusedError: A symlink was found below *root*.
-        OutsideRootError: *path* is not lexically below *root*.
+        OutsideRootError: *path* is not lexically below *root*, or its part
+            below *root* has a ``..`` component that could climb out of it.
     """
     if root is not None and path == root:
         return
@@ -66,6 +67,8 @@ def refuse_symlink_below(path: Path, root: Path | None) -> None:
         rel = path.relative_to(root)
     except ValueError:
         raise OutsideRootError(path, root) from None
+    if ".." in rel.parts:
+        raise OutsideRootError(path, root)
     current = root
     for part in rel.parts[:-1]:
         current = current / part

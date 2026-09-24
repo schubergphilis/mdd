@@ -179,6 +179,37 @@ class TestGitMv:
 
         assert not (tmp_path / "elsewhere").exists()
 
+    def test_parent_directory_component_creates_no_directories(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_git_repo(repo)
+        src = repo / "A.md"
+        src.write_text("content")
+        _git_add_and_commit(repo)
+
+        with pytest.raises(OutsideRootError):
+            git_mv(src, repo / "Eng" / ".." / ".." / "elsewhere" / "A.md", repo)
+
+        assert not (repo / "Eng").exists()
+        assert not (tmp_path / "elsewhere").exists()
+        assert src.is_file()
+
+    def test_parent_directory_component_in_last_part_creates_no_directories(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_git_repo(repo)
+        src = repo / "A.md"
+        src.write_text("content")
+        _git_add_and_commit(repo)
+
+        with pytest.raises(OutsideRootError):
+            git_mv(src, repo / "Eng" / "Team" / "..", repo)
+
+        assert not (repo / "Eng").exists()
+        assert src.is_file()
+
 
 class TestGitRm:
     def test_removes_file(self, tmp_path: Path) -> None:
@@ -314,3 +345,9 @@ class TestComputeRenamePath:
         result = compute_rename_path(current, "Same Title", tmp_path, "100", used)
         # If current path = computed path and it's the same file, should return it
         assert result == tmp_path / "Same Title.md"
+
+    def test_empty_title_falls_back_to_sanitised_id(self, tmp_path: Path) -> None:
+        current = tmp_path / "old-page.md"
+        used: set[Path] = set()
+        result = compute_rename_path(current, "", tmp_path, "../../escape", used)
+        assert result == tmp_path / "page-escape.md"

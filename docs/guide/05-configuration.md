@@ -105,7 +105,10 @@ sites:
 
 Sites with no entry fall back to a default rule (whitespace and special
 characters collapse to `-`), and `mdd sharepoint list-sites` warns about
-each one so you can decide whether to pin it.
+each one so you can decide whether to pin it. Two sites that end up with
+the same repository name (compared case-insensitively, so `AI ML` and
+`ai-ml` clash) get a warning from `list-sites`, and `sync-site` refuses
+both until you give one of them its own entry here.
 
 For `mdd search` to see SharePoint mirrors, give them an `output_dir` under
 `sharepoint.sites` in `configs/sharepoint.yaml`.

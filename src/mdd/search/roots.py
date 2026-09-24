@@ -111,6 +111,13 @@ def roots_for_source(source: RootSource, config_path: Path | None = None) -> lis
                 neutralise_line(str(p)),
             )
             continue
+        if not p.is_dir():
+            log.warning(
+                "%s mirror root is not a directory, skipping: %s",
+                source.label,
+                neutralise_line(str(p)),
+            )
+            continue
         roots.append(
             MirrorRoot(
                 path=p,

@@ -10,7 +10,12 @@ import yaml  # pyright: ignore[reportMissingModuleSource]
 from pydantic import ValidationError
 
 from mdd.mirror.hints import clone_hint
-from mdd.sharepoint.mapping import load_mapping, repo_name
+from mdd.sharepoint.mapping import (
+    describe_collision,
+    load_mapping,
+    repo_name,
+    repo_name_collisions,
+)
 from mdd.sharepoint.models import SharepointCliConfig
 from mdd.sharepoint.sync import SyncError, SyncRootMissing, list_sites, resolve_sync_root
 from mdd.utils.blacklist import BlacklistConfigError, BlacklistError
@@ -153,6 +158,8 @@ def _run_list_sites(ns: argparse.Namespace) -> int:
     print()  # noqa: T201  # program output
     for entry in sites:
         _print_one_site_entry(entry, mapping)
+    for group in repo_name_collisions((e.derived_site_name for e in sites), mapping):
+        log.warning("%s; sync-site refuses them until then", describe_collision(group, mapping))
     return 0
 
 

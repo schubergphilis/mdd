@@ -254,7 +254,11 @@ at the same level), append the page ID: `Title (12345).md`. The
 attachments directory is keyed on the final `.md` stem, so the
 colliding page gets `Title (12345)-attachments/` rather than sharing
 `Title-attachments/` with its sibling (deleting or renaming one page
-must not touch the other's files). Siblings are sorted by `position`
+must not touch the other's files). A page or folder with an empty title
+falls back to its ID (`page-<id>` for a page file name, the bare ID for a
+tree directory); the ID comes from the API response, so it goes through
+the same sanitization as a title, and so does the ID in a collision
+suffix. Siblings are sorted by `position`
 then title for deterministic ordering across runs. Folders become
 directories only; only `type: "page"` nodes get a `.md` file.
 

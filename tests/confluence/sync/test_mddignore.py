@@ -100,6 +100,20 @@ class TestBuildPageRelPaths:
         rels = build_page_rel_paths(desired, client)
         assert str(rels["100"].md_rel) == "Malicious litellm Supply Chain Attack.md"
 
+    def test_untitled_page_id_is_sanitised(self) -> None:
+        # An empty title falls back to the id; the rel-path must agree with
+        # export.build_path_map, which sanitises the id too.
+        desired = {
+            "../../escape": _dp("../../escape", ""),
+            "200": _dp("200", "Child", parent_id="../../escape"),
+        }
+        client = MagicMock()
+        client.get_folder.side_effect = Exception("no folders")
+
+        rels = build_page_rel_paths(desired, client)
+        assert str(rels["../../escape"].md_rel) == "escape.md"
+        assert str(rels["200"].md_rel) == "escape/Child.md"
+
 
 # ---------------------------------------------------------------------------
 # filter_desired — pattern match, prune subtree, preserve tracked
