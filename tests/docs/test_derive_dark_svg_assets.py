@@ -59,8 +59,13 @@ def test_plain_drawing_with_links_passes() -> None:
             '<use href="#p"/><use xlink:href="#p"/>'
             '<a href="https://example.com/"><text>ok</text></a>'
             '<animate attributeName="opacity" from="0" to="1"/>'
+            "<style>.ink { fill: #333A40; }</style><!-- a comment -->"
         )
     )
+
+
+def test_xml_declaration_passes() -> None:
+    check('<?xml version="1.0" encoding="UTF-8"?>' + svg("<rect/>"))
 
 
 @pytest.mark.parametrize(
@@ -111,6 +116,44 @@ def test_plain_drawing_with_links_passes() -> None:
             svg('<a><animate attributeName="xlink:href" values="#a;#b"/></a>'),
             "animates a link target",
             id="animate-xlink-href",
+        ),
+        pytest.param(
+            svg('<a href="vbscript:go()"><text>x</text></a>'), "links to a", id="href-vbscript"
+        ),
+        pytest.param(svg('<image src="javascript:go()"/>'), "src links to a", id="src-js"),
+        pytest.param(
+            svg('<a xml:base="javascript:go()//" href="x"><text>x</text></a>'),
+            "base links to a",
+            id="xml-base-js",
+        ),
+        pytest.param(
+            svg('<a><set attributeName="title" to=" javascript:go()"/></a>'),
+            "to links to a",
+            id="set-to-js",
+        ),
+        pytest.param(
+            svg('<rect><set attributeName="onmouseover" to="go()"/></rect>'),
+            "animates the event handler attribute onmouseover",
+            id="set-event-handler",
+        ),
+        pytest.param(
+            svg('<h:iframe xmlns:h="http://www.w3.org/1999/xhtml" src="page.html"/>'),
+            "<iframe> element",
+            id="xhtml-iframe",
+        ),
+        pytest.param(svg('<embed src="x"/>'), "<embed> element", id="embed"),
+        pytest.param(svg('<object data="x"/>'), "<object> element", id="object"),
+        pytest.param(svg("<handler>go()</handler>"), "<handler> element", id="handler"),
+        pytest.param(
+            '<?xml-stylesheet type="text/xsl" href="x.xsl"?>' + svg(""),
+            "<?xml-stylesheet?> processing instruction",
+            id="xml-stylesheet",
+        ),
+        pytest.param(svg("<?php echo 1 ?>"), "<?php?> processing instruction", id="nested-pi"),
+        pytest.param(
+            '<!DOCTYPE svg [<!ENTITY e "x">]>' + svg("<text>&e;</text>"),
+            "<!DOCTYPE svg> declaration",
+            id="doctype",
         ),
     ],
 )
