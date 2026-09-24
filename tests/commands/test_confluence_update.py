@@ -341,6 +341,67 @@ class TestUpdatePageDeclined:
             assert conf[key] == before[key]
         assert "![d](diagram.png)" in new_body
 
+    def _attachment_only_page(self, tmp_path: Path) -> Path:
+        md_path = tmp_path / "My-Page.md"
+        _write_local_image(md_path)
+        body = f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n\n![d](diagram.png)\n"
+        _write_md_file(md_path, _make_frontmatter(version=3), body)
+        return md_path
+
+    def _run_attachment_only(
+        self, md_path: Path, mock_client: MagicMock, *, dry_run: bool = False, confirm: bool = True
+    ) -> int:
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+            patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
+            patch("mdd.confluence.update._confirm_push", return_value=confirm),
+        ):
+            from mdd.confluence.update import update_page
+
+            return update_page(md_path, _make_config(), yes=False, dry_run=dry_run)
+
+    def test_attachment_only_failed_upload_leaves_file_unchanged(self, tmp_path: Path) -> None:
+        from mdd.confluence.client import ConfluenceError
+
+        md_path = self._attachment_only_page(tmp_path)
+        before = md_path.read_text()
+        before_mtime = md_path.stat().st_mtime_ns
+        mock_client = _make_mock_client()
+        mock_client.upload_attachment.side_effect = ConfluenceError("upload failed")
+
+        assert self._run_attachment_only(md_path, mock_client) == 1
+
+        mock_client.upload_attachment.assert_called_once()
+        mock_client.put_page.assert_not_called()
+        assert md_path.read_text() == before
+        assert "attachments: []" in md_path.read_text()
+        assert md_path.stat().st_mtime_ns == before_mtime
+
+    def test_attachment_only_dry_run_writes_nothing(self, tmp_path: Path) -> None:
+        md_path = self._attachment_only_page(tmp_path)
+        before = md_path.read_text()
+        before_mtime = md_path.stat().st_mtime_ns
+        mock_client = _make_mock_client()
+
+        assert self._run_attachment_only(md_path, mock_client, dry_run=True) == 0
+
+        mock_client.upload_attachment.assert_not_called()
+        assert md_path.read_text() == before
+        assert md_path.stat().st_mtime_ns == before_mtime
+
+    def test_attachment_only_declined_prompt_writes_nothing(self, tmp_path: Path) -> None:
+        md_path = self._attachment_only_page(tmp_path)
+        before = md_path.read_text()
+        before_mtime = md_path.stat().st_mtime_ns
+        mock_client = _make_mock_client()
+
+        assert self._run_attachment_only(md_path, mock_client, confirm=False) == 0
+
+        mock_client.upload_attachment.assert_not_called()
+        assert md_path.read_text() == before
+        assert md_path.stat().st_mtime_ns == before_mtime
+
     def test_second_run_after_attachment_only_push_is_noop(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
