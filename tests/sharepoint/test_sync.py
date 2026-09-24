@@ -9,7 +9,13 @@ import pytest
 
 from mdd.commands.sharepoint import _load_config  # pyright: ignore[reportPrivateUsage]
 from mdd.sharepoint.models import SharepointCliConfig, SharepointCliSection
-from mdd.sharepoint.sync import SyncRootMissing, list_sites, resolve_sync_root
+from mdd.sharepoint.sync import (
+    SyncError,
+    SyncRootMissing,
+    list_sites,
+    resolve_sync_root,
+    sync_site,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -236,3 +242,48 @@ sharepoint:
         assert config is not None
         assert config.sharepoint is not None
         assert config.sharepoint.sync_root == "/some/root"
+
+
+class TestSyncSiteRepoNameCollision:
+    def test_refuses_site_sharing_a_repo_name(self, tmp_path: Path) -> None:
+        sync_root = tmp_path / "OneDrive"
+        (sync_root / "AI ML - Documents").mkdir(parents=True)
+        (sync_root / "ai-ml").mkdir()
+        output_dir = tmp_path / "mirror"
+        config = SharepointCliConfig(sharepoint=SharepointCliSection(sync_root=str(sync_root)))
+
+        with (
+            patch("mdd.sharepoint.sync.check_sharepoint"),
+            patch("mdd.sharepoint.sync.sync_folder") as sync_folder,
+            pytest.raises(SyncError, match="'AI ML', 'ai-ml'"),
+        ):
+            sync_site(
+                "AI ML",
+                config=config,
+                output_dir=output_dir,
+                mapping_path=tmp_path / "no-mapping.yaml",
+            )
+
+        sync_folder.assert_not_called()
+        assert not output_dir.exists()
+
+    def test_other_sites_are_not_refused(self, tmp_path: Path) -> None:
+        sync_root = tmp_path / "OneDrive"
+        (sync_root / "AI ML - Documents").mkdir(parents=True)
+        (sync_root / "ai-ml").mkdir()
+        (sync_root / "HR").mkdir()
+        config = SharepointCliConfig(sharepoint=SharepointCliSection(sync_root=str(sync_root)))
+
+        with (
+            patch("mdd.sharepoint.sync.check_sharepoint"),
+            patch("mdd.sharepoint.sync._check_dirty"),
+            patch("mdd.sharepoint.sync.sync_folder") as sync_folder,
+        ):
+            sync_site(
+                "HR",
+                config=config,
+                output_dir=tmp_path / "mirror",
+                mapping_path=tmp_path / "no-mapping.yaml",
+            )
+
+        sync_folder.assert_called_once()

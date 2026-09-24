@@ -351,7 +351,7 @@ def _safe_name(title: str, page_id: str) -> str:
     Matches the convention in :func:`build_path_map` / :func:`export_page`.
     Falls back to ``page-<id>`` when the title is empty.
     """
-    return sanitize(title) if title else f"page-{page_id}"
+    return sanitize(title) if title else sanitize(f"page-{page_id}")
 
 
 def _classify_local_state(

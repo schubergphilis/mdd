@@ -92,6 +92,27 @@ class TestConfluenceRoots:
         (message,) = caplog.messages
         assert message.endswith("skipping: /nonexistent\ufffdWARNING forged")
 
+    def test_skips_file_root_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        not_a_dir = tmp_path / "creds.yaml"
+        not_a_dir.write_text("api_token: x\n")
+        config = tmp_path / "confluence.yaml"
+        config.write_text(
+            textwrap.dedent(
+                f"""\
+                confluence:
+                  spaces:
+                    FILE:
+                      output_dir: {not_a_dir}
+                """
+            )
+        )
+        with caplog.at_level(logging.WARNING, logger="mdd"):
+            roots = roots_for_source(CONFLUENCE, config)
+        assert roots == []
+        assert any("not a directory" in m for m in caplog.messages)
+
     def test_returns_empty_when_no_config(self, tmp_path: Path) -> None:
         # Pass a path that doesn't exist
         roots = roots_for_source(CONFLUENCE, tmp_path / "nonexistent.yaml")

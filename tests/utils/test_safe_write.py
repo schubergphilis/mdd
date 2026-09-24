@@ -116,6 +116,20 @@ class TestRefuseSymlinkBelow:
         assert isinstance(info.value, OutsideRootError)
         assert info.value.root == tmp_path
 
+    def test_parent_directory_component_is_refused(self, tmp_path: Path) -> None:
+        root = tmp_path / "root"
+        with pytest.raises(OutsideRootError):
+            refuse_symlink_below(root / "a" / ".." / ".." / "elsewhere.txt", root)
+
+    def test_parent_directory_component_that_stays_inside_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(OutsideRootError):
+            refuse_symlink_below(tmp_path / "a" / ".." / "b.txt", tmp_path)
+
+    def test_parent_directory_component_in_root_itself_is_accepted(self, tmp_path: Path) -> None:
+        (tmp_path / "real").mkdir()
+        root = tmp_path / "real" / ".." / "real"
+        refuse_symlink_below(root / "a.txt", root)
+
 
 # ---------------------------------------------------------------------------
 # mkdir_no_symlink
@@ -127,6 +141,14 @@ class TestMkdirNoSymlink:
         d = tmp_path / "a" / "b" / "c"
         mkdir_no_symlink(d, root=tmp_path)
         assert d.is_dir()
+
+    def test_parent_directory_component_creates_nothing(self, tmp_path: Path) -> None:
+        root = tmp_path / "root"
+        root.mkdir()
+        with pytest.raises(OutsideRootError):
+            mkdir_no_symlink(root / "a" / ".." / ".." / "elsewhere" / "b", root=root)
+        assert not (root / "a").exists()
+        assert not (tmp_path / "elsewhere").exists()
 
     def test_existing_real_directory_accepted(self, tmp_path: Path) -> None:
         d = tmp_path / "a"

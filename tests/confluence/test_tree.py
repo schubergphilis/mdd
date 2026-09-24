@@ -530,6 +530,17 @@ class TestAncestorChainForMove:
         assert chain[0].state == "absent"
         assert chain[0].flat_md_path is None
 
+    def test_untitled_ancestor_uses_sanitised_id(self, tmp_path: Path) -> None:
+        """An empty title falls back to ``page-<id>`` with the id sanitised."""
+        client = _make_ancestor_client(
+            ancestors=[{"id": "../../G", "title": "", "spaceId": "S"}],
+            parent_data={"id": "P", "title": "", "spaceId": "S"},
+        )
+        chain = ancestor_chain_for_move(client, "P", "S", tmp_path)
+
+        assert chain[0].expected_dir == tmp_path / "page-G"
+        assert chain[1].expected_dir == tmp_path / "page-G" / "page-P"
+
     def test_chain_grandparent_then_parent_top_to_bottom(self, tmp_path: Path) -> None:
         """Two-deep chain — root → parent — both absent; expected_dirs nested."""
         client = _make_ancestor_client(

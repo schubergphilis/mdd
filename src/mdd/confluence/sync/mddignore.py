@@ -53,10 +53,11 @@ def _node_rels(
     for node in nodes:
         node_id = node["id"]
         title = node["title"]
-        safe = sanitize(title) if title else node_id
+        safe_id = sanitize(node_id)
+        safe = sanitize(title) if title else safe_id
         used = used_names.setdefault(parent_rel, set())
         if safe in used:
-            safe = f"{safe}({node_id})"
+            safe = f"{safe}({safe_id})"
         used.add(safe)
         child_dir = parent_rel / safe
         if node["type"] == "folder":

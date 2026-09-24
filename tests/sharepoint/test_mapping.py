@@ -6,7 +6,14 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from mdd.sharepoint.mapping import MappingEntry, load_mapping, normalize, repo_name
+from mdd.sharepoint.mapping import (
+    MappingEntry,
+    describe_collision,
+    load_mapping,
+    normalize,
+    repo_name,
+    repo_name_collisions,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -181,3 +188,31 @@ class TestRepoName:
         mapping = {"Other Site": MappingEntry(site_name="Other Site", repo_name="Other-Site")}
         result = repo_name("New Site", mapping)
         assert result == "New-Site"
+
+
+class TestRepoNameCollisions:
+    def test_unique_names_have_no_collisions(self) -> None:
+        assert repo_name_collisions(["HR", "Engineering"], {}) == []
+
+    def test_normalised_names_collide(self) -> None:
+        assert repo_name_collisions(["AI ML", "AI-ML", "HR"], {}) == [["AI ML", "AI-ML"]]
+
+    def test_collision_is_case_insensitive(self) -> None:
+        assert repo_name_collisions(["ai-ml", "AI ML"], {}) == [["AI ML", "ai-ml"]]
+
+    def test_explicit_mapping_can_collide_with_derived_name(self) -> None:
+        mapping = {"Finance": MappingEntry(site_name="Finance", repo_name="HR")}
+        assert repo_name_collisions(["Finance", "HR"], mapping) == [["Finance", "HR"]]
+
+    def test_explicit_mapping_resolves_collision(self) -> None:
+        mapping = {"AI ML": MappingEntry(site_name="AI ML", repo_name="AI-ML-Team")}
+        assert repo_name_collisions(["AI ML", "AI-ML"], mapping) == []
+
+    def test_repeated_site_name_is_not_a_collision(self) -> None:
+        assert repo_name_collisions(["HR", "HR"], {}) == []
+
+    def test_description_names_both_sites_and_the_repo(self) -> None:
+        text = describe_collision(["AI ML", "AI-ML"], {})
+        assert "'AI ML'" in text
+        assert "'AI-ML'" in text
+        assert "sharepoint-mapping.yaml" in text

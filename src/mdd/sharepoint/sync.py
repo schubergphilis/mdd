@@ -23,7 +23,12 @@ from mdd.sharepoint.diff import classify_pair, read_sync_state
 # were dropped on the moved symbols to satisfy basedpyright's reportPrivateUsage
 # on the cross-module import.
 from mdd.sharepoint.dispatch import apply_pair, print_dry_run_plan
-from mdd.sharepoint.mapping import load_mapping, repo_name
+from mdd.sharepoint.mapping import (
+    describe_collision,
+    load_mapping,
+    repo_name,
+    repo_name_collisions,
+)
 from mdd.utils.blacklist import check_sharepoint
 from mdd.utils.git import is_git_repo
 from mdd.utils.logging import get_logger
@@ -594,6 +599,19 @@ def _mirror_target_for_site(site_name: str, mapping_path: Path | None) -> Mirror
     return MirrorTarget(kind="sharepoint", key=repo_name(site_name, load_mapping(mapping_path)))
 
 
+def _refuse_shared_repo_name(
+    site_name: str, sites: list[SiteEntry], mapping_path: Path | None
+) -> None:
+    """Raise :class:`SyncError` if another site maps to *site_name*'s repo name.
+
+    Two sites sharing a repo name would sync into, and push to, one mirror.
+    """
+    mapping = load_mapping(mapping_path)
+    for group in repo_name_collisions((e.derived_site_name for e in sites), mapping):
+        if site_name in group:
+            raise SyncError(f"Refusing to sync {site_name!r}: {describe_collision(group, mapping)}")
+
+
 def sync_site(  # noqa: PLR0913
     site_name: str,
     *,
@@ -629,7 +647,8 @@ def sync_site(  # noqa: PLR0913
             ``--push``. Default: standard mapping search.
 
     Raises:
-        SyncError: If the site cannot be found or the tree is dirty.
+        SyncError: If the site cannot be found, another site under the sync
+            root maps to the same repo name, or the tree is dirty.
     """
     sync_root = resolve_sync_root(config)
     sites = list_sites(sync_root)
@@ -647,6 +666,7 @@ def sync_site(  # noqa: PLR0913
         )
 
     check_sharepoint(site_entry.derived_site_name)
+    _refuse_shared_repo_name(site_entry.derived_site_name, sites, mapping_path)
     _check_dirty(output_dir)
 
     mirror_target = _mirror_target_for_site(site_entry.derived_site_name, mapping_path)

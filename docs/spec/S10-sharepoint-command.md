@@ -50,6 +50,15 @@ committed to git so multiple contributors agree on names; sites without
 an explicit entry fall back to the default rule, with `list sites`
 warning so the user can decide whether to add an explicit mapping.
 
+Each site must end up with its own repo name. When two sites under the
+sync root map to the same repo name, compared case-insensitively (`AI ML`
+and `AI-ML` both normalize to `AI-ML`; an explicit entry can also point
+at another site's name), `list-sites` warns and names both sites, and
+`sync-site` refuses either of them with an error naming both, before it
+touches the mirror. An explicit mapping entry for one of them resolves
+it. The core checks only uniqueness; any further rules for a valid
+repository path belong to the mirror backend that builds the remote.
+
 **Confidentiality.** The blacklist from
 [S07](S07-data-protection.md) governs whether a site mirror can be
 pushed to a remote. The match is on the canonical site name (before

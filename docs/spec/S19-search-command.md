@@ -41,8 +41,11 @@ mdd search "<query>" [--space SPACE] [--site SITE] [--source TYPE:ID]
   wrapper registers `lucid.folders.<name>.output_dir` this way.
 - Every configured block is read the same way, so a registered source
   needs no loader of its own.
-- Roots that don't exist locally are skipped silently (the user may
-  not have cloned every mirror).
+- Roots that don't exist locally are skipped with a warning (the user
+  may not have cloned every mirror).
+- A configured root must be a directory. An `output_dir` that names a
+  file is skipped with a warning, because the search tool reads a file
+  named on its command line whatever its type.
 - `--include` adds an extra root for one run; `--exclude` removes
   one.
 

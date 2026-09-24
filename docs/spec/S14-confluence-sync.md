@@ -271,7 +271,9 @@ the previous push must have succeeded.
   frontmatter rewrite after a rename, move, archive or metadata refresh must
   not go through a symlink below the mirror root. A symlink where a
   `move-page` parent directory is expected is refused rather than used. A
-  destination that is not below the mirror root is refused the same way. Each
+  destination that is not below the mirror root, or whose part below it
+  contains a `..` component, is refused the same way, before any parent
+  directory is created. Each
   refusal is a per-page failure, not a crash of the run.
 - **Dirty working tree refuses.** If `git status --porcelain` reports uncommitted changes in the output directory, sync aborts. No `--allow-dirty` escape hatch — manual edits and sync writes must not be commit-mixed.
 - **First sync of an empty clone is a normal sync.** No special `--initial` flag; every page classifies as "new (Confluence → mirror)".

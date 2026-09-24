@@ -132,6 +132,25 @@ class TestListSites:
         out = capsys.readouterr().out
         assert "blacklist: BLOCKED" in out
 
+    def test_list_sites_warns_about_shared_repo_name(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sync_root = tmp_path / "OneDrive"
+        sync_root.mkdir()
+        (sync_root / "AI ML - Documents").mkdir()
+        (sync_root / "ai-ml").mkdir()
+        (sync_root / "HR").mkdir()
+
+        mock_resolve = MagicMock(return_value=sync_root)
+        with patch("mdd.commands.sharepoint.resolve_sync_root", mock_resolve):
+            result = cmd_sharepoint(["list-sites", "--mapping", str(tmp_path / "none.yaml")])
+
+        assert result == 0
+        warnings = [line for line in capsys.readouterr().err.splitlines() if "WARNING" in line]
+        assert len(warnings) == 1
+        assert "'AI ML', 'ai-ml'" in warnings[0]
+        assert "HR" not in warnings[0]
+
     def test_list_sites_empty_shows_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

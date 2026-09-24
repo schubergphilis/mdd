@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 from mdd.confluence.attachments import AttachmentSyncSummary
-from mdd.confluence.export import export_page
+from mdd.confluence.export import build_path_map, export_page
 from mdd.confluence.sync.deletions import (
     _delete_path_fs,  # pyright: ignore[reportPrivateUsage]
 )
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
+
+    from mdd.confluence.tree import Node
 
 
 def _page_data() -> dict[str, Any]:
@@ -134,3 +136,53 @@ def test_reexport_of_same_page_keeps_its_attachment_dir(tmp_path: Path) -> None:
 
     assert out_path == tmp_path / "X.md"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["X-attachments", "X.md"]
+
+
+def _node(node_id: str, title: str, children: list[Node] | None = None) -> Node:
+    return {
+        "id": node_id,
+        "type": "page",
+        "title": title,
+        "position": None,
+        "parent_id": None,
+        "children": children or [],
+    }
+
+
+def test_untitled_page_id_is_sanitised_as_directory_name(tmp_path: Path) -> None:
+    """An empty title falls back to the id, which must not climb out of the mirror."""
+    child = _node("7", "Child")
+    nodes = [_node("../../escape", "", children=[child])]
+
+    path_map = build_path_map(nodes, tmp_path, {})
+
+    child_dir = path_map["7"]
+    assert ".." not in child_dir.parts
+    assert child_dir.parent == tmp_path
+    assert child_dir.name == "escape"
+
+
+def test_colliding_title_suffix_uses_sanitised_id(tmp_path: Path) -> None:
+    """The id appended to a colliding sibling name is sanitised too."""
+    grandchild = _node("9", "Leaf")
+    nodes = [_node("1", "Same"), _node("x/../../up", "Same", children=[grandchild])]
+
+    path_map = build_path_map(nodes, tmp_path, {})
+
+    leaf_dir = path_map["9"]
+    assert ".." not in leaf_dir.parts
+    assert leaf_dir.parent == tmp_path
+    assert leaf_dir.name == "Same(x-up)"
+
+
+def test_untitled_page_file_name_uses_sanitised_id(tmp_path: Path) -> None:
+    """The ``page-<id>`` file name for an untitled page stays in the output directory."""
+    page = _page_data() | {"id": "../../escape", "title": ""}
+    with patch(
+        "mdd.confluence.export.sync_all_attachments",
+        return_value=([], AttachmentSyncSummary()),
+    ):
+        out_path = export_page(_fake_client(), "../../escape", tmp_path, page_data=page)
+
+    assert out_path.parent == tmp_path
+    assert ".." not in out_path.parts
