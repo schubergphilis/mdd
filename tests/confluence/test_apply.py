@@ -94,6 +94,37 @@ class TestGitMv:
         with pytest.raises(ApplyError):
             git_mv(tmp_path / "nonexistent.md", tmp_path / "dst.md", tmp_path)
 
+    def test_argv_ends_options_before_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run_git(
+            args: list[str], cwd: Path, *, timeout: int = 30
+        ) -> subprocess.CompletedProcess[str]:
+            del cwd, timeout
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        monkeypatch.setattr("mdd.confluence.apply.run_git", fake_run_git)
+        src = tmp_path / "old.md"
+        dst = tmp_path / "new.md"
+        git_mv(src, dst, tmp_path)
+        assert calls == [["mv", "--", str(src), str(dst)]]
+
+    def test_moves_dash_leading_name(self, tmp_path: Path) -> None:
+        # A relative path starting with "-" must be read as a path, not an option.
+        _init_git_repo(tmp_path)
+        (tmp_path / "-f").write_text("content")
+        _git_add_and_commit(tmp_path)
+
+        git_mv(Path("-f"), Path("renamed.md"), tmp_path)
+
+        tracked = subprocess.run(
+            ["git", "ls-files"], cwd=str(tmp_path), capture_output=True, text=True, check=True
+        ).stdout.split()
+        assert tracked == ["renamed.md"]
+
 
 class TestGitRm:
     def test_removes_file(self, tmp_path: Path) -> None:

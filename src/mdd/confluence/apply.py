@@ -62,7 +62,7 @@ def git_mv(src: Path, dst: Path, repo_dir: Path) -> None:
     Creates parent directories as needed (git doesn't do that for us).
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
-    _git(["mv", str(src), str(dst)], repo_dir)
+    _git(["mv", "--", str(src), str(dst)], repo_dir)
 
 
 def git_rm(path: Path, repo_dir: Path, *, recursive: bool = False) -> None:
