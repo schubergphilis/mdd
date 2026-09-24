@@ -165,25 +165,57 @@ def _rewrite_frontmatter(  # noqa: PLR0913
 
     updated_by = _resolve_user(client, updater_id) if updater_id else ""
 
-    attachments_list: list[dict[str, Any]] = [
-        {"filename": e.filename, "sha256": e.sha256, "version": e.version} for e in updated_manifest
-    ]
-
-    conf_fm: Any = frontmatter.get("confluence")  # pyright: ignore[reportAny]
-    if not isinstance(conf_fm, dict):
+    conf_block = _confluence_block(frontmatter)
+    if conf_block is None:
         return
-    conf_block: dict[str, Any] = conf_fm  # pyright: ignore[reportUnknownVariableType]
     conf_block["version"] = actual_version
     conf_block["updated_at"] = actual_updated_at
     conf_block["updated_by"] = updated_by
     conf_block["exported_at"] = exported_at
     for _stale in _STALE_CONF_FIELDS:
         conf_block.pop(_stale, None)
+    _set_attachment_manifest(conf_block, updated_manifest)
+
+    write_frontmatter(md_path, frontmatter, body_md)
+
+
+def _confluence_block(frontmatter: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the mutable ``confluence:`` mapping of *frontmatter*, if any."""
+    conf_fm: Any = frontmatter.get("confluence")  # pyright: ignore[reportAny]
+    if not isinstance(conf_fm, dict):
+        return None
+    conf_block: dict[str, Any] = conf_fm  # pyright: ignore[reportUnknownVariableType]
+    return conf_block
+
+
+def _set_attachment_manifest(
+    conf_block: dict[str, Any], manifest: list[AttachmentManifestEntry]
+) -> None:
+    """Store *manifest* as ``attachments`` in *conf_block*, dropping the key when empty."""
+    attachments_list: list[dict[str, Any]] = [
+        {"filename": e.filename, "sha256": e.sha256, "version": e.version} for e in manifest
+    ]
     if attachments_list:
         conf_block["attachments"] = attachments_list
     else:
         conf_block.pop("attachments", None)
 
+
+def _record_attachment_manifest(
+    md_path: Path,
+    frontmatter: dict[str, Any],
+    body_md: str,
+    manifest: list[AttachmentManifestEntry],
+) -> None:
+    """Persist *manifest* after an attachment-only push.
+
+    The page body got no new version, so the version, ``updated_at`` and
+    ``updated_by`` fields stay as they are.
+    """
+    conf_block = _confluence_block(frontmatter)
+    if conf_block is None:
+        return
+    _set_attachment_manifest(conf_block, manifest)
     write_frontmatter(md_path, frontmatter, body_md)
 
 
@@ -493,6 +525,7 @@ def _push_page(  # noqa: PLR0913
     updated_manifest, body_stripped = synced
     if not diff:
         # Only attachments changed; the page body itself needs no new version.
+        _record_attachment_manifest(md_path, frontmatter, body_md, updated_manifest)
         return 0
     body_xhtml = _render_body_xhtml(
         md_path, body_stripped, remote_storage, resolve_links=resolve_links
