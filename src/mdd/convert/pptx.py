@@ -272,10 +272,15 @@ def _render_shape(
     from pptx.enum.shapes import (  # noqa: PLC0415
         MSO_SHAPE_TYPE,  # pyright: ignore[reportMissingModuleSource]
     )
+    from pptx.shapes.placeholder import (  # noqa: PLC0415
+        PlaceholderPicture,  # pyright: ignore[reportMissingModuleSource]
+    )
 
     shape_type: Any = shape.shape_type  # pyright: ignore[reportAny]
 
-    if shape_type == MSO_SHAPE_TYPE.PICTURE:  # pyright: ignore[reportAny]
+    # A filled picture placeholder reports ``PLACEHOLDER`` as its shape type
+    # but carries an image just like a free-floating picture.
+    if shape_type == MSO_SHAPE_TYPE.PICTURE or isinstance(shape, PlaceholderPicture):  # pyright: ignore[reportAny]
         link = _try_extract_picture(shape, attachments_dir, image_cache, dropped_image_reasons)
         return [link, ""]
 
@@ -300,12 +305,15 @@ def _render_slide(
     dropped_image_reasons: Counter[str],
 ) -> list[str]:
     """Render one slide's markdown lines (including title heading and notes)."""
+    # ``shapes.title`` is whatever placeholder sits at idx 0, which some
+    # layouts fill with a picture. Only a text-frame shape supplies the
+    # heading; anything else is rendered by the shape loop like any other.
     title_shape: Any = slide.shapes.title  # pyright: ignore[reportAny]
-    slide_title: str = (
-        str(title_shape.text).strip()  # pyright: ignore[reportAny]
-        if title_shape is not None
-        else ""
-    )
+    slide_title: str = ""
+    if title_shape is not None and getattr(title_shape, "has_text_frame", False):  # pyright: ignore[reportAny]
+        slide_title = str(title_shape.text).strip()  # pyright: ignore[reportAny]
+    else:
+        title_shape = None
 
     heading = slide_title or f"Slide {slide_num}"
     slide_lines: list[str] = [f"## {heading}", ""]
