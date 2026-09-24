@@ -201,6 +201,61 @@ class TestRenderIndex:
         assert "b.md" in content or "[b]" in content
         assert "c.md" in content or "[c]" in content
 
+    def test_summary_markdown_is_rendered_literally(self) -> None:
+        summaries = [
+            FileSummary(
+                path=Path("a.md"),
+                rel_path="a.md",
+                summary="Overview. ![x](configs/confluence.yaml)",
+                cached=True,
+            )
+        ]
+        content = _render_index(summaries, clusters=None, generated_at="2026-01-01T00:00:00Z")
+
+        assert "![" not in content
+        assert "Overview. \\!\\[x\\](configs/confluence.yaml)" in content
+
+    def test_summary_fence_is_collapsed_to_one_line(self) -> None:
+        summary = "Overview.\n\n```confluence-xml\n<ac:structured-macro/>\n```\n"
+        summaries = [FileSummary(path=Path("a.md"), rel_path="a.md", summary=summary, cached=True)]
+        content = _render_index(summaries, clusters=None, generated_at="2026-01-01T00:00:00Z")
+
+        assert "```" not in content
+        assert " <ac:" not in content  # raw HTML tag is escaped, not left bare
+        bullet = next(line for line in content.splitlines() if line.startswith("- **[a]"))
+        assert "Overview. \\`\\`\\`confluence-xml \\<ac:structured-macro/> \\`\\`\\`" in bullet
+
+    def test_topic_title_markdown_is_rendered_literally(self) -> None:
+        summaries = self._make_summaries(["a.md"])
+        clusters: list[dict[str, Any]] = [
+            {"topic_title": "Ops\n\n# Not a heading [x](y)", "file_paths": ["a.md"]},
+        ]
+        content = _render_index(summaries, clusters=clusters, generated_at="2026-01-01T00:00:00Z")
+
+        assert "## Ops \\# Not a heading \\[x\\](y)" in content
+        assert "\n# Not a heading" not in content
+
+    def test_cluster_path_outside_indexed_set_is_skipped(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        summaries = self._make_summaries(["a.md"])
+        clusters: list[dict[str, Any]] = [
+            {"topic_title": "Leak", "file_paths": ["../../private.md"]},
+            {"topic_title": "Mixed", "file_paths": ["a.md", "../../other.md"]},
+        ]
+        with caplog.at_level("WARNING", logger="mdd.ai.index"):
+            content = _render_index(
+                summaries, clusters=clusters, generated_at="2026-01-01T00:00:00Z"
+            )
+
+        assert "private.md" not in content
+        assert "other.md" not in content
+        assert "## Leak" not in content
+        assert "## Mixed" in content
+        assert "[a](a.md)" in content
+        assert "## Other" not in content
+        assert sum("not an indexed file" in r.message for r in caplog.records) == 2
+
     def test_frontmatter_is_valid_yaml(self) -> None:
         summaries = self._make_summaries(["a.md"])
         content = _render_index(summaries, clusters=None, generated_at="2026-01-01T00:00:00Z")
@@ -264,6 +319,28 @@ class TestClusterSummaries:
         # Falls back gracefully
         assert len(result) == 1
         assert "a.md" in result[0]["file_paths"]
+
+    def test_drops_malformed_clusters(self, caplog: pytest.LogCaptureFixture) -> None:
+        summaries = [FileSummary(Path("a.md"), "a.md", "Summary.", False)]
+        response = json.dumps(
+            [
+                "not an object",
+                {"topic_title": 7, "file_paths": ["a.md"]},
+                {"topic_title": "No paths"},
+                {"topic_title": "Bad paths", "file_paths": "a.md"},
+                {"topic_title": "Mixed paths", "file_paths": ["a.md", 3]},
+                {"topic_title": "Good", "file_paths": ["a.md"]},
+            ]
+        )
+        mock_client = MagicMock()
+        mock_client.chat.return_value = _make_chat_result(response)
+        mock_client._config.models = {"default": "claude-sonnet-4-5"}
+
+        with caplog.at_level("WARNING", logger="mdd.ai.index"):
+            result = _cluster_summaries(summaries, mock_client, model=None)  # pyright: ignore[reportArgumentType]
+
+        assert result == [{"topic_title": "Good", "file_paths": ["a.md"]}]
+        assert sum("dropping cluster" in r.message for r in caplog.records) == 5
 
     def test_strips_markdown_fences_from_json_response(self) -> None:
         summaries = [FileSummary(Path("a.md"), "a.md", "Summary.", False)]

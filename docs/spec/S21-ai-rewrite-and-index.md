@@ -66,7 +66,13 @@ re-bills every page.
 
 **Pass-through rules** (the AI is allowed to rewrite *body prose
 only*)
-- Frontmatter — passed through unchanged.
+- Frontmatter — passed through unchanged. The model never sees it
+  and may not add any: when the source has no frontmatter and the
+  model's reply opens with a `---` block, the rewrite is rejected
+  like any other unusable output (dumped to `<file>.rewrite.fail`,
+  nothing written to the source or the `.rewrite.md` sibling). The
+  managed-elsewhere check under `--apply` runs on the text that
+  would be written, not on the original.
 - Tables, code blocks, fenced `{=confluence}` blocks, fenced
   `{=html}` blocks — passed through unchanged.
 - Image references and links — preserved; the model is instructed
@@ -272,8 +278,17 @@ cheap signal that something went missing.
 **Topic clustering** (only at `--depth all`)
 - After per-file summaries, send the list (file + one-line summary)
   to the default model with a clustering prompt.
-- Model returns `[{topic_title, file_paths[]}, ...]`.
-- Render each topic as an H2 with the listed files under it.
+- Model returns `[{topic_title, file_paths[]}, ...]`. Entries that
+  are not an object with a string `topic_title` and a list of string
+  `file_paths` are dropped with a warning.
+- Render each topic as an H2 with the listed files under it. Only
+  paths from the indexed set are rendered; any other path the model
+  names is skipped with a warning. Files no cluster claims land in a
+  trailing `## Other` section.
+- Summaries and topic titles are model text and are rendered as
+  literal text: whitespace runs collapse to one line and the
+  characters that would open a link, image, fence, raw HTML, macro,
+  heading or emphasis are backslash-escaped.
 
 ## Design Approach
 
