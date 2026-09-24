@@ -14,6 +14,7 @@ from mdd.confluence.attachments import (
 )
 from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.diff import unified_xhtml_diff
+from mdd.confluence.frontmatter import pin_mtime_to_exported_at
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import (
@@ -504,7 +505,7 @@ def _push_page(  # noqa: PLR0913
     # only after the operator has seen the preview and confirmed.
     planned = _sync_attachments(client, spec, body_stripped, md_path, dry_run=True)
     if planned is None:
-        return 1
+        raise _UpdateAbort(1)
     planned_manifest, preview_body = planned
     attachments_pending = _manifest_changed(spec.attachment_manifest, planned_manifest)
 
@@ -512,7 +513,13 @@ def _push_page(  # noqa: PLR0913
         md_path, preview_body, remote_storage, resolve_links=resolve_links
     )
     diff = _print_diff_or_noop(body_xhtml, remote_storage)
-    if dry_run or (not diff and not attachments_pending):
+    if dry_run:
+        return 0
+    if not diff and not attachments_pending:
+        # The file matches the remote page, so it is no longer a local edit.
+        # Pin mtime rather than restamping exported_at, so the file content
+        # stays untouched.
+        pin_mtime_to_exported_at(md_path, frontmatter)
         return 0
     if not diff:
         log.info("Only attachments changed; the page body will not get a new version.")
@@ -521,11 +528,12 @@ def _push_page(  # noqa: PLR0913
 
     synced = _sync_attachments(client, spec, body_stripped, md_path, dry_run=False)
     if synced is None:
-        return 1
+        raise _UpdateAbort(1)
     updated_manifest, body_stripped = synced
     if not diff:
         # Only attachments changed; the page body itself needs no new version.
         _record_attachment_manifest(md_path, frontmatter, body_md, updated_manifest)
+        pin_mtime_to_exported_at(md_path, frontmatter)
         return 0
     body_xhtml = _render_body_xhtml(
         md_path, body_stripped, remote_storage, resolve_links=resolve_links

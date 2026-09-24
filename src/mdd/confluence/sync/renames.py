@@ -25,13 +25,12 @@ from mdd.confluence.apply import (
     git_mv,
     move_attachments_alongside,
 )
+from mdd.confluence.frontmatter import pin_mtime_to_exported_at
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.state import LocalPage
 from mdd.confluence.sync_diff import EventKind, SyncEvent
 from mdd.utils.logging import get_logger
-
-from ._helpers import pin_mtime_to_exported_at
 
 if TYPE_CHECKING:
     from ._types import SyncSummary
