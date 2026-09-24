@@ -6,7 +6,11 @@ import base64
 import re
 import urllib.parse
 
-from .._patterns import FENCE_ATTR_B64_PREFIX
+from mdd.utils.logging import get_logger
+
+from .._patterns import FENCE_ATTR_B64_PREFIX, KEY_RE
+
+log = get_logger(__name__)
 
 
 def render_attr_dict(params: dict[str, str]) -> str:
@@ -32,15 +36,26 @@ def render_fence_attr_dict(params: dict[str, str]) -> str:
 
     Values the header cannot hold verbatim are written as
     ``confluence-b64:<base64 of the UTF-8 value>``; the reader decodes them.
+    A parameter whose name the reader cannot parse back (anything outside
+    letters, digits, ``_`` and ``-``) is left out with a warning, so the
+    name can never split or extend the header line.
     """
     parts: list[str] = []
     for key, value in params.items():
+        if not is_attr_key(key):
+            log.warning("dropping macro parameter with unsupported name %r", key)
+            continue
         if _fence_value_needs_encoding(value):
             encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
             parts.append(f'{key}="{FENCE_ATTR_B64_PREFIX}{encoded}"')
         else:
             parts.append(f'{key}="{escape_attr(value)}"')
     return " ".join(parts)
+
+
+def is_attr_key(key: str) -> bool:
+    """Return whether *key* is a parameter name the markdown reader parses back."""
+    return KEY_RE.fullmatch(key) is not None
 
 
 def escape_attr(text: str) -> str:
