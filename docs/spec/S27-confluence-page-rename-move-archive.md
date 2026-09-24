@@ -78,7 +78,7 @@ tests/confluence/
   - `mdd.confluence.paths.sanitize(title)` / `disambiguate(path, page_id)` — filename derivation per [S09](S09-confluence-command.md).
   - `mdd.confluence.frontmatter.read()` / `write()` — YAML I/O.
   - `mdd.confluence.url.parse(ref, expected_host=...)` — parses numeric IDs, full URLs, short URLs; used for `--parent <url>`.
-  - `mdd.confluence.managed.classify_page()`, `load_managed_config()`, `build_page_info_from_page_data()` — [S26](S26-managed-elsewhere.md) gate; same posture as `update-page`.
+  - `mdd.confluence.managed.classify_page()`, `load_managed_config()`, `resolve_page_info()` — [S26](S26-managed-elsewhere.md) gate; same posture as `update-page`.
   - `mdd.confluence.client.ConfluenceClient.put_page()` — already used by `update-page`. Currently takes `(page_id, title, body_xhtml, version, message)` and hardcodes `status="current"`. **For S27, extend it** (or wrap it) to accept `parent_id` and `status` so move/archive/unarchive can reuse the same path; see "API calls" below.
   - `mdd.confluence.sync.renames.apply_renames_moves()` / `apply_archive_unarchive()` — bulk event handlers; the per-event inner functions are private (`_apply_one_rename_move`, `_apply_one_archive`). Either call the bulk form with a one-element `SyncEvent` list, or promote the helpers to a stable internal surface. **Choose one approach during implementation and apply it consistently.**
 
@@ -207,7 +207,16 @@ scope (same posture as [S14](S14-confluence-sync.md)). Error: "Cross-space moves
 not supported. Move via the Confluence UI, then run `mdd
 confluence sync` against both spaces." The check runs before any
 local materialisation; ancestor materialisation never crosses a
-space boundary.
+space boundary. Both spaces come from the pages as Confluence returns
+them (`spaceId`, else the key in `_links.webui`), not from the moved
+file's frontmatter.
+
+**Remote space must match the frontmatter.** All four commands refuse,
+before the prompt and under `--yes` too, when Confluence reports the
+page in a different space than the file's frontmatter `space_id` or
+`space_key` (compared when both sides are known; keys
+case-insensitively). The frontmatter `page_id` chooses the page, so a
+page in another space means the file points at the wrong page.
 
 ### Local tree materialisation on move
 
@@ -285,9 +294,11 @@ from sync.
 page per [S26](S26-managed-elsewhere.md) by calling
 `classify_page()` against the `ManagedConfig` returned from
 `load_managed_config()`, with `PageInfo` built via
-`build_page_info_from_page_data()` (same call sequence
-`update_page` uses today). A managed-elsewhere classification
-refuses the mutation with the publisher's `message`. This is the
+`resolve_page_info()` (same call sequence `update_page` uses). A
+managed-elsewhere classification refuses the mutation with the
+publisher's `message`. When the space lookup or the ancestors call that
+the configured rules need fails, the mutation is refused as well (see
+[S26](S26-managed-elsewhere.md) "Where layers 1 and 2 get their data"). This is the
 same fail-closed posture [S26](S26-managed-elsewhere.md) applies
 to `update-page` and `sync-space` pushes — rename / move /
 archive are all writes.
@@ -306,27 +317,30 @@ message as sync: `"Mirror has uncommitted changes. Commit,
 stash, or discard before running."`. Same reasoning — manual
 edits and mdd-managed git operations must not commit-mix.
 
-**Confirmation.** Each command prints a one-line preview of the
-planned mutation and prompts for confirmation, mirroring
+**Confirmation.** Each command prints a short preview of the
+planned mutation to stderr and prompts for confirmation, mirroring
 [S09](S09-confluence-command.md)'s `update-page` posture
-(Confluence is shared state). The preview names the page by the
-title (and space key, when the response carries one) that
-Confluence returned during pre-flight, not by the frontmatter
-copy: the frontmatter may be stale or edited, and the prompt
-describes what will happen on Confluence. When the remote title
-differs from the frontmatter title, a warning is logged before
-the prompt so the drift is visible. `--yes` skips the prompt;
-`--dry-run` skips both the prompt and the actual call. Examples:
+(Confluence is shared state). The preview is printed, not logged, so
+it shows at the default log level. It names the page id, and the
+title and space that Confluence returned during pre-flight, not the
+frontmatter copy: the frontmatter may be stale or edited, and the
+prompt describes what will happen on Confluence. The space key comes
+from the page payload (`_links.webui`) or a lookup by `spaceId`; when
+neither works the preview says `space unknown` rather than falling
+back to frontmatter. When the remote title differs from the
+frontmatter title, a warning is logged before the prompt so the
+drift is visible. `--yes` skips the prompt and logs the preview at
+INFO instead; `--dry-run` skips the actual call and prints the
+preview even with `--yes`. Examples:
 ```
 Rename: "Old Title" -> "New Title"
         space ENG, page 12345
-Confluence URL: https://example.atlassian.net/wiki/spaces/ENG/pages/12345
 Proceed? [y/N]
 ```
 ```
 Move: "Architecture Plan" (page 12345)
-      from parent "Design Docs" (page 12000)
-      to   parent "Archive 2026" (page 13500)
+      to parent 'Archive 2026' (page 13500)
+      space ENG
 Proceed? [y/N]
 ```
 

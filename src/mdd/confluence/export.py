@@ -20,13 +20,16 @@ from mdd.confluence.attachments import (
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.ir import collect_attachment_refs, parse_confluence_storage
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedClassification,
     ManagedConfig,
     build_page_info_from_page_data,
     classify_page,
     managed_export_header,
+    resolve_page_info,
 )
 from mdd.confluence.paths import disambiguate, sanitize
+from mdd.confluence.remote_space import space_key_from_payload
 from mdd.markdown.ir import render_markdown
 from mdd.utils.blacklist import check_confluence
 from mdd.utils.logging import get_logger
@@ -152,23 +155,6 @@ class _ExportContext:
     skip_attachments: bool
 
 
-def _extract_space_key(page_data: dict[str, Any]) -> str:
-    """Return the space key, deriving from ``_links.webui`` when the field is absent."""
-    space_key = _str_or_empty(page_data, "spaceKey")
-    if space_key:
-        return space_key
-    webui = _nested_str(page_data, "_links", "webui")
-    parts = [p for p in webui.split("/") if p]
-    # Tolerate both /wiki/spaces/<KEY>/... and /spaces/<KEY>/...
-    try:
-        idx = parts.index("spaces")
-    except ValueError:
-        return ""
-    if idx + 1 < len(parts):
-        return parts[idx + 1]
-    return ""
-
-
 def _extract_version_info(page_data: dict[str, Any]) -> tuple[int, str, str | None]:
     """Return ``(version_num, updated_at, updater_id)`` from the ``version`` block."""
     version_raw: Any = page_data.get("version")  # pyright: ignore[reportAny]
@@ -227,7 +213,7 @@ def _extract_page_meta(page_data: dict[str, Any]) -> _PageMeta:
         title=_str_or_empty(page_data, "title"),
         status=_str_or_empty(page_data, "status"),
         space_id=_str_or_empty(page_data, "spaceId"),
-        space_key=_extract_space_key(page_data),
+        space_key=space_key_from_payload(page_data),
         parent_id=parent_id,
         version_num=version_num,
         updated_at=updated_at,
@@ -353,7 +339,13 @@ def _apply_managed_classification(
     """Classify the page and stamp ``managed_*`` keys when it is managed elsewhere."""
     if ctx.managed_config is None:
         return None
-    page_info = build_page_info_from_page_data(ctx.page_data, body_storage)
+    try:
+        page_info = resolve_page_info(ctx.client, ctx.page_data, body_storage, ctx.managed_config)
+    except ManagedCheckError as exc:
+        # Pulling never writes to Confluence, so an incomplete check only
+        # risks a missing managed stamp; say so and use the payload alone.
+        log.warning("%s; classifying from the page payload alone.", exc)
+        page_info = build_page_info_from_page_data(ctx.page_data, body_storage)
     classification = classify_page(page_info, ctx.managed_config, ctx.client)
     if not classification.is_managed:
         return classification

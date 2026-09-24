@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from mdd.confluence.client import ConfluenceClient
+from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.config import ConfluenceConfig
 from mdd.confluence.managed import ManagedConfig
 from mdd.confluence.mutate import (
@@ -86,10 +86,10 @@ _REMOTE_PAGE: dict[str, Any] = {
     "title": "Old Title",
     "status": "current",
     "spaceId": "98306",
-    "spaceKey": "ENG",
     "parentId": None,
     "version": {"number": 3, "createdAt": "2026-04-01T00:00:00Z"},
     "body": {"storage": {"value": "<p>body</p>", "representation": "storage"}},
+    "_links": {"webui": "/spaces/ENG/pages/12345/Old+Title"},
 }
 
 
@@ -605,14 +605,15 @@ class TestRemoteTruthInPromptsAndParent:
         assert mock_client.put_page.call_args.args[1] == "Remote Title"
         assert mock_client.put_page.call_args.kwargs["options"].parent_id == "99999"
 
-    def test_prompt_falls_back_to_frontmatter_space_key(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
+    def test_prompt_resolves_space_by_id_not_frontmatter(self, repo: Path, caplog: Any) -> None:  # pyright: ignore[reportExplicitAny]
         md_path = repo / "Page.md"
-        _write_md(md_path, _make_fm(status="CURRENT"))
+        _write_md(md_path, _make_fm(status="CURRENT", space_key=""))
         _commit_all(repo)
 
         remote = dict(_REMOTE_PAGE)
-        del remote["spaceKey"]
+        del remote["_links"]
         mock_client = _make_mock_client(page_response=remote)
+        mock_client.get_space_by_id.return_value = {"id": "98306", "key": "ENG"}
         opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
 
         with (
@@ -622,8 +623,256 @@ class TestRemoteTruthInPromptsAndParent:
             rc = archive_page(md_path, opts=opts)
 
         assert rc == 0
+        mock_client.get_space_by_id.assert_called_once_with("98306")
         assert "space ENG" in "\n".join(caplog.messages)
-        assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+    def test_prompt_says_unknown_rather_than_frontmatter_space(
+        self,
+        repo: Path,
+        caplog: Any,  # pyright: ignore[reportExplicitAny]
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(status="CURRENT"))
+        _commit_all(repo)
+
+        remote = dict(_REMOTE_PAGE)
+        del remote["_links"]
+        mock_client = _make_mock_client(page_response=remote)
+        mock_client.get_space_by_id.side_effect = ConfluenceError("HTTP 404")
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        joined = "\n".join(caplog.messages)
+        assert "space unknown" in joined
+        assert "space ENG" not in joined
+        assert any("could not look up the space" in m for m in caplog.messages)
+
+
+def _run_action(action: str, md_path: Path, opts: MutateOptions) -> int:
+    """Run one mutate command against *md_path* (move targets page 99999)."""
+    if action == "rename":
+        return rename_page(md_path, "New Title", opts=opts)
+    if action == "move":
+        return move_page(md_path, "99999", opts=opts)
+    if action == "archive":
+        return archive_page(md_path, opts=opts)
+    return unarchive_page(md_path, opts=opts)
+
+
+class TestPromptVisibleByDefault:
+    """The confirmation preview reaches the terminal without -v."""
+
+    @pytest.mark.parametrize(
+        ("action", "expected"),
+        [
+            ("rename", 'Rename: "Old Title" -> "New Title"'),
+            ("move", 'Move: "Old Title" (page 12345)'),
+            ("archive", 'Archive: "Old Title" (page 12345)'),
+            ("unarchive", 'Unarchive: "Old Title" (page 12345)'),
+        ],
+    )
+    def test_preview_printed_before_question(
+        self,
+        repo: Path,
+        capsys: pytest.CaptureFixture[str],
+        action: str,
+        expected: str,
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(parent_response=_parent_response("99999", "New Parent"))
+        opts = MutateOptions(config=_make_config(), managed_config=_empty_managed())
+        seen_before_question: list[str] = []
+
+        def _answer(_question: str) -> str:
+            seen_before_question.append(capsys.readouterr().err)
+            return "n"
+
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.mutate.sys.stdin") as mock_stdin,
+            patch("builtins.input", side_effect=_answer),
+        ):
+            mock_stdin.isatty.return_value = True
+            rc = _run_action(action, md_path, opts)
+
+        assert rc == 0
+        assert len(seen_before_question) == 1
+        shown = seen_before_question[0]
+        assert expected in shown
+        assert "12345" in shown
+        assert "space ENG" in shown
+        mock_client.put_page.assert_not_called()
+        mock_client.archive_page.assert_not_called()
+        mock_client.unarchive_page.assert_not_called()
+
+    def test_dry_run_with_yes_prints_preview(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(
+            config=_make_config(), yes=True, dry_run=True, managed_config=_empty_managed()
+        )
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert 'Archive: "Old Title" (page 12345)' in err
+        assert "space ENG" in err
+        mock_client.archive_page.assert_not_called()
+
+
+def _foreign_remote() -> dict[str, Any]:
+    """A page Confluence reports in space HR, not the frontmatter's ENG."""
+    remote = dict(_REMOTE_PAGE)
+    remote["spaceId"] = "55555"
+    remote["_links"] = {"webui": "/spaces/HR/pages/12345/Old+Title"}
+    return remote
+
+
+class TestRemoteSpaceMismatchRefused:
+    """A page outside the frontmatter's space is refused before any change."""
+
+    @pytest.mark.parametrize("action", ["rename", "move", "archive", "unarchive"])
+    @pytest.mark.parametrize(
+        "fm_space",
+        [{"space_key": "ENG", "space_id": "98306"}, {"space_key": "ENG", "space_id": ""}],
+    )
+    def test_refused_with_yes(
+        self,
+        repo: Path,
+        caplog: Any,  # pyright: ignore[reportExplicitAny]
+        action: str,
+        fm_space: dict[str, str],
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(**fm_space))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(
+            page_response=_foreign_remote(),
+            parent_response=_parent_response("99999", "P", space_id="55555", space_key="HR"),
+        )
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("ERROR", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = _run_action(action, md_path, opts)
+
+        assert rc == 1
+        mock_client.put_page.assert_not_called()
+        mock_client.archive_page.assert_not_called()
+        mock_client.unarchive_page.assert_not_called()
+        errors = "\n".join(caplog.messages)
+        assert "space HR" in errors
+        assert "frontmatter says space ENG" in errors
+
+    def test_matching_space_case_insensitive_is_allowed(self, repo: Path) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(space_key="eng"))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        mock_client.archive_page.assert_called_once()
+
+    def test_cross_space_move_judged_from_fetched_page(self, repo: Path) -> None:
+        """Frontmatter with no space fields cannot hide a cross-space move."""
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm(space_key="", space_id=""))
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(
+            parent_response=_parent_response("99999", "P", space_id="55555", space_key="HR"),
+        )
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = move_page(md_path, "99999", opts=opts)
+
+        assert rc == 1
+        mock_client.put_page.assert_not_called()
+
+
+def _subtree_config() -> ManagedConfig:
+    return ManagedConfig.model_validate(
+        {
+            "external_publishers": [{"name": "pipe"}],
+            "managed_subtrees": [
+                {"space_key": "ENG", "root_page_id": "999", "publisher_name": "pipe"}
+            ],
+        }
+    )
+
+
+class TestManagedCheckBlocksMutate:
+    def test_unfetchable_ancestors_block_the_change(
+        self,
+        repo: Path,
+        caplog: Any,  # pyright: ignore[reportExplicitAny]
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        remote = dict(_REMOTE_PAGE)
+        remote["parentId"] = "131185"
+        mock_client = _make_mock_client(page_response=remote)
+        mock_client.get_page_ancestors.side_effect = ConfluenceError("HTTP 500")
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_subtree_config())
+
+        with (
+            caplog.at_level("ERROR", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 1
+        mock_client.archive_page.assert_not_called()
+        assert any("ancestors of page 12345" in m for m in caplog.messages)
+
+    def test_deep_subtree_page_is_refused(self, repo: Path) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        remote = dict(_REMOTE_PAGE)
+        remote["parentId"] = "131185"
+        mock_client = _make_mock_client(page_response=remote)
+        mock_client.get_page_ancestors.return_value = [
+            {"id": "1", "type": "page"},
+            {"id": "999", "type": "page"},
+            {"id": "131185", "type": "page"},
+        ]
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_subtree_config())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 1
+        mock_client.get_page_ancestors.assert_called_once_with("12345")
+        mock_client.archive_page.assert_not_called()
 
 
 def _read_conf(md_path: Path) -> dict[str, Any]:

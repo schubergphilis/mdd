@@ -32,9 +32,10 @@ from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.header import insert_office_callout, strip_office_callout
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedConfig,
-    build_page_info_from_page_data,
     classify_page,
+    resolve_page_info,
     warn_managed,
 )
 from mdd.confluence.paths import sanitize
@@ -337,7 +338,14 @@ class _PublishAction:
         """Return True when this page is classified as managed elsewhere."""
         if self.managed_config is None:
             return False
-        page_info = build_page_info_from_page_data(self.page_data, self.body_xhtml)
+        try:
+            page_info = resolve_page_info(
+                self.client, self.page_data, self.body_xhtml, self.managed_config
+            )
+        except ManagedCheckError as exc:
+            log.error("publish_office: %s; not publishing.", exc)
+            self.summary.failures.append(f"managed-check {self.page_id}: {exc}")
+            return True
         classification = classify_page(page_info, self.managed_config, self.client)
         if not classification.is_managed:
             return False
