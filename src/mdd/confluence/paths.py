@@ -15,6 +15,13 @@ if TYPE_CHECKING:
 _FORBIDDEN = re.compile(r'[<>:"/\\|?*\n\t\r]')
 _MULTI_DASH = re.compile(r"-{2,}")
 
+# C0 controls, DEL, C1 controls and lone UTF-16 surrogates. None of them
+# belongs in a file name: NUL cannot be passed to the OS at all, the others
+# garble terminal output and ``git status``, and a lone surrogate cannot be
+# encoded as UTF-8. They are removed rather than replaced, after the
+# ``\n``/``\t``/``\r`` → ``-`` rule above has run.
+_CONTROL_OR_SURROGATE = re.compile(r"[\x00-\x1f\x7f-\x9f\ud800-\udfff]")
+
 # Unicode category "Zs" (Separator, space): U+0020 plus its look-alikes —
 # NBSP, en/em spaces, ideographic space, etc. Confluence titles copy-pasted
 # from some sources use U+00A0 NO-BREAK SPACE between words instead of a
@@ -32,6 +39,8 @@ def sanitize(title: str) -> str:
     - Normalize to NFC and fold runs of Unicode space-separator characters
       (category Zs — NBSP and friends) to a single ASCII space
     - Replace <>:"/\\|?*\\n\\t\\r with -
+    - Remove every other C0/C1 control character (including NUL, ESC and
+      DEL) and any lone surrogate code point
     - Strip leading/trailing whitespace and dots
     - Collapse runs of - to a single -
     - Truncate to 200 characters
@@ -44,6 +53,7 @@ def sanitize(title: str) -> str:
     title = unicodedata.normalize("NFC", title)
     title = _UNICODE_SPACE_RUN.sub(" ", title)
     result = _FORBIDDEN.sub("-", title)
+    result = _CONTROL_OR_SURROGATE.sub("", result)
     result = result.strip(". \t\n\r")
     result = _MULTI_DASH.sub("-", result)
     result = result[:200]
