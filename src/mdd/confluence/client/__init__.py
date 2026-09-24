@@ -315,6 +315,14 @@ class ConfluenceClient:
             raise ConfluenceError(f"Unexpected space result format for {space_key!r}")
         return first  # pyright: ignore[reportReturnType, reportUnknownVariableType]
 
+    def get_space_by_id(self, space_id: str) -> dict[str, Any]:
+        """Fetch a space by its id.
+
+        GET /wiki/api/v2/spaces/{space_id}
+        """
+        self._validate_id(space_id, "space_id")
+        return self.get(f"/wiki/api/v2/spaces/{space_id}")
+
     def get_folder(self, folder_id: str) -> dict[str, Any]:
         """Fetch a folder node by ID.
 

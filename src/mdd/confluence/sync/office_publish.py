@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedConfig,
-    build_page_info_from_page_data,
     classify_page,
+    resolve_page_info,
     warn_managed,
 )
 from mdd.confluence.publish_office import OfficePublishCollisionError, publish
@@ -50,7 +51,12 @@ def _record_office_managed_skip(
     summary: SyncSummary,
 ) -> bool:
     """If page is managed elsewhere, record and return True (sync should skip)."""
-    page_info = build_page_info_from_page_data(page_data, body_xhtml)
+    try:
+        page_info = resolve_page_info(client, page_data, body_xhtml, managed_config)
+    except ManagedCheckError as exc:
+        log.error("office-publish managed-check %s: %s", page_id, exc)
+        summary.failures.append(f"office-publish managed-check {page_id}: {exc}")
+        return True
     cl = classify_page(page_info, managed_config, client)
     if cl.restriction_check_unverified:
         summary.restriction_check_unverified += 1

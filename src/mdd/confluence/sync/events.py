@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.managed import (
     ManagedConfig,
-    build_page_info_from_page_data,
     classify_page,
     load_managed_config,
+    resolve_page_info,
     warn_managed,
 )
 from mdd.confluence.sync_diff import (
@@ -99,7 +99,9 @@ def make_managed_helpers(
 
     def record_managed_skip(page_id: str, page_data: dict[str, Any]) -> bool:
         body_storage = extract_storage_body(page_data)
-        page_info = build_page_info_from_page_data(page_data, body_storage)
+        # A failed lookup raises ManagedCheckError (a ConfluenceError); the
+        # push loop records it as a failure for this page and moves on.
+        page_info = resolve_page_info(client, page_data, body_storage, get_managed_cfg())
         cl = classify_page(page_info, get_managed_cfg(), client)
         if cl.restriction_check_unverified:
             summary.restriction_check_unverified += 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,13 +27,15 @@ from mdd.confluence.header import (
 )
 from mdd.confluence.ir import parse_confluence_storage, render_confluence_storage
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedConfig,
-    build_page_info_from_page_data,
     classify_page,
     load_managed_config,
+    resolve_page_info,
 )
 from mdd.confluence.mermaid import render_mermaid_fences
 from mdd.confluence.page_links import resolve_page_links
+from mdd.confluence.remote_space import RemotePage, describe_remote_page, space_mismatch
 from mdd.confluence.title import resolve_page_title
 from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.ir import reattach
@@ -55,6 +58,16 @@ def _get_page_id(fm: dict[str, Any]) -> str | None:
     conf: dict[str, Any] = dict(conf_raw.items())  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
     pid: Any = conf.get("page_id")  # pyright: ignore[reportAny]
     return str(pid) if pid else None
+
+
+def _get_conf_str(fm: dict[str, Any], key: str) -> str:
+    """Extract a string field of the ``confluence:`` block, or ``""``."""
+    conf_raw: Any = fm.get("confluence")  # pyright: ignore[reportAny]
+    if not isinstance(conf_raw, dict):
+        return ""
+    conf: dict[str, Any] = dict(conf_raw.items())  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+    value: Any = conf.get(key)  # pyright: ignore[reportAny]
+    return str(value) if isinstance(value, (str, int)) and value != "" else ""
 
 
 def _get_version(fm: dict[str, Any]) -> int | None:
@@ -304,7 +317,11 @@ def _fetch_and_check_managed(
 
     cfg = managed_config if managed_config is not None else load_managed_config()
     body_storage_for_check = _get_remote_storage(page_data)
-    page_info = build_page_info_from_page_data(page_data, body_storage_for_check)
+    try:
+        page_info = resolve_page_info(client, page_data, body_storage_for_check, cfg)
+    except ManagedCheckError as exc:
+        log.error("%s. Refusing to push a page that could not be checked.", exc)
+        raise _UpdateAbort() from exc
     classification = classify_page(page_info, cfg, client)
     if classification.is_managed:
         msg = classification.message or (
@@ -314,6 +331,23 @@ def _fetch_and_check_managed(
         log.error("%s", msg)
         raise _UpdateAbort()
     return page_data
+
+
+def _check_remote_space(md_path: Path, frontmatter: dict[str, Any], remote: RemotePage) -> None:
+    """Refuse to push when the page is not in the space the frontmatter names.
+
+    The page id in frontmatter picks the target page; the space fields in
+    the same frontmatter say where the file expects it to be. A page that
+    Confluence reports in a different space is refused rather than pushed.
+    """
+    refusal = space_mismatch(
+        remote,
+        local_space_key=_get_conf_str(frontmatter, "space_key"),
+        local_space_id=_get_conf_str(frontmatter, "space_id"),
+    )
+    if refusal:
+        log.error("%s: %s", md_path, refusal)
+        raise _UpdateAbort()
 
 
 def _check_no_remote_advance(remote_version: int, local_version: int) -> None:
@@ -411,13 +445,62 @@ def _print_diff_or_noop(body_xhtml: str, remote_storage: str) -> str:
     return diff
 
 
-def _confirm_push(*, yes: bool) -> bool:
-    """Return True iff the user confirmed (or ``--yes`` was passed)."""
+def _count_changed_lines(diff: str) -> tuple[int, int]:
+    """Return ``(added, removed)`` line counts of a unified diff, headers excluded."""
+    added = removed = 0
+    for line in diff.splitlines():
+        if line.startswith("+") and not line.startswith("+++ "):
+            added += 1
+        elif line.startswith("-") and not line.startswith("--- "):
+            removed += 1
+    return added, removed
+
+
+@dataclass(frozen=True)
+class _PushPreview:
+    """What a push is about to send, for the summary shown before confirming."""
+
+    remote: RemotePage
+    new_title: str
+    diff: str
+    attachments_pending: bool
+
+
+def _push_summary(preview: _PushPreview) -> str:
+    """Render the target line plus a one-line change count for the push."""
+    remote = preview.remote
+    lines = [f'Update: "{remote.title}" (page {remote.page_id}) in space {remote.space_label}']
+    if preview.new_title != remote.title:
+        lines.append(f'  new title: "{preview.new_title}"')
+    if preview.diff:
+        added, removed = _count_changed_lines(preview.diff)
+        detail = "" if log.isEnabledFor(logging.INFO) else " (run with -v to see the diff)"
+        lines.append(f"  page body: {added + removed} lines changed (+{added} -{removed}){detail}")
+    else:
+        lines.append("  page body: unchanged")
+    if preview.attachments_pending:
+        lines.append("  attachments: changes will be uploaded")
+    return "\n".join(lines)
+
+
+def _show_push_summary(preview: _PushPreview) -> None:
+    """Print the push summary to stderr, where the confirmation prompt appears."""
+    print(_push_summary(preview), file=sys.stderr, flush=True)  # noqa: T201  # program output
+
+
+def _confirm_push(preview: _PushPreview, *, yes: bool) -> bool:
+    """Return True iff the user confirmed (or ``--yes`` was passed).
+
+    The target page and a change summary are shown before the question;
+    with ``--yes`` they are logged instead.
+    """
     if yes:
+        log.info("%s", _push_summary(preview))
         return True
     if not sys.stdin.isatty():
         log.error("stdin is not a TTY. Use --yes to confirm non-interactively.")
         raise _UpdateAbort()
+    _show_push_summary(preview)
     try:
         answer = input("Push these changes? [y/N] ").strip().lower()
     except EOFError, KeyboardInterrupt:
@@ -493,6 +576,7 @@ def _push_page(  # noqa: PLR0913
     frontmatter: dict[str, Any],
     body_md: str,
     *,
+    remote: RemotePage,
     message: str,
     yes: bool,
     dry_run: bool,
@@ -530,7 +614,14 @@ def _push_page(  # noqa: PLR0913
         md_path, preview_body, remote_storage, resolve_links=resolve_links
     )
     diff = _print_diff_or_noop(body_xhtml, remote_storage)
+    preview = _PushPreview(
+        remote=remote,
+        new_title=spec.title,
+        diff=diff,
+        attachments_pending=attachments_pending,
+    )
     if dry_run:
+        _show_push_summary(preview)
         return PushOutcome.NOT_PUSHED
     if not diff and not attachments_pending:
         # The file matches the remote page, so it is no longer a local edit.
@@ -540,7 +631,7 @@ def _push_page(  # noqa: PLR0913
         return PushOutcome.NO_CHANGE
     if not diff:
         log.info("Only attachments changed; the page body will not get a new version.")
-    if not _confirm_push(yes=yes):
+    if not _confirm_push(preview, yes=yes):
         return PushOutcome.NOT_PUSHED
 
     synced = _sync_attachments(client, spec, body_stripped, md_path, dry_run=False)
@@ -614,6 +705,8 @@ def update_page_outcome(  # noqa: PLR0913
 
         with ConfluenceClient(config.url, config.username, token_resolver) as client:
             page_data = _fetch_and_check_managed(client, spec.page_id, managed_config)
+            remote = describe_remote_page(client, page_data)
+            _check_remote_space(md_path, frontmatter, remote)
             return _push_page(
                 client,
                 spec,
@@ -621,6 +714,7 @@ def update_page_outcome(  # noqa: PLR0913
                 md_path,
                 frontmatter,
                 body_md,
+                remote=remote,
                 message=message,
                 yes=yes,
                 dry_run=dry_run,

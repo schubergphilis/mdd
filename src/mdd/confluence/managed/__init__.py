@@ -28,9 +28,16 @@ from .config import (
     PublisherEntry,
     load_managed_config,
 )
-from .headers import build_page_info_from_page_data, managed_export_header, warn_managed
+from .headers import (
+    ManagedCheckError,
+    build_page_info_from_page_data,
+    managed_export_header,
+    resolve_page_info,
+    warn_managed,
+)
 
 __all__ = [
+    "ManagedCheckError",
     "ManagedClassification",
     "ManagedConfig",
     "ManagedReason",
@@ -42,5 +49,6 @@ __all__ = [
     "classify_page",
     "load_managed_config",
     "managed_export_header",
+    "resolve_page_info",
     "warn_managed",
 ]

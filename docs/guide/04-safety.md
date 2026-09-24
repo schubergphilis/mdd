@@ -136,10 +136,16 @@ order:
 The distinction in that last column matters, and it is the one thing to
 take away from this section.
 
-**Layers 1–4 are guarantees.** Each is a local comparison between the page
-data `mdd` already has and your config. There is no network call and
-nothing to time out. If a page matches one of them, it is blocked, every
-time.
+**Layers 1–4 are guarantees.** Each compares the page against your
+config. If a page matches one of them, it is blocked, every time. Layers 3
+and 4 use the page data `mdd` already has. Layers 1 and 2 may need one more
+call: the page Confluence returns names its space by id, so `mdd` looks
+the key up when it cannot read it from the page link, and it fetches the
+page's full ancestor chain when you have configured managed subtrees.
+If that call fails, the push is refused, not let through. The error names
+the page and the lookup that failed; `sync-space` reports it as a failure
+for that page and goes on with the rest. With no managed spaces or
+subtrees configured, none of these calls are made.
 
 **Layer 5 is advisory, and it fails open.** Checking page restrictions
 means asking the Confluence API. That call can fail — an outage, an
@@ -300,11 +306,31 @@ Confirmation prompts are narrower than you might assume:
 
 | Operation | Prompts? |
 |---|---|
-| `mdd confluence update-page` | yes, after printing a diff and the attachments it would upload; `--yes` skips it. Attachments are uploaded only after you confirm |
-| `mdd confluence rename-page`, `move-page`, `archive-page`, `unarchive-page` | yes; `--yes` skips it |
+| `mdd confluence update-page` | yes, after printing the target page and a change summary; `--yes` skips it. Attachments are uploaded only after you confirm |
+| `mdd confluence rename-page`, `move-page`, `archive-page`, `unarchive-page` | yes, after printing the target page and the change; `--yes` skips it |
 | `mdd confluence create-page` | **no** |
 | `mdd confluence sync-space` | **no**, for any of its writes |
 | `mdd sharepoint sync-site`, `sync-folder` | **no** |
+
+Every prompt starts by naming the page as Confluence has it: the page id,
+its current title and its space. None of that comes from the file's
+frontmatter, so a file whose `page_id` points somewhere unexpected shows
+up here. When the space cannot be looked up, the prompt says `unknown`.
+For `update-page` the summary looks like this:
+
+```text
+Update: "Release notes" (page 12345) in space ENG
+  page body: 14 lines changed (+9 -5) (run with -v to see the diff)
+Push these changes? [y/N]
+```
+
+Add `-v` to see the full diff above the summary, and the attachments it
+would upload. `--dry-run` prints the same summary and stops.
+
+Before any of that, these commands check that the page is in the space
+the file's frontmatter names (`space_key`, `space_id`). If Confluence
+reports it in another space, the command refuses and changes nothing,
+with or without `--yes`.
 
 `mdd confluence sync-space` calls the same push code as `update-page` with
 confirmation already suppressed. It creates pages, pushes bodies and

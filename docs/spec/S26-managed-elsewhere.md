@@ -24,9 +24,7 @@ layers don't run.
 1. **`managed_spaces`**: page's `space_key` is in the configured
    list → match.
 2. **`managed_subtrees`**: page's ancestor chain contains a
-   configured `root_page_id` → match. (Walk ancestors via the v2
-   API's `parentId` chain or via `GET /pages/{id}?include-ancestors=
-   true`.)
+   configured `root_page_id` → match.
 3. **Publisher account ID**: page's `version.authorId` is in any
    `external_publishers[*].account_id` list → match.
 4. **Body marker regex**: page body's storage XHTML matches any
@@ -38,13 +36,42 @@ layers don't run.
 
 If none match, the page is normally pushable.
 
-**Guarantees vs. advisory: layer 5 can fail, layers 1-4 cannot**
+**Where layers 1 and 2 get their data**
 
-Layers 1-4 are local comparisons against `ManagedConfig`, already loaded
-into the process before the cascade runs. Barring a config-loading bug,
-they always evaluate, so a match is a guarantee: once a space, subtree,
-account ID, or body pattern is configured, the matching page is
-unconditionally blocked from push, every time.
+The v2 page payload (`GET /wiki/api/v2/pages/{id}`) carries `spaceId`,
+`parentId` and `_links.webui`, but no `spaceKey` and no ancestor chain.
+The classifier therefore reads:
+
+- **Space key (layer 1):** `spaceKey` if a payload has it, else the
+  `<KEY>` segment of a `_links.webui` path shaped `/spaces/<KEY>/...`,
+  else `GET /wiki/api/v2/spaces/{spaceId}`. The space id is checked to be
+  alphanumeric before it goes into the path. The lookup only runs when
+  `managed_spaces` is configured and the payload does not name the key.
+- **Ancestor chain (layer 2):** `GET /wiki/api/v2/pages/{id}/ancestors`,
+  with the payload's `parentId` kept as the direct parent. The call only
+  runs when `managed_subtrees` is configured and the direct parent is not
+  itself a configured root; with no subtrees configured there is no
+  extra call.
+
+**When that data cannot be fetched, push paths refuse.** If the space
+lookup or the ancestors call fails (or the page names no space at all)
+while the matching rule is configured, the page counts as unchecked, and
+an unchecked page is not pushed: `update-page` and the rename, move,
+archive and unarchive commands exit 1 with an error naming the page and
+the failed lookup; `sync-space` push and office publishing record a
+per-page failure in the run summary and carry on with the next page.
+Pull and export are read-only, so there the classifier logs a warning
+and falls back to the payload alone. The worst case there is a
+missing `managed_by` stamp.
+
+**Guarantees vs. advisory: layer 5 fails open, layers 1-4 do not**
+
+Layers 1-4 compare the page against `ManagedConfig`, already loaded
+into the process before the cascade runs. Layers 1 and 2 may first need
+a lookup (see above), and when that lookup fails the push is refused
+rather than let through. So a match is a guarantee: once a space,
+subtree, account ID, or body pattern is configured, the matching page
+is unconditionally blocked from push, every time.
 
 Layer 5 is different — it is a network call
 (`GET /content/{id}/restriction`), and network calls fail: a transient
@@ -203,8 +230,9 @@ the same `classify_page` function is called from every push site
 operations) or skips and records a summary entry (bulk sync).
 
 **Layer 5 fails open, visibly.** Layers 1-4 are guarantees because
-they never call out of the process; layer 5 calls Confluence and
-can fail, and failing closed there would mean a degraded
+they either compare local data or, for the space and ancestor lookups
+of layers 1-2, refuse the push when the lookup fails. Layer 5 calls
+Confluence and can fail, and failing closed there would mean a degraded
 Confluence API blocks all publishing, everywhere, which is worse
 than the gap it is meant to close. So layer 5 fails open — but the
 earlier design left that silent: an API error and a confirmed

@@ -35,13 +35,20 @@ from mdd.confluence.client import ConfluenceClient, ConfluenceError, PutPageOpti
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedConfig,
-    build_page_info_from_page_data,
     classify_page,
     load_managed_config,
+    resolve_page_info,
 )
 from mdd.confluence.materialise import promote_flat_to_dir, pull_single_page
 from mdd.confluence.models import ConfluenceBlock, ConfluenceV2PageMinimal
+from mdd.confluence.remote_space import (
+    RemotePage,
+    describe_remote_page,
+    space_key_from_payload,
+    space_mismatch,
+)
 from mdd.confluence.state import LocalPage
 from mdd.confluence.sync._types import SyncSummary
 from mdd.confluence.sync.renames import apply_archive_unarchive, apply_renames_moves
@@ -233,7 +240,11 @@ def _check_managed(
 ) -> None:
     """Refuse the mutation when the remote page is managed-elsewhere."""
     body_storage = _extract_storage_body(page_data)
-    page_info = build_page_info_from_page_data(page_data, body_storage)
+    try:
+        page_info = resolve_page_info(client, page_data, body_storage, managed_config)
+    except ManagedCheckError as exc:
+        log.error("%s. Refusing to change a page that could not be checked.", exc)
+        raise _MutateAbort(1) from exc
     classification = classify_page(page_info, managed_config, client)
     if classification.is_managed:
         msg = classification.message or (
@@ -253,17 +264,34 @@ def _check_version(local_version: int, remote_version: int) -> None:
         raise _MutateAbort(1) from None
 
 
-def _check_same_space(page_state: _PageState, parent_data: dict[str, Any]) -> None:
-    """Refuse a cross-space move."""
-    parent = ConfluenceV2PageMinimal.model_validate(parent_data)
-    parent_space = parent.space_id or parent.space_key
-    page_space = page_state.space_id or page_state.space_key
-    if not parent_space or not page_space:
-        return  # missing data — can't compare; defer to API to fail
-    # Match either id-id or key-key — the parent payload may only carry one.
-    parent_id_match = bool(page_state.space_id and parent.space_id == page_state.space_id)
-    parent_key_match = bool(page_state.space_key and parent.space_key == page_state.space_key)
-    if not (parent_id_match or parent_key_match):
+def _check_remote_space(page_state: _PageState, remote: RemotePage) -> None:
+    """Refuse when Confluence puts the page in a different space than the frontmatter."""
+    refusal = space_mismatch(
+        remote, local_space_key=page_state.space_key, local_space_id=page_state.space_id
+    )
+    if refusal:
+        log.error("%s: %s", page_state.md_path, refusal)
+        raise _MutateAbort(1)
+
+
+def _spaces_differ(page_data: dict[str, Any], parent_data: dict[str, Any]) -> bool:
+    """True when Confluence reports the page and the parent in different spaces.
+
+    Compares ``spaceId`` when both payloads carry it, else the space keys
+    the payloads name. With neither, the API has the final say.
+    """
+    page_space_id = _v2_page(page_data).space_id
+    parent_space_id = _v2_page(parent_data).space_id
+    if page_space_id and parent_space_id:
+        return page_space_id != parent_space_id
+    page_key = space_key_from_payload(page_data)
+    parent_key = space_key_from_payload(parent_data)
+    return bool(page_key and parent_key and page_key != parent_key)
+
+
+def _check_same_space(page_data: dict[str, Any], parent_data: dict[str, Any]) -> None:
+    """Refuse a cross-space move, judged from the fetched page and parent."""
+    if _spaces_differ(page_data, parent_data):
         log.error(
             "Cross-space moves are not supported. Move via the Confluence "
             "UI, then run 'mdd confluence sync' against both spaces.",
@@ -276,14 +304,28 @@ def _check_same_space(page_state: _PageState, parent_data: dict[str, Any]) -> No
 # ---------------------------------------------------------------------------
 
 
-def _prompt(preview: str, *, yes: bool) -> bool:
-    """Print ``preview`` and ask for confirmation.  Returns False on decline."""
-    log.info("%s", preview)
-    if yes:
+def _show_preview(preview: str) -> None:
+    """Print ``preview`` to stderr, where the confirmation prompt appears."""
+    print(preview, file=sys.stderr, flush=True)  # noqa: T201  # program output
+
+
+def _prompt(preview: str, opts: MutateOptions) -> bool:
+    """Show ``preview`` and ask for confirmation.  Returns False on decline.
+
+    The preview goes to stderr just before the question, so it is visible
+    at the default log level. With ``--yes`` it is logged instead, unless
+    this is a dry run, whose whole point is to show it.
+    """
+    if opts.yes:
+        if opts.dry_run:
+            _show_preview(preview)
+        else:
+            log.info("%s", preview)
         return True
     if not sys.stdin.isatty():
         log.error("stdin is not a TTY. Use --yes to confirm non-interactively.")
         raise _MutateAbort(1)
+    _show_preview(preview)
     try:
         answer = input("Proceed? [y/N] ").strip().lower()
     except EOFError, KeyboardInterrupt:
@@ -330,16 +372,16 @@ def _remote_parent_id(page_data: dict[str, Any]) -> str | None:
     return _v2_page(page_data).parent_id
 
 
-def _prompt_identity(page_state: _PageState, page_data: dict[str, Any]) -> tuple[str, str]:
-    """Return ``(title, space_key)`` as Confluence reports them, for confirmation prompts.
+def _prompt_identity(page_state: _PageState, remote: RemotePage) -> tuple[str, str]:
+    """Return ``(title, space)`` as Confluence reports them, for confirmation prompts.
 
     The prompt describes what will happen on Confluence, so it must name the
     page as Confluence knows it rather than as the local frontmatter does.
     A mismatch is logged so a stale or edited frontmatter title is visible
-    before the user confirms.  The space key falls back to frontmatter when
-    the v2 response omits it.
+    before the user confirms.  The space is ``unknown`` when Confluence's
+    answer could not be resolved; frontmatter is never used in its place.
     """
-    remote_title = _remote_title(page_data)
+    remote_title = remote.title
     if remote_title != page_state.title:
         log.warning(
             'Remote title "%s" differs from local title "%s" for page %s; '
@@ -348,8 +390,7 @@ def _prompt_identity(page_state: _PageState, page_data: dict[str, Any]) -> tuple
             page_state.title,
             page_state.page_id,
         )
-    space_key = _v2_page(page_data).space_key or page_state.space_key
-    return remote_title, space_key
+    return remote_title, remote.space_label
 
 
 def _build_event(
@@ -564,14 +605,19 @@ def _preflight(
     page_state: _PageState,
     repo_dir: Path,
     opts: MutateOptions,
-) -> dict[str, Any]:
-    """Run the shared pre-flight gauntlet and return the remote page payload."""
+) -> tuple[dict[str, Any], RemotePage]:
+    """Run the shared pre-flight gauntlet.
+
+    Returns the remote page payload and the page as Confluence reports it.
+    """
     _check_dirty(repo_dir)
     page_data = _fetch_page(client, page_state.page_id)
+    remote = describe_remote_page(client, page_data)
+    _check_remote_space(page_state, remote)
     managed_cfg = opts.managed_config if opts.managed_config is not None else load_managed_config()
     _check_managed(page_data, client, managed_cfg)
     _check_version(page_state.version, _remote_version(page_data))
-    return page_data
+    return page_data, remote
 
 
 # ---------------------------------------------------------------------------
@@ -605,13 +651,13 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
         page_state = _load_local(md_path)
         repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
-            page_data = _preflight(client, page_state, repo_dir, opts)
-            remote_title, space_key = _prompt_identity(page_state, page_data)
+            page_data, remote = _preflight(client, page_state, repo_dir, opts)
+            remote_title, space_key = _prompt_identity(page_state, remote)
             preview = (
                 f'Rename: "{remote_title}" -> "{new_title}"\n'
                 f"        space {space_key}, page {page_state.page_id}"
             )
-            if not _prompt(preview, yes=opts.yes):
+            if not _prompt(preview, opts):
                 return 0
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")
@@ -673,15 +719,16 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
         config_host = urlparse(opts.config.url).hostname or None
         new_parent_id = _resolve_parent(parent_ref, config_host=config_host)
         with _make_client(opts) as client:
-            page_data = _preflight(client, page_state, repo_dir, opts)
+            page_data, remote = _preflight(client, page_state, repo_dir, opts)
             parent_data = _fetch_page(client, new_parent_id)
-            _check_same_space(page_state, parent_data)
-            remote_title, _space_key = _prompt_identity(page_state, page_data)
+            _check_same_space(page_data, parent_data)
+            remote_title, space_key = _prompt_identity(page_state, remote)
             preview = (
                 f'Move: "{remote_title}" (page {page_state.page_id})\n'
-                f"      to parent {_remote_title(parent_data)!r} (page {new_parent_id})"
+                f"      to parent {_remote_title(parent_data)!r} (page {new_parent_id})\n"
+                f"      space {space_key}"
             )
-            if not _prompt(preview, yes=opts.yes):
+            if not _prompt(preview, opts):
                 return 0
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")
@@ -699,7 +746,11 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
                     status=_remote_status(page_data),
                 ),
             )
-            move_result = _MoveResult(api_result=result, parent_data=parent_data)
+            move_result = _MoveResult(
+                api_result=result,
+                parent_data=parent_data,
+                space_id=remote.space_id or page_state.space_id,
+            )
             return _finish_move(page_state, new_parent_id, move_result, client, repo_dir, opts)
     except _MutateAbort as abort:
         return abort.rc
@@ -711,6 +762,8 @@ class _MoveResult:
 
     api_result: dict[str, Any]
     parent_data: dict[str, Any]
+    space_id: str
+    """The moved page's space id as Confluence reports it."""
 
 
 @dataclass(frozen=True)
@@ -826,7 +879,7 @@ def _finish_move(
     """
     api_result, parent_data = move_result.api_result, move_result.parent_data
     try:
-        chain = ancestor_chain_for_move(client, new_parent_id, page_state.space_id, repo_dir)
+        chain = ancestor_chain_for_move(client, new_parent_id, move_result.space_id, repo_dir)
         materialised = _materialise_chain(chain, client, repo_dir)
         new_parent_dir = chain[-1].expected_dir
         event = _build_event(EventKind.MOVE, page_state, new_parent_id=new_parent_id)
@@ -877,9 +930,9 @@ def _call_archive_api(
     return client.unarchive_page(page_id, message=api_msg)
 
 
-def _archive_preview(page_state: _PageState, page_data: dict[str, Any], action: str) -> str:
+def _archive_preview(page_state: _PageState, remote: RemotePage, action: str) -> str:
     verb = "Archive" if action == "archive" else "Unarchive"
-    remote_title, space_key = _prompt_identity(page_state, page_data)
+    remote_title, space_key = _prompt_identity(page_state, remote)
     return f'{verb}: "{remote_title}" (page {page_state.page_id})\n        space {space_key}'
 
 
@@ -888,8 +941,8 @@ def _archive_dispatch(md_path: Path, *, action: str, opts: MutateOptions) -> int
         page_state = _load_local(md_path)
         repo_dir = _resolve_repo_dir(page_state.md_path)
         with _make_client(opts) as client:
-            page_data = _preflight(client, page_state, repo_dir, opts)
-            if not _prompt(_archive_preview(page_state, page_data, action), yes=opts.yes):
+            _page_data, remote = _preflight(client, page_state, repo_dir, opts)
+            if not _prompt(_archive_preview(page_state, remote, action), opts):
                 return 0
             if opts.dry_run:
                 log.info("(dry-run, no changes made)")

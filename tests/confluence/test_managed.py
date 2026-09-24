@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import TYPE_CHECKING, Any
-from unittest.mock import MagicMock
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.managed import (
+    ManagedCheckError,
     ManagedClassification,
     ManagedConfig,
     ManagedReason,
@@ -17,11 +23,9 @@ from mdd.confluence.managed import (
     build_page_info_from_page_data,
     classify_page,
     managed_export_header,
+    resolve_page_info,
 )
 from mdd.confluence.managed.classify import _user_can_update  # pyright: ignore[reportPrivateUsage]
-
-if TYPE_CHECKING:
-    import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -565,30 +569,62 @@ class TestManagedExportHeader:
 # ---------------------------------------------------------------------------
 
 
+_CORPUS_PAGE = Path(__file__).parent.parent / "corpus/confluence/_snapshots/66011/metadata.json"
+
+
+def _real_payload(
+    *, webui: str | None = "/spaces/MDDTEST/pages/66011/List+items"
+) -> dict[str, Any]:
+    """A v2 ``GET /pages/{id}`` payload as Confluence sends it.
+
+    It has ``spaceId`` and ``parentId`` (131185) but no ``spaceKey`` and no
+    ancestor chain. ``_links.webui`` is part of every live response; the
+    corpus snapshot stores only the page fields, so it is added here.
+    """
+    payload: dict[str, Any] = json.loads(_CORPUS_PAGE.read_text(encoding="utf-8"))
+    assert "spaceKey" not in payload
+    assert "ancestors" not in payload
+    if webui is not None:
+        payload["_links"] = {"webui": webui}
+    return payload
+
+
+def _pipe() -> PublisherEntry:
+    return _make_publisher(name="pipe", message="")
+
+
+def _spaces_config() -> ManagedConfig:
+    return _make_config(
+        publishers=[_pipe()],
+        spaces=[ManagedSpaceEntry(space_key="MDDTEST", publisher_name="pipe")],
+    )
+
+
+def _subtree_config(root: str = "999") -> ManagedConfig:
+    return _make_config(
+        publishers=[_pipe()],
+        subtrees=[
+            ManagedSubtreeEntry(space_key="MDDTEST", root_page_id=root, publisher_name="pipe")
+        ],
+    )
+
+
+def _spec_client() -> MagicMock:
+    return MagicMock(spec=ConfluenceClient)
+
+
 class TestBuildPageInfo:
-    def test_extracts_fields(self) -> None:
-        page_data: dict[str, Any] = {
-            "id": "999",
-            "spaceKey": "SAAS",
-            "parentId": "100",
-            "version": {"authorId": "bot-123"},
-        }
-        info = build_page_info_from_page_data(page_data, "<p>body</p>")
-        assert info.page_id == "999"
-        assert info.space_key == "SAAS"
-        assert info.ancestor_ids == ["100"]
-        assert info.version_author_id == "bot-123"
+    def test_real_payload_space_key_comes_from_webui(self) -> None:
+        info = build_page_info_from_page_data(_real_payload(), "<p>body</p>")
+        assert info.page_id == "66011"
+        assert info.space_key == "MDDTEST"
+        assert info.ancestor_ids == ["131185"]
+        assert info.version_author_id == "557058:738d4176-8fd3-4b84-92d8-245731e9dfd9"
         assert info.body_storage == "<p>body</p>"
 
-    def test_extracts_ancestors_list(self) -> None:
-        page_data: dict[str, Any] = {
-            "id": "999",
-            "spaceKey": "SAAS",
-            "ancestors": [{"id": "1"}, {"id": "2"}, {"id": "3"}],
-            "version": {"authorId": "bot-123"},
-        }
-        info = build_page_info_from_page_data(page_data, "")
-        assert info.ancestor_ids == ["1", "2", "3"]
+    def test_real_payload_without_links_has_no_space_key(self) -> None:
+        info = build_page_info_from_page_data(_real_payload(webui=None), "")
+        assert info.space_key == ""
 
     def test_missing_fields_return_defaults(self) -> None:
         info = build_page_info_from_page_data({}, "")
@@ -596,3 +632,97 @@ class TestBuildPageInfo:
         assert info.space_key == ""
         assert info.ancestor_ids == []
         assert info.version_author_id == ""
+
+
+class TestResolvePageInfo:
+    """The push-side builder fetches what the configured rules need."""
+
+    def test_no_rules_makes_no_calls(self) -> None:
+        client = _spec_client()
+        info = resolve_page_info(client, _real_payload(webui=None), "", _make_config())
+        assert info.space_key == ""
+        assert info.ancestor_ids == ["131185"]
+        client.get_space_by_id.assert_not_called()
+        client.get_page_ancestors.assert_not_called()
+
+    def test_managed_space_matches_real_payload(self) -> None:
+        client = _spec_client()
+        cfg = _spaces_config()
+        info = resolve_page_info(client, _real_payload(), "", cfg)
+        result = classify_page(info, cfg, client, check_restrictions=False)
+        assert result.reason == ManagedReason.MANAGED_SPACE
+        client.get_space_by_id.assert_not_called()
+
+    def test_managed_space_resolved_by_space_id(self) -> None:
+        client = _spec_client()
+        client.get_space_by_id.return_value = {"id": "131077", "key": "MDDTEST"}
+        cfg = _spaces_config()
+        info = resolve_page_info(client, _real_payload(webui=None), "", cfg)
+        assert info.space_key == "MDDTEST"
+        client.get_space_by_id.assert_called_once_with("131077")
+        result = classify_page(info, cfg, client, check_restrictions=False)
+        assert result.reason == ManagedReason.MANAGED_SPACE
+
+    def test_space_lookup_failure_raises(self) -> None:
+        client = _spec_client()
+        client.get_space_by_id.side_effect = ConfluenceError("HTTP 500")
+        with pytest.raises(ManagedCheckError, match="space of page 66011"):
+            resolve_page_info(client, _real_payload(webui=None), "", _spaces_config())
+
+    def test_unknown_space_raises(self) -> None:
+        payload = _real_payload(webui=None)
+        del payload["spaceId"]
+        with pytest.raises(ManagedCheckError, match="which space page 66011"):
+            resolve_page_info(_spec_client(), payload, "", _spaces_config())
+
+    def test_invalid_space_id_is_refused_before_any_request(self) -> None:
+        payload = _real_payload(webui=None)
+        payload["spaceId"] = "1/../../admin"
+        client = ConfluenceClient("https://example.atlassian.net", "u", lambda: "t")
+        with (
+            patch.object(client, "_request") as request,
+            pytest.raises(ManagedCheckError, match="not a valid alphanumeric"),
+        ):
+            resolve_page_info(client, payload, "", _spaces_config())
+        request.assert_not_called()
+
+    def test_deep_subtree_page_is_managed(self) -> None:
+        client = _spec_client()
+        client.get_page_ancestors.return_value = [
+            {"id": "1", "type": "page"},
+            {"id": "999", "type": "page"},
+            {"id": "131185", "type": "page"},
+        ]
+        cfg = _subtree_config()
+        info = resolve_page_info(client, _real_payload(), "", cfg)
+        assert info.ancestor_ids == ["1", "999", "131185"]
+        client.get_page_ancestors.assert_called_once_with("66011")
+        result = classify_page(info, cfg, client, check_restrictions=False)
+        assert result.reason == ManagedReason.MANAGED_SUBTREE
+
+    def test_direct_child_of_root_needs_no_fetch(self) -> None:
+        client = _spec_client()
+        cfg = _subtree_config(root="131185")
+        info = resolve_page_info(client, _real_payload(), "", cfg)
+        client.get_page_ancestors.assert_not_called()
+        result = classify_page(info, cfg, client, check_restrictions=False)
+        assert result.reason == ManagedReason.MANAGED_SUBTREE
+
+    def test_parent_kept_when_chain_omits_it(self) -> None:
+        client = _spec_client()
+        client.get_page_ancestors.return_value = [{"id": "1"}]
+        info = resolve_page_info(client, _real_payload(), "", _subtree_config())
+        assert info.ancestor_ids == ["1", "131185"]
+
+    def test_ancestor_fetch_failure_raises(self) -> None:
+        client = _spec_client()
+        client.get_page_ancestors.side_effect = ConfluenceError("HTTP 503")
+        with pytest.raises(ManagedCheckError, match="ancestors of page 66011"):
+            resolve_page_info(client, _real_payload(), "", _subtree_config())
+
+    def test_page_outside_subtree_is_not_managed(self) -> None:
+        client = _spec_client()
+        client.get_page_ancestors.return_value = [{"id": "1"}, {"id": "131185"}]
+        cfg = _subtree_config()
+        info = resolve_page_info(client, _real_payload(), "", cfg)
+        assert not classify_page(info, cfg, client, check_restrictions=False).is_managed

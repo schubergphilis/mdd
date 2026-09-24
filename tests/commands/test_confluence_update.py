@@ -9,8 +9,9 @@ import pytest
 import yaml
 
 from mdd.cli import main as _cli_main
-from mdd.confluence.client import ConfluenceClient
+from mdd.confluence.client import ConfluenceClient, ConfluenceError
 from mdd.confluence.config import ConfluenceConfig
+from mdd.confluence.managed import ManagedConfig
 from mdd.confluence.update import PushOutcome, update_page_outcome
 
 if TYPE_CHECKING:
@@ -33,7 +34,6 @@ _SAMPLE_PAGE: dict[str, Any] = {
     "title": "My Page",
     "status": "current",
     "spaceId": "98306",
-    "spaceKey": "SPACE",
     "parentId": None,
     "createdAt": "2024-01-01T00:00:00Z",
     "ownerId": "user-abc",
@@ -258,7 +258,7 @@ class TestUpdatePageDeclined:
         mock_client = _make_mock_client()
         mock_config = _make_config()
 
-        def _confirm(*, yes: bool) -> bool:  # pyright: ignore[reportUnusedParameter]
+        def _confirm(_preview: object, *, yes: bool) -> bool:  # pyright: ignore[reportUnusedParameter]
             # Nothing may have been uploaded by the time the prompt shows.
             mock_client.upload_attachment.assert_not_called()
             return True
@@ -918,3 +918,256 @@ class TestUpdatePageOutcome:
         md_path = tmp_path / "My-Page.md"
         _write_md_file(md_path, {"confluence": {"version": 3}}, "Body.")
         assert self._outcome(md_path) is PushOutcome.FAILED
+
+
+# ---------------------------------------------------------------------------
+# Target summary, remote-space refusal, managed checks on real payloads
+# ---------------------------------------------------------------------------
+
+
+def _changed_file(tmp_path: Path) -> Path:
+    md_path = tmp_path / "My-Page.md"
+    _write_md_file(md_path, _make_frontmatter(version=3), "## Changed\n\nDifferent content.")
+    return md_path
+
+
+def _run_interactive(
+    md_path: Path,
+    mock_client: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+    *,
+    answer: str = "n",
+) -> tuple[int, list[str]]:
+    """Run update_page with a TTY and return (rc, stderr seen before each question)."""
+    seen: list[str] = []
+
+    def _answer(_question: str) -> str:
+        seen.append(capsys.readouterr().err)
+        return answer
+
+    with (
+        patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+        patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        patch("mdd.confluence.update.sys.stdin") as mock_stdin,
+        patch("builtins.input", side_effect=_answer),
+    ):
+        mock_stdin.isatty.return_value = True
+        from mdd.confluence.update import update_page
+
+        rc = update_page(md_path, _make_config(), yes=False)
+    return rc, seen
+
+
+class TestUpdatePageShowsTarget:
+    def test_summary_shown_before_question_at_default_level(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+
+        with caplog.at_level("WARNING", logger="mdd"):
+            rc, seen = _run_interactive(md_path, mock_client, capsys)
+
+        assert rc == 0
+        assert len(seen) == 1
+        shown = seen[0]
+        assert 'Update: "My Page" (page 12345) in space SPACE' in shown
+        assert "lines changed" in shown
+        assert "run with -v to see the diff" in shown
+        assert "+++ local" not in shown
+        mock_client.put_page.assert_not_called()
+
+    def test_full_diff_at_info(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+
+        with caplog.at_level("INFO", logger="mdd"):
+            rc, seen = _run_interactive(md_path, _make_mock_client(), capsys)
+
+        assert rc == 0
+        assert "run with -v" not in seen[0]
+        assert "lines changed" in seen[0]
+        assert any("+++ local" in m for m in caplog.messages)
+
+    def test_confirmed_push_goes_ahead(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+
+        rc, _seen = _run_interactive(md_path, mock_client, capsys, answer="y")
+
+        assert rc == 0
+        mock_client.put_page.assert_called_once()
+
+    def test_new_title_is_named(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        del fm["confluence"]["title"]
+        _write_md_file(md_path, fm, "# Renamed Page\n\nDifferent content.")
+
+        _rc, seen = _run_interactive(md_path, _make_mock_client(), capsys)
+
+        assert 'Update: "My Page" (page 12345)' in seen[0]
+        assert 'new title: "Renamed Page"' in seen[0]
+
+    def test_dry_run_prints_summary(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            rc = update_page(md_path, _make_config(), dry_run=True)
+
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert 'Update: "My Page" (page 12345) in space SPACE' in err
+        mock_client.put_page.assert_not_called()
+
+    def test_yes_logs_summary(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            rc = update_page(md_path, _make_config(), yes=True)
+
+        assert rc == 0
+        assert any('Update: "My Page" (page 12345)' in m for m in caplog.messages)
+
+    def test_space_resolved_by_id_when_payload_has_no_link(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+        page = dict(_SAMPLE_PAGE)
+        del page["_links"]
+        mock_client.get_page.return_value = page
+        mock_client.get_space_by_id.return_value = {"id": "98306", "key": "SPACE"}
+
+        _rc, seen = _run_interactive(md_path, mock_client, capsys)
+
+        mock_client.get_space_by_id.assert_called_once_with("98306")
+        assert "in space SPACE" in seen[0]
+
+    def test_unresolvable_space_is_unknown_not_frontmatter(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = _changed_file(tmp_path)
+        mock_client = _make_mock_client()
+        page = dict(_SAMPLE_PAGE)
+        del page["_links"]
+        mock_client.get_page.return_value = page
+        mock_client.get_space_by_id.side_effect = ConfluenceError("HTTP 404")
+
+        _rc, seen = _run_interactive(md_path, mock_client, capsys)
+
+        assert "in space unknown" in seen[0]
+        assert "in space SPACE" not in seen[0]
+
+
+def _foreign_page() -> dict[str, Any]:
+    page = dict(_SAMPLE_PAGE)
+    page["spaceId"] = "55555"
+    page["_links"] = {"webui": "/wiki/spaces/HR/pages/12345/My+Page"}
+    return page
+
+
+class TestUpdatePageRefusesForeignSpace:
+    @pytest.mark.parametrize("fm_space_id", ["98306", ""])
+    def test_refused_even_with_yes(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture, fm_space_id: str
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        fm["confluence"]["space_id"] = fm_space_id
+        _write_local_image(md_path)
+        _write_md_file(md_path, fm, "## Changed\n\nDifferent.\n\n![d](diagram.png)")
+        mock_client = _make_mock_client()
+        mock_client.get_page.return_value = _foreign_page()
+
+        with (
+            caplog.at_level("ERROR", logger="mdd"),
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+        ):
+            outcome = update_page_outcome(md_path, _make_config(), yes=True)
+
+        assert outcome is PushOutcome.FAILED
+        mock_client.put_page.assert_not_called()
+        mock_client.upload_attachment.assert_not_called()
+        assert "space HR" in caplog.text
+        assert "frontmatter says space SPACE" in caplog.text
+
+
+def _managed(**rules: Any) -> ManagedConfig:  # pyright: ignore[reportExplicitAny]
+    return ManagedConfig.model_validate({"external_publishers": [{"name": "pipe"}], **rules})
+
+
+class TestUpdatePageManagedOnRealPayload:
+    """The managed gate works on the payload shape Confluence really returns."""
+
+    def _outcome(self, tmp_path: Path, mock_client: MagicMock, cfg: ManagedConfig) -> PushOutcome:
+        md_path = _changed_file(tmp_path)
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            return update_page_outcome(md_path, _make_config(), yes=True, managed_config=cfg)
+
+    def test_managed_space_refused(self, tmp_path: Path) -> None:
+        mock_client = _make_mock_client()
+        cfg = _managed(managed_spaces=[{"space_key": "SPACE", "publisher_name": "pipe"}])
+        assert self._outcome(tmp_path, mock_client, cfg) is PushOutcome.FAILED
+        mock_client.put_page.assert_not_called()
+
+    def test_deep_subtree_refused(self, tmp_path: Path) -> None:
+        mock_client = _make_mock_client()
+        page = dict(_SAMPLE_PAGE)
+        page["parentId"] = "300"
+        mock_client.get_page.return_value = page
+        mock_client.get_page_ancestors.return_value = [{"id": "100"}, {"id": "200"}, {"id": "300"}]
+        cfg = _managed(
+            managed_subtrees=[
+                {"space_key": "SPACE", "root_page_id": "100", "publisher_name": "pipe"}
+            ]
+        )
+        assert self._outcome(tmp_path, mock_client, cfg) is PushOutcome.FAILED
+        mock_client.put_page.assert_not_called()
+
+    def test_ancestor_fetch_failure_blocks_push(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        mock_client = _make_mock_client()
+        mock_client.get_page_ancestors.side_effect = ConfluenceError("HTTP 503")
+        cfg = _managed(
+            managed_subtrees=[
+                {"space_key": "SPACE", "root_page_id": "100", "publisher_name": "pipe"}
+            ]
+        )
+        with caplog.at_level("ERROR", logger="mdd"):
+            assert self._outcome(tmp_path, mock_client, cfg) is PushOutcome.FAILED
+        mock_client.put_page.assert_not_called()
+        assert "Refusing to push a page that could not be checked" in caplog.text
+
+    def test_no_subtrees_means_no_ancestor_call(self, tmp_path: Path) -> None:
+        mock_client = _make_mock_client()
+        assert self._outcome(tmp_path, mock_client, _managed()) is PushOutcome.PUSHED
+        mock_client.get_page_ancestors.assert_not_called()

@@ -38,10 +38,33 @@ in frontmatter is refused with a pointer at `update page`.
 
 **Update.** Refuses to push if frontmatter `version` is older than the
 current Confluence version (conflict — abort) or if frontmatter / page_id
-is missing. Default behaviour prints a summary diff and requires `--yes`
-to push. `--message` sets the version comment in Confluence page
-history. Image sync runs as part of update. On success, frontmatter is
-rewritten with the new version and updated attachment manifest.
+is missing. It also refuses when Confluence reports the page in a
+different space than the frontmatter's `space_id` or `space_key`
+(compared when both sides are known; keys case-insensitively). The
+frontmatter `page_id` picks the page, so a page elsewhere means the file
+is pointed at the wrong page. The refusal holds under `--yes`, and in
+`sync-space` it becomes a per-page failure in the run summary.
+
+Before asking to push, update prints a summary to stderr, visible at the
+default log level:
+
+```text
+Update: "<remote title>" (page <id>) in space <remote key>
+  new title: "<local title>"            (only when the title changes)
+  page body: N lines changed (+A -R) (run with -v to see the diff)
+  attachments: changes will be uploaded (only when attachments change)
+```
+
+The title and space come from the fetched page, never from frontmatter.
+The space key is read from the page payload (`_links.webui`) or looked up
+by `spaceId`; when neither works the line says `in space unknown`. The
+full unified diff is logged at INFO, so `-v` shows it above the summary.
+Pushing then needs a `y` answer, or `--yes` (required when stdin is not a
+TTY). With `--yes` the summary is logged at INFO instead of printed.
+`--dry-run` prints the same summary and stops. `--message` sets the
+version comment in Confluence page history. Image sync runs as part of
+update. On success, frontmatter is rewritten with the new version and
+updated attachment manifest.
 
 **Body-safety guards.** Before rendering and pushing, `update page`
 refuses two shapes of body that look like accidental content loss:
@@ -245,9 +268,11 @@ export (a bare filename, resolved against `<page-name>-attachments/` on
 import), and the reverse on import.
 
 **Diff strategy for `update page`.** Re-render local md → storage XHTML,
-fetch current Confluence storage, normalize whitespace, unified diff to
-terminal. Confluence's own version history is the source of truth — no
-merge, conflict = abort. The attachment manifest diff is shown
+fetch current Confluence storage, normalize whitespace, unified diff.
+The default output is the summary shown above (the target line and a
+count of changed lines). The full diff is logged at INFO, visible with
+`-v`. Confluence's own version history is the source of truth — no
+merge, conflict = abort. Planned attachment uploads are logged
 alongside.
 
 ## Subcommands
@@ -274,8 +299,9 @@ behaviour.)
   full frontmatter back so future edits use `update page`.
 - `update page` — reads a local `.md`, looks up its source via
   frontmatter, diffs against Confluence, syncs changed image
-  attachments, and pushes the update. `--dry-run` prints the diff and
-  the planned attachment uploads without writing anything to Confluence.
+  attachments, and pushes the update. `--dry-run` prints the target and
+  change summary (the full diff and the planned attachment uploads with
+  `-v`) without writing anything to Confluence.
 
 ### Title H1 on export and update
 
