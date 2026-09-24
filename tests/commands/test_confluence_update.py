@@ -470,7 +470,7 @@ class TestUpdatePageEmptyDiff:
         assert "no changes" in msgs or "empty" in msgs
 
 
-def _is_locally_edited(md_path: Path) -> bool:
+def _is_locally_edited(md_path: Path, version: int = 3) -> bool:
     from mdd.confluence.state import LocalPage
     from mdd.confluence.sync.local_edits import detect_local_edits
     from mdd.confluence.sync_diff import DesiredPage
@@ -482,7 +482,7 @@ def _is_locally_edited(md_path: Path) -> bool:
             title="My Page",
             parent_id=None,
             status="current",
-            version_number=3,
+            version_number=version,
             space_key="SPACE",
             space_id="98306",
         )
@@ -493,7 +493,7 @@ def _is_locally_edited(md_path: Path) -> bool:
             title="My Page",
             parent_id=None,
             status="current",
-            version_number=3,
+            version_number=version,
             version_created_at="2024-02-01T00:00:00Z",
             space_id="98306",
         )
@@ -548,6 +548,22 @@ class TestUpdatePageNoOpClearsLocalEdit:
 
         mock_client.upload_attachment.assert_called_once()
         assert not _is_locally_edited(md_path)
+
+    def test_real_push_is_no_longer_a_local_edit(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(md_path, _make_frontmatter(version=3), "## Changed\n\nDifferent content.")
+        mock_client = _make_mock_client()
+
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+        ):
+            from mdd.confluence.update import update_page
+
+            assert update_page(md_path, _make_config(), yes=True) == 0
+
+        mock_client.put_page.assert_called_once()
+        assert not _is_locally_edited(md_path, version=4)
 
 
 def _page_with_storage(storage: str) -> dict[str, Any]:

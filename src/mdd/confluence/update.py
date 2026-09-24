@@ -242,14 +242,10 @@ class PushOutcome(Enum):
 
 
 class _UpdateAbort(Exception):
-    """Internal sentinel: a sub-step has decided to terminate ``update_page``.
+    """Internal sentinel: a sub-step has logged an error and stopped the push.
 
-    Carries the integer return code that update_page should produce.
+    ``update_page_outcome`` turns it into :attr:`PushOutcome.FAILED`.
     """
-
-    def __init__(self, rc: int) -> None:
-        super().__init__(f"update_page abort rc={rc}")
-        self.rc = rc
 
 
 @dataclass(frozen=True)
@@ -268,7 +264,7 @@ def _read_local(md_path: Path) -> tuple[dict[str, Any], str]:
         return read_frontmatter(md_path)
     except OSError as exc:
         log.error("reading %s: %s", md_path, exc)
-        raise _UpdateAbort(1) from exc
+        raise _UpdateAbort() from exc
 
 
 def _build_local_spec(md_path: Path, frontmatter: dict[str, Any], body_md: str) -> _LocalSpec:
@@ -281,11 +277,11 @@ def _build_local_spec(md_path: Path, frontmatter: dict[str, Any], body_md: str) 
             "if this is a new page.",
             md_path,
         )
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     local_version = _get_version(frontmatter)
     if local_version is None:
         log.error("%s is missing 'confluence.version' in frontmatter.", md_path)
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     return _LocalSpec(
         page_id=page_id,
         local_version=local_version,
@@ -304,7 +300,7 @@ def _fetch_and_check_managed(
         page_data = client.get_page(page_id)
     except ConfluenceError as exc:
         log.error("Confluence API: %s", exc)
-        raise _UpdateAbort(1) from exc
+        raise _UpdateAbort() from exc
 
     cfg = managed_config if managed_config is not None else load_managed_config()
     body_storage_for_check = _get_remote_storage(page_data)
@@ -316,7 +312,7 @@ def _fetch_and_check_managed(
             "Edit at the source; do not update via mdd."
         )
         log.error("%s", msg)
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     return page_data
 
 
@@ -330,7 +326,7 @@ def _check_no_remote_advance(remote_version: int, local_version: int) -> None:
         check_version_drift(local_version, remote_version)
     except VersionDriftError as exc:
         log.error("%s", exc)
-        raise _UpdateAbort(1) from None
+        raise _UpdateAbort() from None
 
 
 def _check_body_safety(
@@ -351,7 +347,7 @@ def _check_body_safety(
             "--allow-empty to explicitly clear the page.",
             md_path,
         )
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     if not remote_storage or allow_shrink:
         return
     remote_len = len(remote_storage)
@@ -366,7 +362,7 @@ def _check_body_safety(
             int(_SHRINK_THRESHOLD * 100),
             remote_len,
         )
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
 
 
 def _render_body_xhtml(
@@ -399,7 +395,7 @@ def _render_body_xhtml(
         body_xhtml = render_confluence_storage(ir_grafted, mode="preserving")
     except (ValueError, KeyError) as exc:
         log.error("markdown conversion: %s", exc)
-        raise _UpdateAbort(1) from exc
+        raise _UpdateAbort() from exc
     return insert_mdd_footer(body_xhtml, get_mirror_url(md_path))
 
 
@@ -421,7 +417,7 @@ def _confirm_push(*, yes: bool) -> bool:
         return True
     if not sys.stdin.isatty():
         log.error("stdin is not a TTY. Use --yes to confirm non-interactively.")
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     try:
         answer = input("Push these changes? [y/N] ").strip().lower()
     except EOFError, KeyboardInterrupt:
@@ -450,9 +446,9 @@ def _put_with_409_message(
                 "Re-export the page to get the latest version, reconcile manually, "
                 "then re-run update.",
             )
-            raise _UpdateAbort(1) from exc
+            raise _UpdateAbort() from exc
         log.error("Confluence API: %s", exc)
-        raise _UpdateAbort(1) from exc
+        raise _UpdateAbort() from exc
 
 
 def _sync_attachments(
@@ -526,7 +522,7 @@ def _push_page(  # noqa: PLR0913
     # only after the operator has seen the preview and confirmed.
     planned = _sync_attachments(client, spec, body_stripped, md_path, dry_run=True)
     if planned is None:
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     planned_manifest, preview_body = planned
     attachments_pending = _manifest_changed(spec.attachment_manifest, planned_manifest)
 
@@ -549,7 +545,7 @@ def _push_page(  # noqa: PLR0913
 
     synced = _sync_attachments(client, spec, body_stripped, md_path, dry_run=False)
     if synced is None:
-        raise _UpdateAbort(1)
+        raise _UpdateAbort()
     updated_manifest, body_stripped = synced
     if not diff:
         # Only attachments changed; the page body itself needs no new version.
@@ -573,6 +569,8 @@ def _push_page(  # noqa: PLR0913
         updated_manifest=updated_manifest,
         client=client,
     )
+    # The file now holds exactly what was pushed, so it is not a local edit.
+    pin_mtime_to_exported_at(md_path, frontmatter)
     return PushOutcome.PUSHED
 
 
