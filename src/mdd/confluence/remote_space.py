@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote
 
 from mdd.confluence.client.errors import ConfluenceError
 from mdd.utils.logging import get_logger
@@ -41,7 +42,8 @@ def space_key_from_payload(page_data: dict[str, Any]) -> str:
 
     Uses ``spaceKey`` when present, else the ``<KEY>`` segment of a
     ``_links.webui`` path shaped ``/spaces/<KEY>/...`` or
-    ``/wiki/spaces/<KEY>/...``. Makes no API call.
+    ``/wiki/spaces/<KEY>/...`` (percent-decoded, so a personal space
+    linked as ``%7Euser`` reads as ``~user``). Makes no API call.
     """
     space_key = _str_field(page_data, "spaceKey")
     if space_key:
@@ -52,7 +54,7 @@ def space_key_from_payload(page_data: dict[str, Any]) -> str:
     except ValueError:
         return ""
     if idx + 1 < len(parts):
-        return parts[idx + 1]
+        return unquote(parts[idx + 1])
     return ""
 
 
@@ -111,20 +113,29 @@ def describe_remote_page(client: ConfluenceClient, page_data: dict[str, Any]) ->
     )
 
 
+def _spaces_differ(remote: RemotePage, *, local_space_key: str, local_space_id: str) -> bool:
+    """True when the remote and local space are known to be different spaces.
+
+    A space id identifies a space for good, while its key can be changed,
+    so when both sides carry an id the ids decide. Keys are compared,
+    case-insensitively, only when an id is missing on either side.
+    """
+    local_id = local_space_id.strip()
+    if local_id and remote.space_id:
+        return local_id != remote.space_id
+    local_key = local_space_key.strip()
+    return bool(
+        local_key and remote.space_key and local_key.casefold() != remote.space_key.casefold()
+    )
+
+
 def space_mismatch(remote: RemotePage, *, local_space_key: str, local_space_id: str) -> str:
     """Describe how the page's remote space differs from the local one, or ``""``.
 
-    Compares the space ids when both are known and the space keys
-    (case-insensitively) when both are known. Values that are missing on
-    either side are not compared.
+    Values that are missing on either side are not compared; see
+    :func:`_spaces_differ` for which fields decide.
     """
-    ids_differ = bool(local_space_id and remote.space_id and local_space_id != remote.space_id)
-    keys_differ = bool(
-        local_space_key
-        and remote.space_key
-        and local_space_key.casefold() != remote.space_key.casefold()
-    )
-    if not (ids_differ or keys_differ):
+    if not _spaces_differ(remote, local_space_key=local_space_key, local_space_id=local_space_id):
         return ""
     local = local_space_key or UNKNOWN_SPACE
     if local_space_id:

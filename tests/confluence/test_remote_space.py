@@ -29,6 +29,7 @@ class TestSpaceKeyFromPayload:
         [
             ("/spaces/MDDTEST/pages/66011/Page", "MDDTEST"),
             ("/wiki/spaces/~5570/pages/66011/Page", "~5570"),
+            ("/spaces/%7E5570/pages/66011/Page", "~5570"),
             ("/pages/66011", ""),
             ("/spaces/", ""),
             ("", ""),
@@ -117,3 +118,15 @@ class TestSpaceMismatch:
         assert space_mismatch(_remote(), local_space_key="", local_space_id="") == ""
         unknown = _remote(space_id="", space_key="")
         assert space_mismatch(unknown, local_space_key="ENG", local_space_id="1") == ""
+
+    def test_matching_ids_win_over_a_changed_key(self) -> None:
+        # A space key can be changed on Confluence; the id still names the space.
+        assert space_mismatch(_remote(), local_space_key="OLDKEY", local_space_id="131077") == ""
+
+    def test_ids_decide_even_when_keys_agree(self) -> None:
+        msg = space_mismatch(_remote(), local_space_key="ENG", local_space_id="999")
+        assert "frontmatter says space ENG (id 999)" in msg
+
+    def test_surrounding_whitespace_is_ignored(self) -> None:
+        assert space_mismatch(_remote(), local_space_key=" ENG ", local_space_id="") == ""
+        assert space_mismatch(_remote(), local_space_key="", local_space_id=" 131077 ") == ""

@@ -97,6 +97,10 @@ def _trace_response_body(method: str, url: str, response: httpx.Response) -> Non
         log.log(TRACE, "HTTP %s %s body:\n%s", method, url, format_body(response.text))
 
 
+_ANCESTORS_PAGE_LIMIT = 250
+"""Largest page size the v2 ancestors endpoint accepts."""
+
+
 def _extract_dict_list(data: dict[str, Any], key: str) -> list[dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
     """Return ``data[key]`` filtered to dict elements, or ``[]`` if shape is wrong.
 
@@ -294,10 +298,32 @@ class ConfluenceClient:
         file under the new parent.
 
         Returns ``[]`` when the page has no ancestors (space root).
+
+        A response holds at most ``limit`` of the nearest ancestors; when
+        one comes back full, the ones above it are fetched by asking for
+        the ancestors of its topmost entry, until the chain is complete.
         """
         self._validate_id(page_id, "page_id")
-        data = self.get(f"/wiki/api/v2/pages/{page_id}/ancestors")
-        return _extract_dict_list(data, "results")
+        chain: list[dict[str, Any]] = []
+        seen: set[str] = {page_id}
+        current = page_id
+        while True:
+            data = self.get(
+                f"/wiki/api/v2/pages/{current}/ancestors",
+                params={"limit": _ANCESTORS_PAGE_LIMIT},
+            )
+            batch = _extract_dict_list(data, "results")
+            chain[:0] = batch
+            if len(batch) < _ANCESTORS_PAGE_LIMIT:
+                return chain
+            top: Any = batch[0].get("id")  # pyright: ignore[reportAny]
+            if not isinstance(top, str) or top in seen:
+                raise ConfluenceError(
+                    f"could not follow the ancestor chain of page {page_id} past {current}"
+                )
+            self._validate_id(top, "page_id")
+            seen.add(top)
+            current = top
 
     def get_space(self, space_key: str) -> dict[str, Any]:
         """Fetch a space by key.

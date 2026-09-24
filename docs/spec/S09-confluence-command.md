@@ -40,7 +40,8 @@ in frontmatter is refused with a pointer at `update page`.
 current Confluence version (conflict — abort) or if frontmatter / page_id
 is missing. It also refuses when Confluence reports the page in a
 different space than the frontmatter's `space_id` or `space_key`
-(compared when both sides are known; keys case-insensitively). The
+(when both sides carry a space id the ids decide, since a space key can
+be changed; otherwise the keys are compared, case-insensitively). The
 frontmatter `page_id` picks the page, so a page elsewhere means the file
 is pointed at the wrong page. The refusal holds under `--yes`, and in
 `sync-space` it becomes a per-page failure in the run summary.

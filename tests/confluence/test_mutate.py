@@ -735,6 +735,29 @@ class TestPromptVisibleByDefault:
         assert "space ENG" in err
         mock_client.archive_page.assert_not_called()
 
+    def test_dry_run_without_yes_prints_preview_and_asks_nothing(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client()
+        opts = MutateOptions(config=_make_config(), dry_run=True, managed_config=_empty_managed())
+
+        with (
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.mutate.sys.stdin") as mock_stdin,
+            patch("builtins.input") as mock_input,
+        ):
+            mock_stdin.isatty.return_value = False
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        mock_input.assert_not_called()
+        assert 'Archive: "Old Title" (page 12345)' in capsys.readouterr().err
+        mock_client.archive_page.assert_not_called()
+
 
 def _foreign_remote() -> dict[str, Any]:
     """A page Confluence reports in space HR, not the frontmatter's ENG."""

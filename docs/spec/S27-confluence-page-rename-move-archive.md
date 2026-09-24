@@ -214,7 +214,8 @@ file's frontmatter.
 **Remote space must match the frontmatter.** All four commands refuse,
 before the prompt and under `--yes` too, when Confluence reports the
 page in a different space than the file's frontmatter `space_id` or
-`space_key` (compared when both sides are known; keys
+`space_key` (when both sides carry a space id the ids decide, since a
+space key can be changed; otherwise the keys are compared,
 case-insensitively). The frontmatter `page_id` chooses the page, so a
 page in another space means the file points at the wrong page.
 
@@ -330,8 +331,8 @@ neither works the preview says `space unknown` rather than falling
 back to frontmatter. When the remote title differs from the
 frontmatter title, a warning is logged before the prompt so the
 drift is visible. `--yes` skips the prompt and logs the preview at
-INFO instead; `--dry-run` skips the actual call and prints the
-preview even with `--yes`. Examples:
+INFO instead; `--dry-run` prints the preview and skips both the
+prompt and the actual call, with or without `--yes`. Examples:
 ```
 Rename: "Old Title" -> "New Title"
         space ENG, page 12345

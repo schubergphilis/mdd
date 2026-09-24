@@ -313,14 +313,14 @@ def _prompt(preview: str, opts: MutateOptions) -> bool:
     """Show ``preview`` and ask for confirmation.  Returns False on decline.
 
     The preview goes to stderr just before the question, so it is visible
-    at the default log level. With ``--yes`` it is logged instead, unless
-    this is a dry run, whose whole point is to show it.
+    at the default log level. A dry run prints it and asks nothing, since
+    nothing will change. With ``--yes`` it is logged instead.
     """
+    if opts.dry_run:
+        _show_preview(preview)
+        return True
     if opts.yes:
-        if opts.dry_run:
-            _show_preview(preview)
-        else:
-            log.info("%s", preview)
+        log.info("%s", preview)
         return True
     if not sys.stdin.isatty():
         log.error("stdin is not a TTY. Use --yes to confirm non-interactively.")
