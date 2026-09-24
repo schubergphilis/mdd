@@ -115,8 +115,9 @@ before resolving them on disk: it strips the scheme prefix,
 percent-decodes the filename, drops the markdown title slot, and
 strips `;key=value` extras. Bare filenames are resolved against the
 sibling `<page>-attachments/` directory (the layout `export-page`
-writes) and fall back to the markdown's own directory for legacy
-refs.
+writes); other paths resolve against the markdown's own directory.
+Either way the file is only uploaded when it lies inside
+`<page>-attachments/`, see [S09](S09-confluence-command.md).
 
 ### Layout fenced divs
 
