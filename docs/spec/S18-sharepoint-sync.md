@@ -220,7 +220,11 @@ same-prefix backtick fences are stripped first; tilde fences and
 fences inside list items are not code to it), so the rewrite
 reproduces that scanner instead of tracking CommonMark fences. It
 does so with scanners that run in near-linear time, so a
-large page of unclosed `<!--` or fence openers cannot stall a sync.
+large page of unclosed `<!--` or fence openers, or of blank lines
+after a lone `---`, cannot stall a sync. An allowed key whose value
+reuses a YAML anchor for a list or mapping is dropped as well: nested
+aliases let a few hundred bytes of frontmatter stand for gigabytes of
+copied metadata.
 
 **Images and the render directory.** The render runs in a fresh
 temporary directory that holds only the prepared copy (always named
