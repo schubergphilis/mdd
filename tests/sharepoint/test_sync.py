@@ -190,9 +190,26 @@ sharepoint:
 
         config = _load_config(config_path)
         assert config is not None
+        assert config.sharepoint is not None
+        assert config.sharepoint.sites is not None
+        assert config.sharepoint.sites["AI"].output_dir == "./output/ai"
 
         result = resolve_sync_root(config)
         assert result == sync_root
+
+    def test_unknown_site_key_raises(self, tmp_path: Path) -> None:
+        """`output_dir` is the only per-site key; anything else is a typo and must fail."""
+        config_path = tmp_path / "sharepoint.yaml"
+        config_path.write_text("sharepoint:\n  sites:\n    AI:\n      ouptut_dir: ./x\n")
+
+        assert _load_config(config_path) is None
+
+    def test_scalar_site_entry_raises(self, tmp_path: Path) -> None:
+        """A site entry must be a mapping, not a bare path string."""
+        config_path = tmp_path / "sharepoint.yaml"
+        config_path.write_text("sharepoint:\n  sites:\n    AI: ./output/ai\n")
+
+        assert _load_config(config_path) is None
 
     def test_unknown_key_under_sharepoint_raises(self, tmp_path: Path) -> None:
         """A typo'd key (e.g. `snyc_root`) must not be silently dropped."""

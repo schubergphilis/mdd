@@ -99,10 +99,12 @@ class SharepointFrontmatter(FrontmatterModel):
 class SharepointCliSiteEntry(FrontmatterModel):
     """One entry under ``sharepoint.sites`` in the ``--config`` YAML file.
 
-    Documented as part of the config schema, but not read by any code
-    path today: the CLI resolves output directories from ``--output``
-    or the site→repo mapping instead. Modelled anyway so a config
-    written against the documented schema still loads.
+    ``output_dir`` is the local SharePoint mirror root that ``mdd search``
+    reads when it collects search roots from ``configs/sharepoint.yaml``.
+    The ``mdd sharepoint sync-*`` commands do not read it: they take the
+    output directory from ``--output`` or the site-to-repo mapping. It is
+    modelled here so the same file can be passed to ``mdd sharepoint
+    --config`` without failing validation.
     """
 
     output_dir: str | None = None
