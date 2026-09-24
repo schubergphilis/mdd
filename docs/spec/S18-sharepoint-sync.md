@@ -154,7 +154,11 @@ output root.
 
 **Symlinks in the mirror are not documents.** The mirror walk skips
 symlinked files and directories, so a symlink named like a mirror page
-produces no pair, no render and no write.
+produces no pair, no render and no write. The OneDrive side is walked
+the same way: SharePoint has no symlinks and OneDrive does not upload
+them, so a symlink there is local-only and is skipped too. The sync
+root itself may be a symlink (the stable OneDrive shared-library link);
+only entries below a site folder are checked.
 
 **Backups optional, not default.** `--backup` copies the prior
 office file to `.mdd-backups/<rel-path>/<timestamp>-<basename>`
