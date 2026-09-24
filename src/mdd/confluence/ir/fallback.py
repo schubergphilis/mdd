@@ -17,7 +17,9 @@ from mdd.ir.fallback import IRContext, emit_block_fallback, emit_inline_fallback
 if TYPE_CHECKING:
     from mdd.ir.nodes import RawBlock, RawInline
 
-_NS_DECL_RE = re.compile(r'\s+xmlns:(ac|ri)="[^"]+"')
+# lxml always emits exactly one space before an attribute, so a literal
+# space is enough; ``\s+`` would rescan every whitespace run on the way.
+_NS_DECL_RE = re.compile(r' xmlns:(ac|ri)="[^"]+"')
 
 
 def serialize_raw(node: Any) -> str:

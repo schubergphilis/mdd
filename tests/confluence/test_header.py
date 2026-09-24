@@ -206,3 +206,39 @@ class TestGetMirrorUrl:
 
         with patch("mdd.confluence.header.default_backend", side_effect=RuntimeError("no default")):
             assert get_mirror_url(md_path) is None
+
+
+class TestStripExportTitleH1Edges:
+    def test_closing_hashes_are_not_part_of_title(self) -> None:
+        body = "# My Page ##\n\nBody\n"
+        assert strip_export_title_h1(body, "My Page") == "Body\n"
+
+    def test_tab_after_hash_is_accepted(self) -> None:
+        body = "#\tMy Page\nBody\n"
+        assert strip_export_title_h1(body, "My Page") == "Body\n"
+
+    def test_h2_is_not_stripped(self) -> None:
+        body = "## My Page\n\nBody\n"
+        assert strip_export_title_h1(body, "My Page") == body
+
+    def test_hash_without_space_is_not_a_heading(self) -> None:
+        body = "#My Page\n\nBody\n"
+        assert strip_export_title_h1(body, "My Page") == body
+
+    def test_h1_without_trailing_newline_is_left_alone(self) -> None:
+        body = "# My Page"
+        assert strip_export_title_h1(body, "My Page") == body
+
+    def test_only_one_trailing_blank_line_is_consumed(self) -> None:
+        body = "# My Page\n\n\nBody\n"
+        assert strip_export_title_h1(body, "My Page") == "\nBody\n"
+
+    def test_long_run_of_hashes_finishes_quickly(self) -> None:
+        import time
+
+        body = "# " + "#" * 200_000 + "\n"
+        start = time.perf_counter()
+        result = strip_export_title_h1(body, "My Page")
+        elapsed = time.perf_counter() - start
+        assert result == body
+        assert elapsed < 1.0, f"H1 strip took {elapsed:.3f}s"

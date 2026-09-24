@@ -101,3 +101,29 @@ class TestFallbackContract:
         assert len(doc.children) >= 1
         assert isinstance(doc.children[0], RawBlock)
         assert len(doc.fallbacks) >= 1
+
+
+class TestSerializeRaw:
+    def test_strips_namespace_declarations(self) -> None:
+        from lxml import etree
+
+        from mdd.confluence.ir.fallback import serialize_raw
+
+        node = etree.fromstring(
+            '<ac:x xmlns:ac="http://a" xmlns:ri="http://r"><ri:y ri:k="v"/></ac:x>'
+        )
+        assert serialize_raw(node) == '<ac:x><ri:y ri:k="v"/></ac:x>'
+
+    def test_large_whitespace_run_finishes_quickly(self) -> None:
+        import time
+
+        from lxml import etree
+
+        from mdd.confluence.ir.fallback import serialize_raw
+
+        node = etree.fromstring('<ac:x xmlns:ac="http://a">' + " " * 200_000 + "</ac:x>")
+        start = time.perf_counter()
+        result = serialize_raw(node)
+        elapsed = time.perf_counter() - start
+        assert result == "<ac:x>" + " " * 200_000 + "</ac:x>"
+        assert elapsed < 1.0, f"serialize_raw took {elapsed:.3f}s"

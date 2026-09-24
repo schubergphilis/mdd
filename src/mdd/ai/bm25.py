@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 
 from rank_bm25 import BM25Okapi  # pyright: ignore[reportMissingTypeStubs]
 
+from mdd.utils.markdown_fences import find_fenced_code_blocks, remove_spans
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -29,13 +31,12 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
-_CODE_BLOCK_RE = re.compile(r"(?m)^(`{3,}|~{3,})[^\n]*\n.*?\n\1[ \t]*$", re.DOTALL)
 
 
 def _strip_markup(text: str) -> str:
     """Remove frontmatter and fenced code blocks; return plain text."""
     text = _FRONTMATTER_RE.sub("", text)
-    return _CODE_BLOCK_RE.sub("", text)
+    return remove_spans(text, find_fenced_code_blocks(text))
 
 
 def _tokenise(text: str) -> list[str]:

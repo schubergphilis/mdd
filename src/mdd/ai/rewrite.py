@@ -20,12 +20,13 @@ import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 import yaml  # pyright: ignore[reportMissingModuleSource]
 
 from mdd.ai.models import ChatResult, is_complete
 from mdd.utils.logging import get_logger
+from mdd.utils.markdown_fences import find_fenced_code_blocks
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -40,24 +41,71 @@ log = get_logger(__name__)
 _PLACEHOLDER_PREFIX = "__MDD_PROTECTED_"
 _PLACEHOLDER_SUFFIX = "__"
 
+
+class _Span(Protocol):
+    """The subset of ``re.Match`` that ``extract_protected`` reads."""
+
+    def start(self) -> int: ...
+
+    def end(self) -> int: ...
+
+    def group(self) -> str: ...
+
+
+class _SpanMatch:
+    def __init__(self, text: str, start: int, end: int) -> None:
+        self._text = text
+        self._start = start
+        self._end = end
+
+    def start(self) -> int:
+        return self._start
+
+    def end(self) -> int:
+        return self._end
+
+    def group(self) -> str:
+        return self._text[self._start : self._end]
+
+
+class _FencedBlockFinder:
+    """``re.Pattern``-like ``search`` over fenced code blocks.
+
+    The spans for the most recently seen text are cached so repeated
+    ``search`` calls while walking one document stay linear overall.
+    """
+
+    def __init__(self) -> None:
+        self._text: str | None = None
+        self._spans: list[tuple[int, int]] = []
+
+    def search(self, text: str, pos: int = 0) -> _Span | None:
+        if text is not self._text:
+            self._text = text
+            self._spans = find_fenced_code_blocks(text)
+        for start, end in self._spans:
+            if start >= pos:
+                return _SpanMatch(text, start, end)
+        return None
+
+
 # Patterns that mark protected regions, in priority order.
-# Each entry is (name, compiled_regex).  The regex must capture the full
-# protected span (possibly multi-line).
+# Each entry is (name, finder); a finder is a compiled regex or an object
+# with the same ``search`` shape, and must cover the full protected span
+# (possibly multi-line).
 #
 # Order matters for overlapping patterns: frontmatter first, then fenced
 # blocks (longest-first among opening fences), then tables.
-_PROTECTED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+_PROTECTED_PATTERNS: list[tuple[str, re.Pattern[str] | _FencedBlockFinder]] = [
     # YAML frontmatter at the very start of the file
     (
         "frontmatter",
         re.compile(r"\A---\n.*?\n---\n?", re.DOTALL),
     ),
-    # Fenced code / raw blocks with any info string (``` or ~~~, 3+ chars)
-    # including {=confluence}, {=html}, etc.
-    (
-        "fenced",
-        re.compile(r"(?m)^(`{3,}|~{3,})[^\n]*\n.*?\n\1[ \t]*$", re.DOTALL),
-    ),
+    # Fenced code / raw blocks (``` or ~~~, 3+ chars) with any info string,
+    # including {=confluence}, {=html}, etc. Located by a line scanner rather
+    # than a backreference regex so large documents stay linear.
+    ("fenced", _FencedBlockFinder()),
     # Confluence export header: the blockquote that starts a Confluence export
     # ("> **Confluence export …" up to the next blank line or heading)
     (
@@ -104,7 +152,7 @@ def extract_protected(text: str) -> tuple[str, list[_Region]]:
     pos = 0  # current scan position
 
     while pos < len(text):
-        earliest_match: re.Match[str] | None = None
+        earliest_match: _Span | None = None
         earliest_start = len(text)
         earliest_kind = "unknown"
 

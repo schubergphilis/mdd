@@ -562,3 +562,60 @@ class TestFindAttachmentByTitle:
         atts: list[dict[str, Any]] = [{"title": None}, {"title": 42}, {"title": "ok"}]
         result = _find_attachment_by_title(atts, "ok")
         assert result == {"title": "ok"}
+
+
+class TestHeaderCalloutEdges:
+    _CALLOUT = (
+        "<p><sub><em>Download as "
+        '<a href="https://example.com/file.docx">file.docx</a> '
+        "(this attachment is generated from the markdown source)"
+        "</em></sub></p>"
+    )
+
+    def test_strip_consumes_one_following_newline(self) -> None:
+        from mdd.confluence.header import strip_office_callout
+
+        assert strip_office_callout(self._CALLOUT + "\n\n<p>x</p>") == "\n<p>x</p>"
+
+    def test_strip_leaves_paragraph_without_sentinel(self) -> None:
+        from mdd.confluence.header import strip_office_callout
+
+        body = "<p><sub><em>Download as nothing</em></sub></p>\n<p>x</p>"
+        assert strip_office_callout(body) == body
+
+    def test_replace_keeps_surrounding_content(self) -> None:
+        from mdd.confluence.header import insert_office_callout
+
+        body = "<p>before</p>\n" + self._CALLOUT + "\n<p>after</p>"
+        result = insert_office_callout(body, [("https://example.com/n.pptx", "n.pptx")])
+        assert result.startswith("<p>before</p>\n<p><sub><em>Download as ")
+        # The newline after the old callout is part of the replaced span.
+        assert result.endswith("</em></sub></p><p>after</p>")
+        assert "file.docx" not in result
+
+    def test_strip_removes_every_callout(self) -> None:
+        from mdd.confluence.header import strip_office_callout
+
+        body = self._CALLOUT + "\n<p>x</p>\n" + self._CALLOUT + "\n<p>y</p>"
+        assert strip_office_callout(body) == "<p>x</p>\n<p>y</p>"
+
+    def test_replace_collapses_duplicate_callouts(self) -> None:
+        from mdd.confluence.header import insert_office_callout
+
+        body = self._CALLOUT + "\n<p>x</p>\n" + self._CALLOUT + "\n<p>y</p>"
+        result = insert_office_callout(body, [("https://example.com/n.pptx", "n.pptx")])
+        assert result.count("(this attachment is generated from the markdown source)") == 1
+        assert "file.docx" not in result
+        assert result.endswith("<p>x</p>\n<p>y</p>")
+
+    def test_many_prefixes_finish_quickly(self) -> None:
+        import time
+
+        from mdd.confluence.header import strip_office_callout
+
+        body = "<p><sub><em>Download as " * 8_000
+        start = time.perf_counter()
+        result = strip_office_callout(body)
+        elapsed = time.perf_counter() - start
+        assert result == body
+        assert elapsed < 1.0, f"callout scan took {elapsed:.3f}s"

@@ -69,13 +69,31 @@ def strip_export_header(body_md: str) -> str:
 # Export-title H1 strip
 # ---------------------------------------------------------------------------
 
-# Matches the leading ATX H1 line (allows trailing whitespace, optional closing #s),
-# plus any blank lines before and one blank line after.
-_TITLE_H1_RE = re.compile(
-    r"^([ \t]*\n)*"  # optional leading blank lines
-    r"#[ \t]+(?P<title>[^\n]*?)[ \t]*#*[ \t]*\n"  # the H1 line itself
-    r"([ \t]*\n)?",  # optional trailing blank line
-)
+
+def _match_leading_h1(body_md: str) -> tuple[str, int] | None:
+    """Return ``(title, end)`` for a leading ATX H1, or ``None``.
+
+    ``end`` is the offset just past the H1 line, its preceding blank lines
+    and one optional trailing blank line. Optional closing ``#`` characters
+    and surrounding whitespace are not part of the title.
+    """
+    pos = 0
+    while True:
+        nl = body_md.find("\n", pos)
+        if nl == -1:
+            return None
+        if body_md[pos:nl].strip(" \t"):
+            break
+        pos = nl + 1
+    line = body_md[pos:nl]
+    if not line.startswith("#") or line[1:2] not in (" ", "\t"):
+        return None
+    title = line[1:].strip(" \t").rstrip("#").rstrip(" \t")
+    end = nl + 1
+    next_nl = body_md.find("\n", end)
+    if next_nl != -1 and not body_md[end:next_nl].strip(" \t"):
+        end = next_nl + 1
+    return title, end
 
 
 def strip_export_title_h1(body_md: str, title: str) -> str:
@@ -92,14 +110,15 @@ def strip_export_title_h1(body_md: str, title: str) -> str:
     if not title:
         return body_md
 
-    m = _TITLE_H1_RE.match(body_md)
+    m = _match_leading_h1(body_md)
     if m is None:
         return body_md
 
-    if m.group("title").strip() != title.strip():
+    h1_title, end = m
+    if h1_title.strip() != title.strip():
         return body_md
 
-    return body_md[m.end() :]
+    return body_md[end:]
 
 
 # ---------------------------------------------------------------------------
@@ -169,15 +188,8 @@ def get_mirror_url(md_path: Path) -> str | None:
 # Office-attachment callout
 # ---------------------------------------------------------------------------
 
-# Matches the callout paragraph we insert, plus an optional following newline.
-# The sentinel string "(this attachment is generated from the markdown source)"
-# is how we identify our own callout vs any user-written paragraph.
-_OFFICE_CALLOUT_PATTERN = re.compile(
-    r"<p><sub><em>Download as .*?\(this attachment is generated from the markdown source\)"
-    r".*?</em></sub></p>\n?",
-    re.DOTALL,
-)
-
+_CALLOUT_PREFIX = "<p><sub><em>Download as "
+_CALLOUT_CLOSE = "</em></sub></p>"
 _CALLOUT_SENTINEL = "(this attachment is generated from the markdown source)"
 
 
@@ -199,12 +211,37 @@ def _build_office_callout(links: list[tuple[str, str]]) -> str:
     return f"<p><sub><em>Download as {downloads} {_CALLOUT_SENTINEL}</em></sub></p>"
 
 
+def _find_office_callout(body_xhtml: str) -> tuple[int, int] | None:
+    """Locate our callout paragraph as ``[start, end)``, or ``None``.
+
+    The sentinel string identifies our own callout as opposed to any
+    user-written paragraph. Plain ``str.find`` anchors keep this linear on
+    bodies that repeat the prefix many times.
+    """
+    start = body_xhtml.find(_CALLOUT_PREFIX)
+    if start == -1:
+        return None
+    sentinel = body_xhtml.find(_CALLOUT_SENTINEL, start + len(_CALLOUT_PREFIX))
+    if sentinel == -1:
+        return None
+    close = body_xhtml.find(_CALLOUT_CLOSE, sentinel + len(_CALLOUT_SENTINEL))
+    if close == -1:
+        return None
+    end = close + len(_CALLOUT_CLOSE)
+    if body_xhtml.startswith("\n", end):
+        end += 1
+    return start, end
+
+
 def strip_office_callout(body_xhtml: str) -> str:
     """Remove the office-attachment callout from storage XHTML.
 
     Idempotent: if no callout is present, returns *body_xhtml* unchanged.
     """
-    return _OFFICE_CALLOUT_PATTERN.sub("", body_xhtml)
+    while (span := _find_office_callout(body_xhtml)) is not None:
+        start, end = span
+        body_xhtml = body_xhtml[:start] + body_xhtml[end:]
+    return body_xhtml
 
 
 def insert_office_callout(body_xhtml: str, links: list[tuple[str, str]]) -> str:
@@ -223,7 +260,9 @@ def insert_office_callout(body_xhtml: str, links: list[tuple[str, str]]) -> str:
     """
     callout = _build_office_callout(links)
 
-    if _OFFICE_CALLOUT_PATTERN.search(body_xhtml):
-        return _OFFICE_CALLOUT_PATTERN.sub(callout, body_xhtml)
+    span = _find_office_callout(body_xhtml)
+    if span is not None:
+        start, end = span
+        return body_xhtml[:start] + callout + strip_office_callout(body_xhtml[end:])
 
     return callout + "\n" + body_xhtml

@@ -167,3 +167,15 @@ class TestBm25Index:
         assert [(str(p.path_a), str(p.path_b)) for p in pairs1] == [
             (str(p.path_a), str(p.path_b)) for p in pairs2
         ]
+
+
+class TestStripMarkupScaling:
+    def test_many_fence_openers_finish_quickly(self) -> None:
+        import time
+
+        text = "```x\n" * 40_000
+        start = time.perf_counter()
+        result = _strip_markup(text)
+        elapsed = time.perf_counter() - start
+        assert result == ""
+        assert elapsed < 1.0, f"_strip_markup took {elapsed:.3f}s"
