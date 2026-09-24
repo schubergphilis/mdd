@@ -37,6 +37,7 @@ computes locally.
 | office_now != sync, md_now != sync, update_office=false (SKIP_MD_UPDATE) | [`skip-both-changed/`](skip-both-changed/) |
 | first-sync, docx-only | [`docx-only-no-md/`](docx-only-no-md/) |
 | first-sync, md-only | [`md-only-no-docx/`](md-only-no-docx/) |
+| office removed upstream: md synced from office, no docx, update_office=false (OFFICE_REMOVED_UPSTREAM) | [`md-only-office-removed/`](md-only-office-removed/) |
 | first-sync, both present, no sync block (docx wins) | [`both-no-sync-block/`](both-no-sync-block/) |
 
 The "office_now == sync, md_now == sync → No-op" cell is covered by

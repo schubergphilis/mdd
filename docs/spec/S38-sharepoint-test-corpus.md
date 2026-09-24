@@ -114,6 +114,7 @@ tests/corpus/
       diff-table/                    # fixtures for [S18] cells the real site does not naturally cover
         docx-only-no-md/
         md-only-no-docx/
+        md-only-office-removed/
         divergence/
         ...
 ```
@@ -295,8 +296,8 @@ identifying data, only one of which was visible when opening the file:
   binaries changes their SHA-256, which changes which
   [S18](S18-sharepoint-sync.md) diff-table cell each pair lands on.
   `tests/sharepoint/test_corpus_matrix.py` asserts the expected
-  `PairAction` for all 13 pairs plus the on-disk shape of the two
-  single-sided fixtures, and fails if the corpus grows a pair with no
+  `PairAction` for all 13 pairs plus the on-disk shape (and, where a
+  sync block exists, the verdict) of the three single-sided fixtures, and fails if the corpus grows a pair with no
   pinned verdict. Before this amendment *no test consumed the corpus at
   all*, so a silent coverage loss was undetectable.
 

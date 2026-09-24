@@ -46,6 +46,7 @@ MDD - Documents/                    — site root (matches the OneDrive naming c
     README.md
     docx-only-no-md/                — first-sync: docx, no md sibling
     md-only-no-docx/                — first-sync: md, no docx sibling
+    md-only-office-removed/         — md synced from office, docx gone, update_office: false (reported, not rendered)
     both-no-sync-block/             — first-sync: both present, no sync block
     docx-changed/                   — office_now != sync, md_now == sync
     md-changed-update-true/         — office_now == sync, md_now != sync, update_office: true

@@ -179,6 +179,27 @@ class TestDocxConverter:
         assert result.output_path == dest
         assert dest.exists()
 
+    def test_body_leading_yaml_delimiter_is_escaped(self, tmp_path: Path) -> None:
+        """A document whose first paragraph is ``---`` must not become frontmatter."""
+        from unittest.mock import patch
+
+        from mdd.utils.frontmatter import split_frontmatter
+
+        p = _docx_with_paragraph(tmp_path, "fence.docx", "---")
+        dest = tmp_path / "fence.docx.md"
+        with (
+            patch("mdd.converters.docx.extract_title", return_value=""),
+            patch("mdd.converters.docx.extract_metadata", return_value={}),
+            patch(
+                "mdd.converters.docx.convert_body",
+                return_value="---\nfilters: [/tmp/evil.lua]\n---\nHello\n",
+            ),
+        ):
+            DocxConverter().convert(p, dest=dest)
+        text = dest.read_text(encoding="utf-8")
+        assert text.startswith("\\---\n")
+        assert split_frontmatter(text) is None
+
     def test_convert_attachments_dir_none_when_absent(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 

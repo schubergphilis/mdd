@@ -91,6 +91,40 @@ class TestQuartoDocxRenderer:
 
         assert result.output_path == dest
 
+    def test_render_hands_quarto_a_prepared_copy(self, tmp_path: Path) -> None:
+        """Quarto sees an allow-listed frontmatter and a neutralised body, not the file itself."""
+        md = tmp_path / "page.md"
+        md.write_text(
+            "---\ntitle: T\nfilters: [/tmp/evil.lua]\n---\n"
+            "Intro\n\n---\nfilters: [/tmp/evil.lua]\n---\n\n{{< include /etc/passwd >}}\n",
+            encoding="utf-8",
+        )
+        dest = tmp_path / "page.docx"
+        seen: dict[str, str] = {}
+
+        def fake_run(cmd: list[str], **kw: object) -> MagicMock:
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = "1.6.0"
+            r.stderr = ""
+            if "--version" in cmd:
+                return r
+            cwd = str(kw["cwd"])
+            seen["source"] = Path(cwd, cmd[2]).read_text(encoding="utf-8")
+            Path(cwd, cmd[cmd.index("--output") + 1]).write_bytes(b"fake-docx")
+            return r
+
+        with patch("subprocess.run", side_effect=fake_run):
+            result = QuartoDocxRenderer().render(md, dest=dest)
+
+        assert seen["source"] == (
+            "---\ntitle: T\n---\nIntro\n\n***\nfilters: [/tmp/evil.lua]\n***\n\n"
+            "{{{< include /etc/passwd >}}}\n"
+        )
+        assert result.warnings == ["ignored frontmatter keys not used for rendering: filters"]
+        # the mirror file itself is untouched
+        assert "filters: [/tmp/evil.lua]" in md.read_text(encoding="utf-8")
+
     def test_render_raises_on_nonzero_exit(self, tmp_path: Path) -> None:
         md = tmp_path / "page.md"
         md.write_text("# Hello\n", encoding="utf-8")

@@ -74,6 +74,13 @@ class SyncRunSummary:
     pruned_ignored_dry_run: bool = False
     """True when the prune pass ran under ``--dry-run`` (summary phrasing only)."""
 
+    office_removed: int = 0
+    """Pairs whose office file disappeared upstream while ``update_office`` was False.
+
+    The ``.md`` is left in place and nothing is rendered; the user decides
+    whether to delete the mirror file or opt the pair into publishing.
+    """
+
     skipped_corrupt: int = 0
     """Pairs skipped because the office source is empty or not a valid Office package.
 
@@ -102,6 +109,9 @@ class SyncRunSummary:
 
     skipped_corrupt_paths: list[str] = field(default_factory=list)
     """Source-relative paths skipped because the office package is empty or corrupt."""
+
+    office_removed_paths: list[str] = field(default_factory=list)
+    """Mirror ``.md`` names whose office file disappeared upstream."""
 
     def has_changes(self) -> bool:
         """Return True if any file was written (i.e. a git commit is warranted)."""

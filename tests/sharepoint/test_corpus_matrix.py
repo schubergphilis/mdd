@@ -50,9 +50,10 @@ EXPECTED_VERDICTS: dict[str, PairAction] = {
     "diff-table/skip-both-changed/Foo.docx.md": PairAction.SKIP_MD_UPDATE,
 }
 
-# Fixtures that deliberately have only one side of the pair. `classify_pair`
-# never sees them — the walker decides these before pairing — so they are pinned
-# by on-disk shape instead: (present file, absent sibling, cell it stands for).
+# Fixtures that deliberately have only one side of the pair. The walker hands
+# `classify_pair` a docx path that does not exist (or no md at all), so they are
+# pinned by on-disk shape and, where a sync block exists, by verdict:
+# (present file, absent sibling, cell it stands for).
 UNPAIRED_FIXTURES: dict[str, tuple[str, PairAction]] = {
     "diff-table/docx-only-no-md/Foo.docx": (
         "diff-table/docx-only-no-md/Foo.docx.md",
@@ -61,6 +62,10 @@ UNPAIRED_FIXTURES: dict[str, tuple[str, PairAction]] = {
     "diff-table/md-only-no-docx/Foo.docx.md": (
         "diff-table/md-only-no-docx/Foo.docx",
         PairAction.FIRST_SYNC_MD_AUTHORITATIVE,
+    ),
+    "diff-table/md-only-office-removed/Foo.docx.md": (
+        "diff-table/md-only-office-removed/Foo.docx",
+        PairAction.OFFICE_REMOVED_UPSTREAM,
     ),
 }
 UNPAIRED = set(UNPAIRED_FIXTURES)
@@ -123,6 +128,18 @@ def test_unpaired_fixture_shape(present: str, absent: str) -> None:
     assert not (CORPUS_ROOT / absent).exists(), (
         f"{present} is meant to be a first-encounter fixture, but {absent} now exists"
     )
+
+
+@pytest.mark.parametrize(
+    ("present", "expected"),
+    sorted((p, cell) for p, (_, cell) in UNPAIRED_FIXTURES.items() if p.endswith(".md")),
+)
+def test_unpaired_md_verdict(present: str, expected: PairAction) -> None:
+    """A lone ``.md`` still lands on its cell when paired with a missing office path."""
+    md_path = CORPUS_ROOT / present
+    office_path = md_path.with_suffix("")
+    sync_state = read_sync_state(md_path)
+    assert classify_pair(office_path, md_path, sync_state=sync_state) == expected
 
 
 def test_every_diff_table_cell_is_covered() -> None:
