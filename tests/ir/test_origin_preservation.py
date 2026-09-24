@@ -248,6 +248,17 @@ class TestR1BytePerfect:
         assert "world" in result
         assert "&hellip;" in result or "…" in result
 
+    def test_entity_after_multi_codepoint_entity(self) -> None:
+        """Offsets after a two-codepoint decode still point at the right character."""
+        xhtml = "<p>a&NotEqualTilde;&ne;b</p>"
+        doc = parse_confluence_storage(xhtml, mode="preserving")
+        text = doc.children[0].inlines[0]  # type: ignore[union-attr]
+        assert isinstance(text, Text)
+        assert text.content == "a≂̸≠b"
+        assert text.origin is not None
+        assert text.origin.entity_form == {1: "&NotEqualTilde;", 3: "&ne;"}
+        assert render_confluence_storage(doc, mode="preserving") == xhtml
+
 
 # ---------------------------------------------------------------------------
 # Markdown reader preserving mode

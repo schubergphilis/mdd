@@ -323,6 +323,47 @@ class TestReattachInlineEdits:
         cached_storage = "<p>see https://example.com/docs</p>"
         assert _publish(cached_storage, "see https://example.com/docs\n") == cached_storage
 
+    def test_inline_macro_rename_reaches_the_page(self) -> None:
+        """A renamed inline macro in otherwise identical text is an edit."""
+        cached_storage = (
+            '<p>see <ac:structured-macro ac:name="anchor" ac:schema-version="1" '
+            'ac:macro-id="i1"><ac:parameter ac:name="">top</ac:parameter>'
+            "</ac:structured-macro> here</p>"
+        )
+        assert _publish(cached_storage, "see {{confluence:status}} here\n") == (
+            '<p>see <ac:structured-macro ac:name="status" ac:schema-version="1" '
+            'ac:macro-id="i1"></ac:structured-macro> here</p>'
+        )
+
+    def test_same_inline_macro_name_keeps_cached_inlines(self) -> None:
+        cached_storage = (
+            '<p>see <ac:structured-macro ac:name="anchor" ac:schema-version="1" '
+            'ac:macro-id="i1"><ac:parameter ac:name="">top</ac:parameter>'
+            "</ac:structured-macro> here</p>"
+        )
+        assert _publish(cached_storage, "see {{confluence:anchor}} here\n") == cached_storage
+
+    @pytest.mark.parametrize(
+        ("cached_storage", "fresh_markdown"),
+        [
+            pytest.param(
+                '<p>ok <ac:emoticon ac:name="smile" /> done</p>',
+                'ok {{confluence:emoticon name="smile"}} done\n',
+                id="emoticon",
+            ),
+            pytest.param(
+                "<p>on <ac:placeholder>insert date</ac:placeholder></p>",
+                'on {{confluence:placeholder content="insert date"}}\n',
+                id="placeholder",
+            ),
+        ],
+    )
+    def test_emoticon_and_placeholder_compare_as_their_macro_form(
+        self, cached_storage: str, fresh_markdown: str
+    ) -> None:
+        """The markdown leg returns these as `InlineMacro`; that is not an edit."""
+        assert _publish(cached_storage, fresh_markdown) == cached_storage
+
 
 _REMOTE_WARNING_PANEL = (
     '<ac:structured-macro ac:name="warning" ac:schema-version="1" ac:macro-id="m1">'
@@ -369,6 +410,13 @@ class TestReattachBlockEdits:
         assert _publish(_REMOTE_WARNING_PANEL, ":::callout-warning\n\nhi\n\n:::\n") == (
             _REMOTE_WARNING_PANEL
         )
+
+    def test_authored_callout_title_is_the_only_title(self) -> None:
+        """A fresh `{title="…"}` beats the cached title instead of joining it."""
+        out = _publish(_REMOTE_WARNING_PANEL, ':::callout-warning {title="Mine"}\n\nhi\n\n:::\n')
+        assert out.count('<ac:parameter ac:name="title">') == 1
+        assert '<ac:parameter ac:name="title">Mine</ac:parameter>' in out
+        assert "Remote" not in out
 
     def test_macro_name_change_drops_cached_params_and_body(self) -> None:
         """A fresh `toc` at a cached `html` macro's position publishes as `toc`."""
