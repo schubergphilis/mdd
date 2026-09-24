@@ -225,8 +225,8 @@ description = "Vale prose lint over hand-written prose. Errors gate; warnings ad
 # Two passes. Vale's exit code covers everything at or above MinAlertLevel,
 # with no way to print a class of finding without failing on it, so the first
 # pass shows every warning and the second decides the outcome. Only errors —
-# misspellings and wrong-cased terms — block. Passive voice is a judgement
-# call a reviewer makes, not something that should stop a build.
+# misspellings and wrong-cased terms — block. Cliches are a judgement call
+# a reviewer makes, not something that should stop a build.
 run = [
   "vale --no-exit docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts",
   "vale --minAlertLevel=error docs/guide docs/articles site/src/content/docs/index.mdx site/src/content/docs/_drafts",

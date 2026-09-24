@@ -470,10 +470,12 @@ abstract. The initial configuration is:
 
 - `BasedOnStyles = Vale` — the built-in spelling and repetition checks.
   Spelling uses Vale's default American English dictionary.
-- Two named rules from the MIT-licensed `write-good` package, enabled
-  individually rather than by adding the whole style: `write-good.Passive` and
-  `write-good.Cliches`. Naming a rule enables it without pulling in the
-  package's other seven.
+- Named rules from the MIT-licensed `write-good` package, enabled
+  individually rather than by adding the whole style: `write-good.Cliches`.
+  Naming a rule enables it without pulling in the package's other seven.
+  `write-good.Passive` was enabled at first and turned off after the Phase 2
+  review (2026-09-24): its 141 warnings were the only findings across the
+  guide and articles, and most were correct usage.
 - A vocabulary accept-list seeded with the project's domain terms
   (`Confluence`, `SharePoint`, `frontmatter`, `roundtrip`, `mddignore`,
   `Quarto`, `docling`).
@@ -482,14 +484,14 @@ abstract. The initial configuration is:
   finding without failing on it, so `mise run docs-vale` makes two passes: one
   with `--no-exit` that shows every warning, and one with
   `--minAlertLevel=error` that decides the outcome. Misspellings and
-  wrong-cased terms are objective and block. Passive voice is a judgement a
-  reviewer makes; 135 warnings across the first ten pages, most of them correct
-  usage, is advice rather than a gate.
+  wrong-cased terms are objective and block. Judgement calls such as cliches
+  advise rather than gate.
 
-Both rules are chosen for the same reason: much of `mdd`'s audience reads
-English as a second language. Passive constructions and idiom are what that
-reader stumbles on, and neither is a matter of taste that a reviewer needs to
-adjudicate. Deliberately **not** adopted are the Google and Microsoft style
+The `write-good` rules were chosen because much of `mdd`'s audience reads
+English as a second language, and idiom is what that reader stumbles on.
+Passive constructions were meant to be covered for the same reason, but the
+rule could not tell the passive a reader stumbles on from the passive where the
+actor does not matter, which is most of this corpus. Deliberately **not** adopted are the Google and Microsoft style
 packages. They encode a house voice for an organisation standardising across
 many writers; this repository has one writer and an established voice, so
 either package would mean suppressing most of it or rewriting prose that is
@@ -581,8 +583,9 @@ it; and spec-driven development with AI agents.
    `@astrojs/starlight: >=0.41.0`. Pin `^0.11.0`.
 2. ~~Which Vale style baseline — the Google or Microsoft package, or custom
    rules only?~~ **Resolved.** Neither package. Vale's built-in style plus
-   `write-good.Passive` and `write-good.Cliches`, with a follow-up pass after
-   Phase 2. See the Vale implementation note.
+   `write-good.Cliches`, with a follow-up pass after Phase 2.
+   `write-good.Passive` was in the first set and was dropped in that pass. See
+   the Vale implementation note.
 3. ~~Do generated reference pages get committed and drift-gated, or generated
    at build time and never stored?~~ **Resolved.** Committed to
    `docs/reference/`, drift-gated in `mise run ci`. See "Generated reference
