@@ -20,7 +20,9 @@ class _PlainTextLoader(yaml.SafeLoader):
     ``"2026-01-01"``. Lists and mappings still load as lists and dicts.
 
     Null (``~``, ``null``, an empty value) is still recognised, so a missing
-    value stays distinguishable from text and a caller can reject it.
+    value stays distinguishable from text and a caller can reject it. The
+    merge key ``<<`` is still recognised too, so ``<<: *anchor`` merges the
+    anchored mapping as it does under ``yaml.safe_load``.
     """
 
 
@@ -29,6 +31,11 @@ _PlainTextLoader.add_implicit_resolver(  # pyright: ignore[reportUnknownMemberTy
     "tag:yaml.org,2002:null",
     re.compile(r"^(?:~|null|Null|NULL|)$"),
     ["~", "n", "N", ""],
+)
+_PlainTextLoader.add_implicit_resolver(  # pyright: ignore[reportUnknownMemberType]
+    "tag:yaml.org,2002:merge",
+    re.compile(r"^(?:<<)$"),
+    ["<"],
 )
 
 

@@ -98,6 +98,24 @@ class TestLoadYamlPlainText:
         f.write_text(f"names:\n  - {written}\n", encoding="utf-8")
         assert load_yaml_plain_text(f) == {"names": [None]}
 
+    def test_merge_key_still_merges(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text(
+            "shared: &s\n  names: [NO, HR]\nconfluence:\n  <<: *s\n  extra: ON\n",
+            encoding="utf-8",
+        )
+        assert load_yaml_plain_text(f)["confluence"] == {"names": ["NO", "HR"], "extra": "ON"}
+
+    def test_quoted_merge_key_is_text(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text('"<<": x\n', encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"<<": "x"}
+
+    def test_anchor_and_alias_resolve(self, tmp_path: Path) -> None:
+        f = tmp_path / "conf.yaml"
+        f.write_text("names:\n  - &k NO\n  - *k\n", encoding="utf-8")
+        assert load_yaml_plain_text(f) == {"names": ["NO", "NO"]}
+
     def test_quoted_null_is_text(self, tmp_path: Path) -> None:
         f = tmp_path / "conf.yaml"
         f.write_text('names:\n  - "null"\n', encoding="utf-8")
