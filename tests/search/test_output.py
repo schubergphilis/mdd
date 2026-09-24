@@ -764,9 +764,30 @@ class TestControlCharacterNeutralisation:
         assert out == "a�b\tc�d�e"
         assert len(out) == len(raw)
 
+    def test_neutralise_controls_replaces_bidi_overrides_only(self) -> None:
+        # Explicit embedding/override/isolate controls are replaced; implicit
+        # right-to-left text and the LRM/RLM marks pass through.
+        raw = "a\u202eb\u2066c\u2069d\u200e\u05d0"
+        out = neutralise_controls(raw)
+        assert out == "a�b�c�d\u200e\u05d0"
+        assert len(out) == len(raw)
+
+    def test_highlight_spans_control_inside_submatch_with_multibyte_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        f = tmp_path / "page.md"
+        line = f"é日 ab{self.CLEAR_LINE}cd{self.C1_CSI}ef tail"
+        f.write_text(line + "\n")
+        encoded = line.encode()
+        start = encoded.index(b"ab")
+        end = encoded.index(b"ef") + len(b"ef")
+        rg_line = _make_rg_json_line(str(f), 1, line, submatches=[(start, end)])
+        out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=True))
+        assert "é日 \x1b[1;31mab�[2Kcd�ef\x1b[0m tail" in out
+
     def test_match_line_has_no_control_characters(self, tmp_path: Path) -> None:
         f = tmp_path / "page.md"
-        line = f"before {self.CLEAR_LINE}{self.C1_CSI}{self.OSC8} target after"
+        line = f"before {self.CLEAR_LINE}{self.C1_CSI}{self.OSC8}\u202e target after"
         f.write_text(line + "\n")
         # rg reports byte offsets; the C1 byte above is two bytes in UTF-8.
         start = len(line[: line.index("target")].encode())
@@ -774,7 +795,9 @@ class TestControlCharacterNeutralisation:
         out = format_human(rg_line, [_confluence_root(tmp_path)], color=Color(enabled=True))
         # Only mdd's own SGR sequences may remain once stripped; no other controls.
         without_sgr = _SGR_RE.sub("", out)
-        assert not re.search(r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]", without_sgr)
+        assert not re.search(
+            r"[\x00-\x08\x0b-\x1f\x7f\x80-\x9f\u202a-\u202e\u2066-\u2069]", without_sgr
+        )
         assert self.OSC8 not in out
         # mdd's own SGR colouring and the submatch highlight are intact.
         assert "\x1b[1;31mtarget\x1b[0m" in out
