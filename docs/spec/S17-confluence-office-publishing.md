@@ -86,6 +86,12 @@ is [S16](S16-confluence-attachment-conversion.md).
   [S09](S09-confluence-command.md). If `publish_office: [docx, pptx]`, both links
   appear in one line.
 
+**Scope**
+- Within `mdd confluence sync-space`, only tracked pages whose `page_id`
+  is part of the synced space's desired state are published. A mirror
+  file whose frontmatter names a page in another space is skipped and
+  listed in the run summary ([S14](S14-confluence-sync.md) step 4i).
+
 **Error handling**
 - A Quarto render failure for one page does not stop sync; the page
   is logged in the failure summary and the rest of sync continues

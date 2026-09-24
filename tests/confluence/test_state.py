@@ -208,6 +208,65 @@ class TestBuildMirrorStateAttachmentDerived:
         assert state.untracked == []
 
 
+class TestBuildMirrorStateAttachmentDirFrontmatterIgnored:
+    """Frontmatter inside ``*-attachments/`` files carries no page authority.
+
+    Attachment sync writes remote files verbatim under ``<page>-attachments/``,
+    so a downloaded ``.md`` there may carry any ``confluence`` block. The walk
+    must not read it: such files can neither become tracked pages nor collide
+    with the page that owns the attachments directory.
+    """
+
+    def test_same_page_id_as_owner_does_not_raise(self, tmp_path: Path) -> None:
+        _write_tracked(tmp_path / "Foo.md", page_id="100", title="Foo")
+        planted = tmp_path / "Foo-attachments" / "x.md"
+        _write_tracked(planted, page_id="100", title="Foo")
+        state = build_mirror_state(tmp_path)
+        assert set(state.tracked) == {"100"}
+        assert state.tracked["100"].path == tmp_path / "Foo.md"
+        assert planted in state.manual
+        assert planted not in state.attachment_derived
+
+    def test_untracked_page_id_is_not_tracked(self, tmp_path: Path) -> None:
+        _write_tracked(tmp_path / "Foo.md", page_id="100", title="Foo")
+        planted = tmp_path / "Foo-attachments" / "x.md"
+        _write_tracked(planted, page_id="999", title="Other")
+        state = build_mirror_state(tmp_path)
+        assert set(state.tracked) == {"100"}
+        assert "999" not in state.tracked
+        assert planted in state.manual
+        assert state.untracked == []
+
+    def test_publish_candidate_frontmatter_is_not_untracked(self, tmp_path: Path) -> None:
+        planted = tmp_path / "Foo-attachments" / "x.md"
+        _write_md(planted, {"confluence": {"space_key": "TEST"}}, "# x\n")
+        state = build_mirror_state(tmp_path)
+        assert state.untracked == []
+        assert planted in state.manual
+
+    def test_converter_output_with_frontmatter_is_attachment_derived(self, tmp_path: Path) -> None:
+        planted = tmp_path / "Foo-attachments" / "bar.pdf.md"
+        _write_tracked(planted, page_id="999", title="bar")
+        state = build_mirror_state(tmp_path)
+        assert state.tracked == {}
+        assert planted in state.attachment_derived
+        assert planted not in state.manual
+
+    def test_nested_attachments_dir_frontmatter_ignored(self, tmp_path: Path) -> None:
+        planted = tmp_path / "section" / "Page-attachments" / "deep" / "x.md"
+        _write_tracked(planted, page_id="999", title="x")
+        state = build_mirror_state(tmp_path)
+        assert state.tracked == {}
+        assert planted in state.manual
+
+    def test_output_dir_named_attachments_is_walked_normally(self, tmp_path: Path) -> None:
+        # Only directories *inside* the mirror count, not the mirror root itself.
+        root = tmp_path / "docs-attachments"
+        _write_tracked(root / "Foo.md", page_id="100", title="Foo")
+        state = build_mirror_state(root)
+        assert set(state.tracked) == {"100"}
+
+
 class TestBuildMirrorStateAttachments:
     def test_attachments_manifest_loaded(self, tmp_path: Path) -> None:
         fm: dict[str, object] = {

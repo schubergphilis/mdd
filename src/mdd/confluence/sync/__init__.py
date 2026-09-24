@@ -223,7 +223,13 @@ def sync_space(
         log.info("Office publishing skipped (--read-only)")
     else:
         run_office_publish(
-            client, mirror, config, summary, dry_run=False, managed_config=get_managed_cfg()
+            client,
+            mirror,
+            config,
+            summary,
+            desired_ids=set(desired),
+            dry_run=False,
+            managed_config=get_managed_cfg(),
         )
 
     # Steps 5 + 6: commit + optional push, delegated to the mirror

@@ -102,6 +102,15 @@ frontmatter and classify:
 - `confluence.page_id` absent → **untracked local-authored** (publish candidate, see Step 4d).
 - Frontmatter malformed or missing → **manually-managed**; sync leaves them untouched and lists them in the summary.
 
+Files under a `<page-name>-attachments/` directory are downloaded
+attachment blobs or converter outputs
+([S16](S16-confluence-attachment-conversion.md)), never mdd-written page
+files. The walk does not parse their frontmatter: a `.md` there is
+classified as **attachment-derived** (converter suffix) or
+**manually-managed** (anything else) regardless of any `confluence` block
+it carries, so it can neither become a tracked page nor collide with the
+page that owns the directory.
+
 If the same `page_id` appears in two `.md` files, sync aborts with a
 clear error naming both paths.
 
@@ -172,6 +181,12 @@ established by the previous one:
 - **4h. Metadata-only refresh** — frontmatter rewrite, no body
   re-render, for label / `updated_at` / `updated_by` / `version_message`
   changes.
+- **4i. Office publishing** — render and upload opted-in pages per
+  [S17](S17-confluence-office-publishing.md). Scoped to page ids present
+  in the desired state fetched in Step 1: a tracked file whose
+  `page_id` is not in the synced space (for example one kept by
+  `--no-delete` after a cross-space move) is skipped and listed in the
+  run summary, never published.
 
 ### Step 5 — Commit
 

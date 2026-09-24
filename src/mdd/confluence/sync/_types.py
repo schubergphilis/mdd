@@ -67,6 +67,9 @@ class SyncSummary:
     commit_sha: str = ""
     office_uploaded: int = 0
     office_cache_hits: int = 0
+    # Opted-in tracked files skipped by office publishing because their
+    # page_id is not part of the synced space (``"<page_id>: <path>"``).
+    office_skipped_outside_space: list[str] = field(default_factory=list)
     # managed-elsewhere skips: {publisher_name: count}
     managed_skips: dict[str, int] = field(default_factory=dict)
     # Pages pushed even though the page-restrictions check (managed-elsewhere
@@ -157,6 +160,10 @@ class SyncSummary:
             ("Skipped (managed elsewhere):", self._managed_skip_lines()),
             ("Restriction check unverified:", self._restriction_unverified_lines()),
             ("Cross-space moves detected:", [f"- {note}" for note in self.cross_space]),
+            (
+                "Office publishing skipped (page not in synced space):",
+                [f"- {note}" for note in self.office_skipped_outside_space],
+            ),
         ]
         for header, body in sections:
             if not body:

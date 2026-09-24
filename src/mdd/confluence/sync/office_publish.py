@@ -123,16 +123,23 @@ def _office_publish_one(page_id: str, md_path: Path, ctx: OfficePublishCtx) -> N
         _push_office_body_update(page_id, md_path, ctx.config, ctx.dry_run)
 
 
-def run_office_publish(
+def run_office_publish(  # noqa: PLR0913
     client: ConfluenceClient,
     mirror: Any,
     config: ConfluenceConfig,
     summary: SyncSummary,
     *,
+    desired_ids: set[str],
     dry_run: bool = False,
     managed_config: ManagedConfig | None = None,
 ) -> None:
-    """Run publish_office for all tracked pages that have opted in.
+    """Run publish_office for opted-in tracked pages that belong to the synced space.
+
+    ``desired_ids`` is the set of page ids fetched for the synced space. A
+    tracked file whose frontmatter names a page outside that set (for example
+    one that survived a cross-space deletion under ``--no-delete``) is skipped
+    and recorded in ``summary.office_skipped_outside_space``: sync-space only
+    writes to the space it was asked to sync.
 
     Called after attachment sync and before the commit.
     Failures are recorded in ``summary.failures``; sync continues.
@@ -148,5 +155,13 @@ def run_office_publish(
     for page_id, local_page in tracked.items():  # pyright: ignore[reportUnknownVariableType]
         md_path: Path = local_page.path  # pyright: ignore[reportAttributeAccessIssue]
         if not _office_publish_candidate(md_path):
+            continue
+        if page_id not in desired_ids:
+            log.warning(
+                "office-publish skipped %s (%s): page is not in the synced space",
+                page_id,
+                md_path,
+            )
+            summary.office_skipped_outside_space.append(f"{page_id}: {md_path}")
             continue
         _office_publish_one(page_id, md_path, ctx)

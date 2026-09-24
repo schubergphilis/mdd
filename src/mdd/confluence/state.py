@@ -26,6 +26,11 @@ _H1_RE = re.compile(r"^#\s+(.+)", re.MULTILINE)
 _ATTACHMENT_CONVERTER_SUFFIXES: tuple[str, ...] = (".pdf.md", ".pptx.md", ".docx.md")
 
 
+def _under_attachments_dir(path: Path) -> bool:
+    """Return True if any parent directory of *path* is a ``*-attachments`` dir."""
+    return any(parent.name.endswith("-attachments") for parent in path.parents)
+
+
 def _is_attachment_derived(path: Path) -> bool:
     """Return True if *path* is a converter output under a ``*-attachments/`` dir.
 
@@ -35,7 +40,7 @@ def _is_attachment_derived(path: Path) -> bool:
     """
     if not any(path.name.endswith(suffix) for suffix in _ATTACHMENT_CONVERTER_SUFFIXES):
         return False
-    return any(parent.name.endswith("-attachments") for parent in path.parents)
+    return _under_attachments_dir(path)
 
 
 class DuplicatePageIdError(Exception):
@@ -197,6 +202,13 @@ def _ingest_md_path(state: MirrorState, md_path: Path) -> None:
 def build_mirror_state(output_dir: Path) -> MirrorState:
     """Walk *output_dir* and build the current state of the mirror.
 
+    Files under a ``*-attachments/`` directory are downloaded attachment
+    blobs (or converter outputs derived from them), never mdd-written page
+    files. Their frontmatter is not read: they land in ``manual`` or
+    ``attachment_derived`` regardless of any ``confluence`` block they carry,
+    so a downloaded ``.md`` attachment can neither become a tracked page nor
+    collide with one.
+
     Raises:
         DuplicatePageIdError: If the same ``confluence.page_id`` appears in two
             different ``.md`` files.
@@ -207,6 +219,9 @@ def build_mirror_state(output_dir: Path) -> MirrorState:
     """
     state = MirrorState()
     for md_path in sorted(output_dir.rglob("*.md")):
+        if _under_attachments_dir(md_path.relative_to(output_dir)):
+            state.manual.append(md_path)
+            continue
         _ingest_md_path(state, md_path)
     _split_attachment_derived(state)
     return state
