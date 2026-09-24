@@ -6,12 +6,18 @@ import difflib
 import html.entities
 import re
 
-# Pattern matching the opening tag of a Confluence code structured-macro.
-# Used to detect CDATA/code blocks where indentation is load-bearing.
-_CODE_MACRO_RE = re.compile(
-    r'<ac:structured-macro[^>]*\bac:name=["\']code["\']',
-    re.IGNORECASE,
+# Spans where whitespace, including where lines break, is load-bearing: code
+# macros, preformatted blocks and CDATA sections. A code macro holds a CDATA
+# body and no nested macros, so the first closing tag after it is its own.
+_WHITESPACE_SIGNIFICANT_RE = re.compile(
+    r'<ac:structured-macro[^>]*\bac:name=["\']code["\'].*?</ac:structured-macro>'
+    r"|<pre\b.*?</pre>"
+    r"|<!\[CDATA\[.*?\]\]>",
+    re.IGNORECASE | re.DOTALL,
 )
+
+# A newline together with the spaces and blank lines around it.
+_NEWLINE_RUN_RE = re.compile(r"[ \t\r]*\n[ \t\r\n]*")
 
 # Named entities kept literal so the diff still surfaces real bugs:
 #   &amp; — bare `&` is malformed XHTML; we want that visible
@@ -57,20 +63,54 @@ def _decode_safe_entities(text: str) -> str:
     return _NAMED_ENTITY_RE.sub(_named, text)
 
 
-def _contains_code_macro(xhtml: str) -> bool:
-    """Return True if the XHTML contains a Confluence code macro."""
-    return bool(_CODE_MACRO_RE.search(xhtml))
+def _whitespace_significant_spans(xhtml: str) -> list[str]:
+    """Return every code macro, preformatted block and CDATA section in *xhtml*."""
+    return _WHITESPACE_SIGNIFICANT_RE.findall(xhtml)
+
+
+def _join_soft_breaks(text: str) -> str:
+    """Replace newlines inside a text run with a single space.
+
+    A soft line break in Markdown renders as a literal newline in storage
+    XHTML, and Confluence renders it as a space. A newline counts as part of
+    a text run unless it sits between two tags (``>`` before, ``<`` after);
+    those newlines separate blocks and keep the line structure of the diff.
+    """
+
+    def _replace(m: re.Match[str]) -> str:
+        before = text[m.start() - 1] if m.start() > 0 else ""
+        after = text[m.end()] if m.end() < len(text) else ""
+        if not before or not after:
+            return m.group(0)
+        if before == ">" and after == "<":
+            return m.group(0)
+        return " "
+
+    return _NEWLINE_RUN_RE.sub(_replace, text)
+
+
+def _join_soft_breaks_outside_code(xhtml: str) -> str:
+    """Apply :func:`_join_soft_breaks` everywhere except in whitespace-significant spans."""
+    parts: list[str] = []
+    pos = 0
+    for m in _WHITESPACE_SIGNIFICANT_RE.finditer(xhtml):
+        parts.append(_join_soft_breaks(xhtml[pos : m.start()]))
+        parts.append(m.group(0))
+        pos = m.end()
+    parts.append(_join_soft_breaks(xhtml[pos:]))
+    return "".join(parts)
 
 
 def _normalize(xhtml: str) -> list[str]:
     """Normalize XHTML for diffing.
 
+    - Join soft line breaks inside text runs, outside code blocks.
     - Collapse runs of whitespace (spaces, tabs) to a single space per line.
     - Strip leading and trailing whitespace from each line.
     - Decode typography character references to their literal characters.
     - Drop blank lines.
     """
-    decoded = _decode_safe_entities(xhtml)
+    decoded = _join_soft_breaks_outside_code(_decode_safe_entities(xhtml))
     lines: list[str] = []
     for raw_line in decoded.splitlines():
         normalized = re.sub(r"[ \t]+", " ", raw_line).strip()
@@ -82,13 +122,14 @@ def _normalize(xhtml: str) -> list[str]:
 def unified_xhtml_diff(local: str, remote: str) -> str:
     """Return a unified diff of two XHTML strings after normalization.
 
-    Whitespace-only differences are normalized away for ordinary prose markup.
+    Whitespace-only differences are normalized away for ordinary prose markup,
+    including where a soft line break falls inside a text run.
 
-    When the normalized diff is empty but the raw strings differ AND at least
-    one of them contains a ``<ac:structured-macro ac:name="code">`` block, the
-    function falls back to a raw character-level diff with a leading hint line.
-    This prevents indentation changes inside code/CDATA blocks from being
-    silently swallowed.
+    When the normalized diff is empty but the raw strings differ AND their
+    code blocks (``<ac:structured-macro ac:name="code">``, ``<pre>`` or CDATA)
+    differ, the function falls back to a raw line diff with a leading hint
+    line. This prevents indentation and line-break changes inside code blocks
+    from being silently swallowed.
 
     Returns an empty string if there are no meaningful differences.
     """
@@ -112,9 +153,10 @@ def unified_xhtml_diff(local: str, remote: str) -> str:
     if local == remote:
         return ""
 
-    # Raw inputs differ.  If either side contains a code macro, the whitespace
-    # difference may be inside a CDATA block and therefore load-bearing.
-    if _contains_code_macro(local) or _contains_code_macro(remote):
+    # Raw inputs differ.  If a code block differs, the whitespace difference
+    # is inside it and therefore load-bearing.  Differences outside code
+    # blocks (such as where a soft break falls) stay normalized away.
+    if _whitespace_significant_spans(local) != _whitespace_significant_spans(remote):
         raw_diff = list(
             difflib.unified_diff(
                 remote.splitlines(keepends=True),
@@ -125,7 +167,7 @@ def unified_xhtml_diff(local: str, remote: str) -> str:
         )
         if raw_diff:
             hint = (
-                "# Note: whitespace-only differences detected inside a code macro "
+                "# Note: whitespace-only differences detected inside a code block "
                 "(indentation may be load-bearing)\n"
             )
             return hint + "".join(raw_diff)
