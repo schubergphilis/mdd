@@ -8,9 +8,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from mdd.confluence.attachments.scan import scan_local_image_refs
 from mdd.confluence.ir import parse_confluence_storage, render_confluence_storage
 from mdd.ir.document import Document
-from mdd.ir.nodes import Callout, Code, ConfluenceMacro, Image, Inline, Link, Paragraph, Text
+from mdd.ir.nodes import (
+    Callout,
+    Code,
+    ConfluenceMacro,
+    Image,
+    Inline,
+    InlineMacro,
+    Link,
+    Paragraph,
+    Text,
+)
 from mdd.markdown.ir import parse_markdown, render_markdown
 from mdd.markdown.ir.writer.escape import escape_url
 from mdd.markdown.ir.writer.inlines import (
@@ -229,3 +240,52 @@ def test_inline_code_with_a_million_backticks_renders_quickly() -> None:
     elapsed = time.perf_counter() - start
     assert md.startswith("`" * 1_000_001 + " ")
     assert elapsed < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Parameter and macro names
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("build", [_callout, _macro])
+@pytest.mark.parametrize("key", ["a\n![x](a/b.pdf)\nb", "k}x", 'k x="1"', "ac:k", ""])
+def test_fence_param_with_unreadable_name_is_left_out(
+    build: Callable[[dict[str, str]], Document], key: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    md = render_markdown(build({key: "v", "ok": "w"}))
+    header, rest = md.split("\n", 1)
+    assert 'ok="w"' in header
+    assert header.endswith('"}')
+    assert rest.startswith("b\n")
+    assert scan_local_image_refs(md) == []
+    rt = parse_markdown(md).children
+    assert len(rt) == 1
+    node = rt[0]
+    assert isinstance(node, (Callout, ConfluenceMacro))
+    assert node.params == {"ok": "w"}
+    assert "unsupported name" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("name", "params"),
+    [
+        ("status", {"a\n![x](a/b.pdf)\nb": "v"}),
+        ("st\n![x](a/b.pdf)\n", {"title": "v"}),
+        ('st"x', {'k"y': "v"}),
+    ],
+)
+def test_inline_macro_with_unreadable_names_uses_the_storage_form(
+    name: str, params: dict[str, str]
+) -> None:
+    tok = InlineMacro(name=name, params=params)
+    md = render_markdown(Document(children=[Paragraph(inlines=[Text("x "), tok, Text(" y")])]))
+    assert md.startswith("x {{confluence-raw:")
+    assert "\n" not in md.rstrip("\n")
+    assert scan_local_image_refs(md) == []
+    pushed = render_confluence_storage(parse_markdown(md))
+    para = parse_confluence_storage(pushed).children[0]
+    assert isinstance(para, Paragraph)
+    macros = [t for t in para.inlines if isinstance(t, InlineMacro)]
+    assert len(macros) == 1
+    assert macros[0].name == name
+    assert macros[0].params == params

@@ -26,6 +26,7 @@ _KEY = r"[A-Za-z0-9_-]+"
 INLINE_MACRO_RE = re.compile(rf'\{{\{{confluence:({_KEY})((?:\s+{_KEY}="[^"]*")*)\s*\}}\}}')
 INLINE_RAW_RE = re.compile(r"\{\{confluence-raw:([A-Za-z0-9+/=]+)\}\}")
 ATTR_RE = re.compile(rf'({_KEY})="((?:[^"\\]|\\.)*)"')
+KEY_RE = re.compile(_KEY)
 
 # Prefix of a fenced-div header attribute value that carries the real value
 # base64-encoded (UTF-8). The writer uses it for values the one-line header

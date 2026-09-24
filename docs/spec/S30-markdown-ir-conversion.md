@@ -273,6 +273,14 @@ verbatim.
   prefixed value that is not valid base64 of UTF-8 is kept as written.
   A panel parameter `red\nsecond line` therefore survives
   pull → push unchanged instead of splitting the header.
+  Parameter names are written verbatim, so a parameter whose name the
+  reader cannot parse back (anything other than letters, digits, `_`
+  and `-`) is left out of the header with a warning rather than
+  splitting or extending it.
+- An `InlineMacro` whose name or any parameter name is not made of
+  letters, digits, `_` and `-` is written in the
+  `{{confluence-raw:…}}` form, like one with a complex parameter
+  value, so the name cannot end the marker or start a new line.
 - Link and image destinations are written unbracketed with
   whitespace (Unicode whitespace included), every C0 and C1 control
   character (CR, LF and tab included), DEL, `(`, `)`, `<`, `>`, `\` and

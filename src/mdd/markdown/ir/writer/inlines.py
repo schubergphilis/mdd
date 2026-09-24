@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from typing import TYPE_CHECKING, Literal
+from xml.sax.saxutils import quoteattr
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,7 +30,14 @@ from mdd.ir.nodes import (
 )
 
 from ..confluence_uris import render_confluence_uri
-from .escape import escape_attr, escape_text, escape_url, is_safe_autolink, render_attr_dict
+from .escape import (
+    escape_attr,
+    escape_text,
+    escape_url,
+    is_attr_key,
+    is_safe_autolink,
+    render_attr_dict,
+)
 
 
 def render_inlines(
@@ -286,7 +294,10 @@ def _render_confluence_image(tok: ConfluenceImage, out: list[str]) -> None:
 
 
 def _render_inline_macro(tok: InlineMacro, out: list[str]) -> None:
-    if any(_param_is_complex(v) for v in tok.params.values()):
+    # The ``{{confluence:name key="value"}}`` form only reads back simple
+    # names and keys; anything else goes to the base64 storage form.
+    names_ok = is_attr_key(tok.name) and all(is_attr_key(k) for k in tok.params)
+    if not names_ok or any(_param_is_complex(v) for v in tok.params.values()):
         out.append(_render_inline_macro_b64(tok))
         return
     attrs = render_attr_dict(tok.params)
@@ -301,13 +312,13 @@ def _param_is_complex(value: str) -> bool:
 
 
 def _render_inline_macro_b64(tok: InlineMacro) -> str:
-    parts = [f'<ac:structured-macro ac:name="{tok.name}"']
+    parts = [f"<ac:structured-macro ac:name={quoteattr(tok.name)}"]
     for key in ("ac:schema-version", "ac:local-id", "ac:macro-id"):
         if tok.attributes.get(key):
             parts.append(f' {key}="{tok.attributes[key]}"')  # noqa: PERF401
     parts.append(">")
     for key, value in tok.params.items():
-        parts.append(f'<ac:parameter ac:name="{key}">{value}</ac:parameter>')
+        parts.append(f"<ac:parameter ac:name={quoteattr(key)}>{value}</ac:parameter>")
     parts.append("</ac:structured-macro>")
     xml = "".join(parts)
     encoded = base64.b64encode(xml.encode("utf-8")).decode("ascii")
