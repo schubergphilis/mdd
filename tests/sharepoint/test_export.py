@@ -768,3 +768,21 @@ class TestWalkSiteSkipsSymlinks:
         result = _walk_site(site)
 
         assert result == [site / "doc.md"]
+
+
+class TestExportRefusesSymlinkedOutputDir:
+    def test_symlinked_subdir_in_output_is_an_error(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        site_dir = tmp_path / "MySite"
+        (site_dir / "Sub").mkdir(parents=True)
+        (site_dir / "Sub" / "readme.md").write_text("# Hello", encoding="utf-8")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        _plant_symlink(output_dir / "Sub", outside)
+
+        summary = export_folder(site_dir, output_dir=output_dir)
+
+        assert summary.errors == 1
+        assert summary.copied == 0
+        assert list(outside.iterdir()) == []

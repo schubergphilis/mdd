@@ -1123,3 +1123,28 @@ class TestWalkRealFilesSkipsSymlinks:
         pairs = _walk_for_pairs(src, out)
 
         assert pairs == []
+
+
+class TestSyncFolderRefusesSymlinkedOutputDir:
+    def test_source_pair_under_symlinked_output_dir_is_an_error(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        site = tmp_path / "MySite"
+        (site / "Sub").mkdir(parents=True)
+        (site / "Sub" / "Report.docx").write_bytes(b"docx data")
+        output = tmp_path / "output"
+        output.mkdir()
+        _plant_symlink(output / "Sub", outside)
+
+        with (
+            patch("mdd.sharepoint.sync._check_dirty"),
+            patch("mdd.utils.blacklist.check_sharepoint"),
+            patch("mdd.sharepoint.apply.actions.do_convert") as mock_convert,
+        ):
+            summary = sync_folder(site, output_dir=output)
+
+        mock_convert.assert_not_called()
+        assert len(summary.errors) == 1
+        assert "symlink" in summary.errors[0]
+        assert summary.first_sync_docx == 0
+        assert list(outside.iterdir()) == []

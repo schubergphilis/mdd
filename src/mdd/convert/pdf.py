@@ -1,12 +1,13 @@
 """pdf.py — convert .pdf to .pdf.md using Docling."""
 
+import io
 from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text
+from mdd.utils.safe_write import atomic_write_bytes, atomic_write_text, mkdir_no_symlink
 
 log = get_logger(__name__)
 
@@ -113,12 +114,14 @@ def _extract_pictures(doc: Any, attachments_dir: Path) -> None:  # pyright: igno
     pictures: Any = getattr(doc, "pictures", None)  # pyright: ignore[reportAny]
     if not pictures:
         return
-    attachments_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(attachments_dir)
     img_failures = 0
     for i, pic in enumerate(pictures, 1):  # pyright: ignore[reportAny]
         try:
             pil_image: Any = pic.image.pil_image  # pyright: ignore[reportAny]
-            pil_image.save(attachments_dir / f"image{i}.png", format="PNG")  # pyright: ignore[reportAny]
+            buf = io.BytesIO()
+            pil_image.save(buf, format="PNG")  # pyright: ignore[reportAny]
+            atomic_write_bytes(attachments_dir / f"image{i}.png", buf.getvalue())
         except Exception as e:
             img_failures += 1
             log.warning("pdf image %d: %r", i, e)

@@ -743,7 +743,7 @@ def _materialise_chain(
                 raise ApplyError(f"flat ancestor {step.page_id!r} missing flat_md_path")
             new_path = promote_flat_to_dir(step.flat_md_path, step.expected_dir, repo_dir)
         else:  # absent
-            result = pull_single_page(client, step.page_id, step.expected_dir)
+            result = pull_single_page(client, step.page_id, step.expected_dir, root=repo_dir)
             new_path = result.written_path
         materialised.append(_MaterialisedStep(page_id=step.page_id, new_path=new_path))
     return materialised

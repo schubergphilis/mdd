@@ -50,7 +50,9 @@ Originates from research note R04.
   timestamp.
 - Skip render when the side-car matches the current SVG +
   current config; re-render otherwise. Writes are atomic (render
-  to `.tmp`, rename, update side-car).
+  to `.tmp`, rename, update side-car). A symlink at the PNG, its
+  `.tmp`, or the side-car's `.tmp` sibling is refused, never written
+  through.
 
 Side-car shape:
 ```yaml

@@ -42,6 +42,7 @@ from pydantic import ValidationError
 from mdd.converters.models import MERMAIDX_RENDERER, MermaidConfig, MermaidWrapper
 from mdd.utils.frontmatter import parse_yaml_mapping
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import SymlinkRefusedError, mkdir_no_symlink, refuse_symlink
 
 log = get_logger(__name__)
 
@@ -284,6 +285,14 @@ class _Renderer:
     def svg_for(self, fence: MermaidFence) -> Path | None:
         """Path of the rendered SVG for *fence*, rendering on a cache miss."""
         dest = self._dir / f"mermaid-{fence.sha}.svg"
+        try:
+            # Neither the attachments directory nor the SVG may be a symlink;
+            # a linked entry is neither reused as a cache hit nor written to.
+            refuse_symlink(self._dir)
+            refuse_symlink(dest)
+        except SymlinkRefusedError as exc:
+            log.warning("%s; leaving the fence as a code block", exc)
+            return None
         if dest.is_file():
             return dest
         if not self._available():
@@ -293,7 +302,7 @@ class _Renderer:
             out = Path(tmp) / dest.name
             if not self._render(fence, out):
                 return None
-            dest.parent.mkdir(parents=True, exist_ok=True)
+            mkdir_no_symlink(self._dir)
             _ = shutil.move(out, dest)
         return dest
 

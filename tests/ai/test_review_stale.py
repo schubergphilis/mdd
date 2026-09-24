@@ -20,6 +20,7 @@ from mdd.ai.review import (
 from mdd.ai.review import (
     _load_docs as _load_docs,  # pyright: ignore[reportPrivateUsage]
 )
+from mdd.utils.safe_write import SymlinkRefusedError
 
 DEEPLY_NESTED_YAML = "x: " + "[" * 2000
 
@@ -484,3 +485,26 @@ class TestLoadDocsSkipsSymlinks:
         loaded = _load_docs(docs)
 
         assert [rel for rel, _content, _fm in loaded] == [Path("real.md")]
+
+
+class TestReportPathRefusesSymlinks:
+    def test_symlinked_report_path_is_refused(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        report = tmp_path / "report.md"
+        _plant_symlink(report, outside / "target")
+        cfg = ReviewConfig(
+            directory=TestRunReview.FIXTURES,
+            modes={"stale"},
+            age_days=365,
+            output_path=report,
+        )
+        client = MagicMock()
+        client.chat.return_value = _make_chat_result(NULL_RESPONSE)
+        client.summary.api_calls = 0
+        client.summary.cached_calls = 0
+
+        with pytest.raises(SymlinkRefusedError):
+            run_review(cfg, client)
+
+        assert not (outside / "target").exists()

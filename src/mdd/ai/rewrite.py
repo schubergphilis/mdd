@@ -566,7 +566,7 @@ def _write_fail_dump(
         ]
     )
     try:
-        fail_path.write_text(header + model_text, encoding="utf-8")
+        atomic_write_text(fail_path, header + model_text)
     except OSError as exc:
         log.warning("could not write failure dump %s: %s", fail_path, exc)
         return None

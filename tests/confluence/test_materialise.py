@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import subprocess
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from mdd.confluence.materialise import (
     INDEX_BASENAME,
     promote_flat_to_dir,
     pull_single_page,
 )
+from mdd.utils.safe_write import SymlinkRefusedError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -123,3 +126,63 @@ class TestPromoteFlatToDir:
         expected_dir = tmp_path / "Parent"
         new_path = promote_flat_to_dir(flat, expected_dir, tmp_path)
         assert new_path.exists()
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestMaterialiseRefusesSymlinks:
+    def test_pull_single_page_refuses_symlinked_chain(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _plant_symlink(repo / "Parent", outside)
+
+        fake_export = MagicMock()
+        with (
+            patch("mdd.confluence.materialise.export_page", fake_export),
+            pytest.raises(SymlinkRefusedError),
+        ):
+            pull_single_page(
+                client=MagicMock(), page_id="P", target_dir=repo / "Parent" / "Child", root=repo
+            )
+
+        fake_export.assert_not_called()
+        assert list(outside.iterdir()) == []
+
+    def test_pull_single_page_forwards_root(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def _fake_export(_client: object, _page_id: str, out_dir: Path, **kw: object) -> Path:
+            assert kw["root"] == repo
+            path = out_dir / "X.md"
+            path.write_text("---\n---\nx\n")
+            return path
+
+        with patch("mdd.confluence.materialise.export_page", side_effect=_fake_export):
+            result = pull_single_page(
+                client=MagicMock(), page_id="P", target_dir=repo / "A", root=repo
+            )
+
+        assert result.written_path == repo / "A" / INDEX_BASENAME
+
+    def test_promote_refuses_symlinked_expected_dir(self, tmp_path: Path) -> None:
+        _init_repo(tmp_path)
+        flat = tmp_path / "Parent.md"
+        flat.write_text("---\n---\nbody\n")
+        _commit_all(tmp_path)
+        outside = tmp_path.parent / f"{tmp_path.name}-outside"
+        outside.mkdir()
+        _plant_symlink(tmp_path / "Parent", outside)
+
+        with pytest.raises(SymlinkRefusedError):
+            promote_flat_to_dir(flat, tmp_path / "Parent", tmp_path)
+
+        assert flat.exists()
+        assert list(outside.iterdir()) == []

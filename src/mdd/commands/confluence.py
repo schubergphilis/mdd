@@ -214,6 +214,7 @@ def _run_export_page(ns: argparse.Namespace) -> int:
                 output_dir,
                 include_export_header=args.include_export_header,
                 skip_attachments=args.skip_attachments,
+                root=output_dir,
             )
         except ConfluenceError as exc:
             log.error("Confluence API: %s", exc)

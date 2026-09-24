@@ -31,7 +31,7 @@ from mdd.sharepoint.sync import (
 from mdd.utils.blacklist import check_sharepoint
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text
+from mdd.utils.safe_write import atomic_write_text, refuse_symlink_below
 
 if TYPE_CHECKING:
     from mdd.sharepoint.models import SharepointCliConfig
@@ -296,6 +296,8 @@ def _process_file(file_path: Path, ctx: _ExportContext, summary: ExportSummary) 
         return
 
     try:
+        # Every directory between the output root and dst must be real.
+        refuse_symlink_below(dst, ctx.output_dir)
         if action == FileAction.COPY_MARKDOWN:
             _run_copy_markdown(file_path, dst, rel, ctx)
             summary.copied += 1

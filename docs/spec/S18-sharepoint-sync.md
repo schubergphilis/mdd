@@ -146,9 +146,11 @@ picks it up after the user closes Word.
 
 **Atomic per-file writes.** Every regenerated file goes via
 `*.tmp → rename`. An interrupted sync leaves zero partial files. A
-symlink at the destination or at the `*.tmp` sibling is refused, never
-written through; the same holds for the `.mdd-backups/` tree, which
-must consist of real directories inside the output root.
+symlink at the destination, at the `*.tmp` sibling, or at any directory
+between the output root and the destination is refused, never written
+through (the pair is recorded as an error); the same holds for the
+`.mdd-backups/` tree, which must consist of real directories inside the
+output root.
 
 **Symlinks in the mirror are not documents.** The mirror walk skips
 symlinked files and directories, so a symlink named like a mirror page

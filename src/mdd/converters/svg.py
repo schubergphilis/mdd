@@ -25,6 +25,7 @@ from mdd.converters.models import SvgConfig, SvgWrapper
 from mdd.converters.protocol import ConvertResult
 from mdd.utils.frontmatter import parse_yaml_mapping
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text, refuse_symlink
 from mdd.utils.svg_runner import RendererUnavailableError, SvgRenderer, get_renderer
 
 log = get_logger(__name__)
@@ -217,9 +218,7 @@ def _write_sidecar(
             "rendered_at": rendered_at,
         }
     }
-    tmp = sc.with_suffix(".yaml.tmp")
-    tmp.write_text(yaml.dump(data, default_flow_style=False), encoding="utf-8")
-    tmp.rename(sc)
+    atomic_write_text(sc, yaml.dump(data, default_flow_style=False))
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +380,10 @@ class SvgToPngConverter:
         # --- Render ---
         tmp = dest.with_suffix(".png.tmp")
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # The external renderer opens tmp itself, so a symlink there (or at
+        # dest, which the rename lands on) is refused up front.
+        refuse_symlink(tmp)
+        refuse_symlink(dest)
         try:
             renderer.render(src, tmp, scale=effective_scale, bg=background)
         except Exception as exc:

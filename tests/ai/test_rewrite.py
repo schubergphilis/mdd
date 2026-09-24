@@ -1302,3 +1302,18 @@ class TestRewriteFileRefusesSymlinks:
         assert "Write failed" in result.error
         assert not (outside / "target").exists()
         assert src.read_text(encoding="utf-8") == "# Hello\n\nSome text.\n"
+
+    def test_symlinked_fail_dump_is_not_written_through(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        src = tmp_path / "page.md"
+        src.write_text("Some prose.\n\n```python\nx=1\n```\n\nMore prose.\n", encoding="utf-8")
+        _plant_symlink(tmp_path / "page.md.rewrite.fail", outside / "target")
+        # Model drops the placeholder, which triggers the failure dump.
+        mock_client = _make_mock_client("Some prose. More prose.")
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert result.fail_path is None
+        assert not (outside / "target").exists()

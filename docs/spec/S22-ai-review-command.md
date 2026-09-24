@@ -22,7 +22,8 @@ Originates from research note R03.
   (the same registered root sources as [S19](S19-search-command.md))
 - Symlinked `.md` entries under the reviewed directory are skipped, never read
 - Default report path: `docs/review/<YYYY-MM-DD>-<scope>.md`; `--output <path>` overrides
-- Existing report files must not be overwritten; append a numeric suffix
+- Existing report files must not be overwritten; append a numeric suffix. The
+  report is never written through a symlink at its path or `*.tmp` sibling
 - Report must be plain markdown with anchors
 - `--all` must share the BM25 index across sub-modes (computed once)
 - Cache keys must include both file hashes, prompt template hash, model id, mdd version, and sub-mode

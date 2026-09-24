@@ -41,6 +41,7 @@ from mdd.ai.judges import (
 from mdd.ai.reports import choose_report_path, render_report
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -480,7 +481,7 @@ def run_review(cfg: ReviewConfig, client: Client) -> Path:
         report_path = choose_report_path(out_dir, run_date, scope)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report_md, encoding="utf-8")
+    atomic_write_text(report_path, report_md)
 
     return report_path
 

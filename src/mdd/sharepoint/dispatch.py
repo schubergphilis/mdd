@@ -27,6 +27,7 @@ from mdd.sharepoint.apply import (
 )
 from mdd.sharepoint.diff import PairAction, classify_pair, read_sync_state, sha256_file
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import refuse_symlink_below
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -166,7 +167,12 @@ def apply_pair(  # noqa: PLR0911, PLR0913
     summary: SyncRunSummary,
     sync_state: SyncState,
 ) -> None:
-    """Dispatch one pair action to the appropriate apply function and update *summary*."""
+    """Dispatch one pair action to the appropriate apply function and update *summary*.
+
+    The mirror path must not go through a symlink anywhere below *output_dir*;
+    such a pair is refused before any action runs.
+    """
+    refuse_symlink_below(md_path, output_dir)
     if read_only and _is_write_to_sharepoint(action):
         log.info(
             "skip-write %s (--read-only, would have run %s)",

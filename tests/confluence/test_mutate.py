@@ -830,7 +830,10 @@ def _patch_pull_writes_index(
 
     from mdd.confluence.materialise import INDEX_BASENAME, PullResult
 
-    def _fake_pull(_client: object, page_id: str, target_dir: Path) -> PullResult:
+    def _fake_pull(
+        _client: object, page_id: str, target_dir: Path, *, root: Path | None = None
+    ) -> PullResult:
+        assert root is not None
         target_dir.mkdir(parents=True, exist_ok=True)
         index = target_dir / INDEX_BASENAME
         index.write_text(
@@ -1010,7 +1013,7 @@ class TestMovePageMaterialisation:
         mock_client.get_page_ancestors.return_value = []
         opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
 
-        def _boom(_c: object, _pid: str, _t: Path) -> None:
+        def _boom(_c: object, _pid: str, _t: Path, *, root: Path | None = None) -> None:
             raise OSError("disk full")
 
         with (
