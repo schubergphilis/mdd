@@ -230,8 +230,9 @@ forge this ends up on is a wiring decision, not part of this spec:
   blacklist gate also applies to this command — see S07 for the current
   trigger condition. If the current branch has no upstream tracking yet
   (first push), the generic implementation uses
-  `git push -u origin <branch>`, rebasing onto `origin/<branch>` first if
-  the remote already has commits. It refuses to push from a detached
+  `git push -u origin <branch>`. It does not fetch or rebase first, so
+  if the remote branch already has commits git rejects the push as
+  non-fast-forward; a backend may rebase before pushing. It refuses to push from a detached
   HEAD, or when the branch name starts with `-` or fails
   `git check-ref-format --branch`, and it passes `--end-of-options`
   before the remote and branch, so a branch name is never read as a
