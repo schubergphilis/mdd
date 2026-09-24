@@ -337,6 +337,11 @@ def _split_frontmatter(text: str) -> tuple[str, str]:
     return text[:fm_end], text[fm_end:]
 
 
+def _opens_with_frontmatter(text: str) -> bool:
+    """Return True if *text* (ignoring leading whitespace) starts a frontmatter block."""
+    return text.lstrip().startswith(("---\n", "---\r\n"))
+
+
 def _restore_boundary_whitespace(original_body: str, new_body: str) -> str:
     """Re-attach *original_body*'s leading/trailing whitespace to *new_body*.
 
@@ -801,18 +806,19 @@ def _check_managed_for_apply(path: Path, full_text: str) -> bool:  # noqa: ARG00
 def _refuse_managed_apply(
     path: Path,
     *,
-    full_text: str,
     rewritten_full: str,
     chat: ChatResult,
 ) -> RewriteResult | None:
     """Return an error result if *path* is managed elsewhere, else ``None``.
 
-    A managed-elsewhere page must not be overwritten in place, but the
+    The check runs on *rewritten_full*, the text that would actually be
+    written, so it sees exactly the frontmatter that ends up on disk.  A
+    managed-elsewhere page must not be overwritten in place, but the
     candidate rewrite is still worth having, so it lands in the usual
     ``<path>.rewrite.md`` sibling.
     """
     try:
-        blocked = _check_managed_for_apply(path, full_text)
+        blocked = _check_managed_for_apply(path, rewritten_full)
     except Exception:
         blocked = False
     if not blocked:
@@ -945,13 +951,19 @@ def rewrite_file(  # noqa: C901, PLR0911, PLR0912, PLR0915
     rewritten_body = _restore_boundary_whitespace(body, rewritten_body)
     _warn_if_shrunk(path, body, rewritten_body)
 
+    if not frontmatter_block and _opens_with_frontmatter(rewritten_body):
+        return _rejected(
+            path,
+            reason="model output opens with a frontmatter block but the source has none",
+            chat=result,
+            diagnostics=_call_diagnostics(result, transformed_body),
+        )
+
     rewritten_full = frontmatter_block + rewritten_body
 
     # When --apply is set, check for managed-elsewhere before overwriting.
     if apply:
-        refusal = _refuse_managed_apply(
-            path, full_text=full_text, rewritten_full=rewritten_full, chat=result
-        )
+        refusal = _refuse_managed_apply(path, rewritten_full=rewritten_full, chat=result)
         if refusal is not None:
             return refusal
 

@@ -573,6 +573,57 @@ class TestRewriteFile:
         content = src.read_text()
         assert content.startswith(fm)
 
+    @pytest.mark.parametrize("apply", [False, True])
+    def test_rewrite_that_adds_frontmatter_is_rejected(self, tmp_path: Path, apply: bool) -> None:
+        source = "# Hello\n\nSome text.\n"
+        src = tmp_path / "page.md"
+        src.write_text(source, encoding="utf-8")
+
+        minted = "---\nconfluence:\n  page_id: '999'\n---\n\n# Hello\n\nRewritten text.\n"
+        mock_client = _make_mock_client(minted)
+
+        result = rewrite_file(src, mock_client, apply=apply)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "frontmatter" in (result.error or "")
+        assert src.read_text(encoding="utf-8") == source
+        assert not (tmp_path / "page.md.rewrite.md").exists()
+        assert result.fail_path == tmp_path / "page.md.rewrite.fail"
+        assert result.fail_path is not None
+        assert "page_id: '999'" in result.fail_path.read_text(encoding="utf-8")
+
+    def test_rewrite_that_adds_frontmatter_after_blank_lines_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        source = "# Hello\n\nSome text.\n"
+        src = tmp_path / "page.md"
+        src.write_text(source, encoding="utf-8")
+
+        mock_client = _make_mock_client("\n\n---\r\ntitle: x\r\n---\r\n# Hello\n")
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert not (tmp_path / "page.md.rewrite.md").exists()
+
+    def test_managed_elsewhere_apply_is_refused(self, tmp_path: Path) -> None:
+        fm = "---\ntitle: Test\nconfluence:\n  page_id: '123'\n  managed_by: other-repo\n---\n"
+        body = "\n# Body\n\nSome prose.\n"
+        src = tmp_path / "page.md"
+        src.write_text(fm + body, encoding="utf-8")
+
+        mock_client = _make_mock_client("# Body\n\nRewritten prose.\n")
+
+        result = rewrite_file(src, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "Managed-elsewhere" in (result.error or "")
+        assert src.read_text(encoding="utf-8") == fm + body
+        sibling = tmp_path / "page.md.rewrite.md"
+        assert result.output_path == sibling
+        assert sibling.read_text(encoding="utf-8").startswith(fm)
+        assert "Rewritten prose." in sibling.read_text(encoding="utf-8")
+
     def test_boundary_whitespace_restored(self, tmp_path: Path) -> None:
         # Source has a blank line after the frontmatter and trailing blank lines.
         fm = "---\ntitle: Test\n---\n"
