@@ -508,3 +508,69 @@ class TestReportPathRefusesSymlinks:
             run_review(cfg, client)
 
         assert not (outside / "target").exists()
+
+    @staticmethod
+    def _run(output_path: Path | None = None) -> Path:
+        cfg = ReviewConfig(
+            directory=TestRunReview.FIXTURES,
+            modes={"stale"},
+            age_days=365,
+            output_path=output_path,
+        )
+        client = MagicMock()
+        client.chat.return_value = _make_chat_result(NULL_RESPONSE)
+        client.summary.api_calls = 0
+        client.summary.cached_calls = 0
+        return run_review(cfg, client)
+
+    def test_symlinked_default_review_dir_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        work = tmp_path / "work"
+        (work / "docs").mkdir(parents=True)
+        _plant_symlink(work / "docs" / "review", outside)
+        monkeypatch.chdir(work)
+
+        with pytest.raises(SymlinkRefusedError):
+            _ = self._run()
+
+        assert list(outside.iterdir()) == []
+
+    def test_symlinked_default_docs_dir_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        work = tmp_path / "work"
+        work.mkdir()
+        _plant_symlink(work / "docs", outside)
+        monkeypatch.chdir(work)
+
+        with pytest.raises(SymlinkRefusedError):
+            _ = self._run()
+
+        assert list(outside.iterdir()) == []
+
+    def test_default_output_under_symlinked_cwd_is_written(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real = tmp_path / "real"
+        real.mkdir()
+        link = tmp_path / "link"
+        _plant_symlink(link, real)
+        monkeypatch.chdir(link)
+
+        report = self._run()
+
+        assert (real / "docs" / "review" / report.name).is_file()
+
+    def test_explicit_output_in_symlinked_dir_is_written(self, tmp_path: Path) -> None:
+        real = tmp_path / "real"
+        real.mkdir()
+        _plant_symlink(tmp_path / "link", real)
+
+        _ = self._run(tmp_path / "link" / "report.md")
+
+        assert (real / "report.md").is_file()

@@ -17,6 +17,7 @@ from mdd.confluence.apply import (
     is_dirty,
     move_attachments_alongside,
 )
+from mdd.utils.safe_write import OutsideRootError, SymlinkRefusedError
 
 
 def _init_git_repo(path: Path) -> None:
@@ -124,6 +125,59 @@ class TestGitMv:
             ["git", "ls-files"], cwd=str(tmp_path), capture_output=True, text=True, check=True
         ).stdout.split()
         assert tracked == ["renamed.md"]
+
+    def test_symlinked_destination_dir_is_refused(self, tmp_path: Path) -> None:
+        """``git mv`` into a committed directory symlink would land outside the mirror."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_git_repo(repo)
+        src = repo / "A.md"
+        src.write_text("content")
+        try:
+            (repo / "Eng").symlink_to(Path("..") / "outside")
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+        _git_add_and_commit(repo)
+
+        with pytest.raises(SymlinkRefusedError):
+            git_mv(src, repo / "Eng" / "A.md", repo)
+
+        assert list(outside.iterdir()) == []
+        assert src.is_file()
+
+    def test_symlinked_intermediate_dir_is_not_created_through(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_git_repo(repo)
+        src = repo / "A.md"
+        src.write_text("content")
+        try:
+            (repo / "Eng").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+        _git_add_and_commit(repo)
+
+        with pytest.raises(SymlinkRefusedError):
+            git_mv(src, repo / "Eng" / "Team" / "A.md", repo)
+
+        assert list(outside.iterdir()) == []
+
+    def test_destination_outside_repo_is_an_os_error(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _init_git_repo(repo)
+        src = repo / "A.md"
+        src.write_text("content")
+        _git_add_and_commit(repo)
+
+        with pytest.raises(OutsideRootError):
+            git_mv(src, tmp_path / "elsewhere" / "A.md", repo)
+
+        assert not (tmp_path / "elsewhere").exists()
 
 
 class TestGitRm:

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from mdd.convert import CorruptSourceError
 from mdd.converters.protocol import ConvertResult
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text
+from mdd.utils.safe_write import atomic_write_text, mkdir_no_symlink
 
 log = get_logger(__name__)
 
@@ -410,6 +410,8 @@ def _extract_docx_images(
     src: Path,
     attachments_dir: Path,
     dropped: Counter[str],
+    *,
+    root: Path | None = None,
 ) -> list[str]:
     """Extract embedded images from *src* into *attachments_dir*.
 
@@ -439,7 +441,12 @@ def _extract_docx_images(
         fmt = _CONTENT_TYPE_TO_FORMAT.get(content_type, content_type.split("/")[-1])
         blob: bytes = part.blob  # pyright: ignore[reportAny]
         result = write_image(
-            attachments_dir, blob, fmt, cache=cache, on_drop=lambda r: dropped.update({r: 1})
+            attachments_dir,
+            blob,
+            fmt,
+            cache=cache,
+            on_drop=lambda r: dropped.update({r: 1}),
+            root=root,
         )
         if result is None:
             links.append("")
@@ -494,8 +501,10 @@ def _format_metadata(meta: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def _write_docx(src: Path, dst: Path) -> Path | None:
+def _write_docx(src: Path, dst: Path, *, root: Path | None = None) -> Path | None:
     """Convert a .docx file to markdown, writing to dst.
+
+    No directory between *root* and *dst* (or its attachments) may be a symlink.
 
     Returns the attachments dir if any embedded images were extracted,
     or ``None`` if the doc had no images (so callers can leave
@@ -523,7 +532,7 @@ def _write_docx(src: Path, dst: Path) -> Path | None:
 
     attachments_dir = dst.parent / (dst.stem + "-attachments")
     dropped: Counter[str] = Counter()
-    links = _extract_docx_images(src, attachments_dir, dropped)
+    links = _extract_docx_images(src, attachments_dir, dropped, root=root)
     body = _inject_image_links(body, links)
     if dropped:
         breakdown = ", ".join(
@@ -555,8 +564,8 @@ def _write_docx(src: Path, dst: Path) -> Path | None:
         # own text into the mirror file's frontmatter.
         content = "\\" + content
 
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(dst, content)
+    mkdir_no_symlink(dst.parent, root=root)
+    atomic_write_text(dst, content, root=root)
 
     if attachments_dir.is_dir() and any(attachments_dir.iterdir()):
         return attachments_dir
@@ -569,12 +578,14 @@ class DocxConverter:
     extensions: tuple[str, ...] = (".docx",)
     output_suffix: str = ".md"
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         if dest is None:
             dest = src.parent / (src.name + self.output_suffix)
         warnings: list[str] = []
         try:
-            attachments_dir = _write_docx(src, dest)
+            attachments_dir = _write_docx(src, dest, root=root)
         except CorruptSourceError:
             # Soft-skip signal; dispatcher will log it as [SKIP] not [ERROR].
             raise

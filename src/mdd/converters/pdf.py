@@ -20,7 +20,9 @@ class PdfConverter:
     extensions: tuple[str, ...] = (".pdf",)
     output_suffix: str = ".md"
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         # test-seam: re-imported here so monkeypatch on
         # ``mdd.convert.pdf.convert_pdf`` reaches this call site.
         from mdd.convert.pdf import convert_pdf  # noqa: PLC0415
@@ -28,7 +30,7 @@ class PdfConverter:
         if dest is None:
             dest = src.parent / (src.name + self.output_suffix)
         try:
-            convert_pdf(src, dest)
+            convert_pdf(src, dest, root=root)
         except Exception:
             log.exception("error converting %s", src)
             raise

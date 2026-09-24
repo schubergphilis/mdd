@@ -265,7 +265,14 @@ the previous push must have succeeded.
   directories) fails if the path, or any directory between the mirror root and
   the path, is a symlink; the mirror root itself may be one. The walk in Step 2
   skips symlinked `.md` entries. `move-page` applies the same rule when it
-  materialises ancestor directories.
+  materialises ancestor directories. Renames and moves apply it too: the
+  `git mv` destination and its parent directories (title-derived, possibly
+  already committed), the moved `<page-name>-attachments/`, and the
+  frontmatter rewrite after a rename, move, archive or metadata refresh must
+  not go through a symlink below the mirror root. A symlink where a
+  `move-page` parent directory is expected is refused rather than used. A
+  destination that is not below the mirror root is refused the same way. Each
+  refusal is a per-page failure, not a crash of the run.
 - **Dirty working tree refuses.** If `git status --porcelain` reports uncommitted changes in the output directory, sync aborts. No `--allow-dirty` escape hatch — manual edits and sync writes must not be commit-mixed.
 - **First sync of an empty clone is a normal sync.** No special `--initial` flag; every page classifies as "new (Confluence → mirror)".
 - **Best-effort partial failure.** Each operation in a try block; on failure sync records the error, skips, and continues. Commit covers what succeeded; exit code is 1 if anything failed. Next run picks up unfinished work cleanly (idempotent). This holds for *any* exception raised while handling one page, on both the pull and the push side: a remote body the storage reader or markdown renderer cannot process is recorded as a per-page failure (with a logged traceback) and the remaining pages, deletions and the commit still run.

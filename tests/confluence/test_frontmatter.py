@@ -106,6 +106,31 @@ class TestWrite:
 
         assert not tmp_file.exists()
 
+    def test_symlinked_dir_below_root_is_refused(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        try:
+            (tmp_path / "Eng").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+
+        with pytest.raises(SymlinkRefusedError):
+            write(tmp_path / "Eng" / "page.md", {"x": 1}, "body", root=tmp_path)
+
+        assert list(outside.iterdir()) == []
+
+    def test_without_root_only_the_file_is_checked(self, tmp_path: Path) -> None:
+        real = tmp_path / "real"
+        real.mkdir()
+        try:
+            (tmp_path / "link").symlink_to(real)
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+
+        write(tmp_path / "link" / "page.md", {"x": 1}, "body")
+
+        assert (real / "page.md").is_file()
+
 
 class TestRoundTrip:
     def test_roundtrip_simple(self, tmp_path: Path) -> None:

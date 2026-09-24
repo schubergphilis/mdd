@@ -25,7 +25,9 @@ class _StubConverter:
     extensions: tuple[str, ...] = (".stub",)
     output_suffix: str = ".md"
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         raise NotImplementedError
 
 
@@ -35,7 +37,9 @@ class _AnotherStubConverter:
     extensions: tuple[str, ...] = (".stub",)  # same as _StubConverter
     output_suffix: str = ".md"
 
-    def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+    def convert(
+        self, src: Path, *, dest: Path | None = None, root: Path | None = None
+    ) -> ConvertResult:
         raise NotImplementedError
 
 
@@ -107,7 +111,9 @@ class TestRegisterErrors:
             extensions: tuple[str, ...] = (".uniquetest",)
             output_suffix: str = ".md"
 
-            def convert(self, src: Path, *, dest: Path | None = None) -> ConvertResult:
+            def convert(
+                self, src: Path, *, dest: Path | None = None, root: Path | None = None
+            ) -> ConvertResult:
                 raise NotImplementedError
 
         conv: Converter = _UniqueConverter()

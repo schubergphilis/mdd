@@ -46,7 +46,7 @@ def _rename_kind_label(kind: EventKind) -> str:
     }[kind]
 
 
-def _rewrite_first_h1(md_path: Path, new_title: str) -> None:
+def _rewrite_first_h1(md_path: Path, new_title: str, root: Path) -> None:
     """Rewrite the first ATX H1 (``# ...``) in *md_path*'s body to *new_title*.
 
     No-op when the body has no leading H1. The title-on-disk convention
@@ -63,7 +63,7 @@ def _rewrite_first_h1(md_path: Path, new_title: str) -> None:
             trailing = "\n" if line.endswith("\n") else ""
             lines[idx] = f"# {new_title}{trailing}"
             new_body = "".join(lines)
-            write_frontmatter(md_path, fm, new_body)
+            write_frontmatter(md_path, fm, new_body, root=root)
             return
 
 
@@ -109,7 +109,7 @@ def _apply_one_rename_move(
             # Title-on-disk is the body H1;
             # rewriting it here keeps update-page from resurrecting the
             # old title via _extract_title.
-            _rewrite_first_h1(new_path, desired_page.title)
+            _rewrite_first_h1(new_path, desired_page.title, output_dir)
         if page_id in mirror.tracked:  # pyright: ignore[reportAny]
             _replace_tracked_path(mirror, page_id, new_path)
         if event.kind in (EventKind.RENAME, EventKind.RENAME_MOVE):
@@ -148,6 +148,7 @@ def _apply_one_archive(
     event: SyncEvent,
     mirror: Any,  # pyright: ignore[reportAny]
     summary: SyncSummary,
+    output_dir: Path | None,
 ) -> None:
     if event.desired is None or event.current_path is None:
         return
@@ -167,7 +168,7 @@ def _apply_one_archive(
             conf["status"] = "current"
             summary.unarchived += 1
             log.info("unarchive: %s", current_path.name)
-        write_frontmatter(current_path, fm, body)
+        write_frontmatter(current_path, fm, body, root=output_dir)
         pin_mtime_to_exported_at(current_path, fm)
     except (OSError, Exception) as exc:
         label = "archive" if event.kind == EventKind.ARCHIVE else "unarchive"
@@ -179,7 +180,14 @@ def apply_archive_unarchive(
     events: list[SyncEvent],
     mirror: Any,
     summary: SyncSummary,  # pyright: ignore[reportAny]
+    *,
+    output_dir: Path | None = None,
 ) -> None:
+    """Flip ``confluence.status`` for archive/unarchive events.
+
+    When *output_dir* is given, no directory between it and a rewritten
+    file may be a symlink.
+    """
     for event in events:
         if event.kind in (EventKind.ARCHIVE, EventKind.UNARCHIVE):
-            _apply_one_archive(event, mirror, summary)
+            _apply_one_archive(event, mirror, summary, output_dir)

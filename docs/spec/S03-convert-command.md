@@ -28,6 +28,15 @@ Ported from `lsimons-auto spec-019` (md action). See that spec for full algorith
   through a symlink at the destination, at the `.md.tmp` sibling, or at the
   `<name>-attachments/` directory; the conversion fails instead of following
   the link.
+- The output base the operator names (`--dest-dir`, or the source directory
+  for in-place output) is trusted and may itself be a symlink. Every directory
+  mdd creates or writes into below it (mirrored sub-directories,
+  `<name>-attachments/`) must be a real directory; a symlink there fails that
+  file's conversion. Converters take the base as a `root` argument for this.
+- The directory walk skips symlinked entries with a warning, so a symlinked
+  `.docx`/`.pptx`/`.pdf` in the tree is not read. A file named directly
+  (positional file argument or `--file`) is operator-chosen: it is followed
+  even when it is a symlink, with a warning.
 
 ## Implementation Notes
 

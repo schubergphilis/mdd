@@ -134,7 +134,7 @@ def apply_event_phases(
         used_paths,
         pull_ctx.summary,
     )
-    apply_archive_unarchive(events, mirror, pull_ctx.summary)
+    apply_archive_unarchive(events, mirror, pull_ctx.summary, output_dir=pull_ctx.output_dir)
     create_local_pages(
         events,
         push_ctx.config,
@@ -147,4 +147,4 @@ def apply_event_phases(
     push_content(events, mirror, push_ctx)
     apply_deletions(events, pull_ctx.output_dir, pull_ctx.opts, pull_ctx.summary)
     record_conflicts(events, pull_ctx.summary)
-    refresh_metadata(events, mirror, pull_ctx.summary)
+    refresh_metadata(events, mirror, pull_ctx.summary, output_dir=pull_ctx.output_dir)

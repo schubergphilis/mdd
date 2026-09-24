@@ -8,18 +8,27 @@ blobs, shape type) that Docling does not surface.
 
 import html
 from collections import Counter
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from mdd.convert import CorruptSourceError
 from mdd.utils.logging import get_logger
-from mdd.utils.safe_write import atomic_write_text
+from mdd.utils.safe_write import atomic_write_text, mkdir_no_symlink
 
 log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+@dataclass(frozen=True)
+class _Attachments:
+    """Where extracted pictures go, and the base no symlink may sit below."""
+
+    dir: Path
+    root: Path | None
 
 
 def _same_shape(a: Any, b: Any) -> bool:  # pyright: ignore[reportAny]
@@ -165,7 +174,7 @@ def _render_table(shape: Any) -> list[str]:  # pyright: ignore[reportAny]
 
 def _try_extract_picture(
     shape: Any,  # pyright: ignore[reportAny]
-    attachments_dir: Path,
+    attachments: _Attachments,
     cache: dict[str, Path],
     dropped_reasons: Counter[str],
 ) -> str:
@@ -211,15 +220,16 @@ def _try_extract_picture(
         dropped_reasons[reason] += 1
 
     result = write_image(
-        attachments_dir,
+        attachments.dir,
         image.blob,  # pyright: ignore[reportAny]
         fmt,
         cache=cache,
         on_drop=_record,
+        root=attachments.root,
     )
     if result is None:
         return f"<!-- dropped unsupported image: {fmt.upper()} -->"
-    rel = f"{attachments_dir.name}/{result.rel_path.as_posix()}"
+    rel = f"{attachments.dir.name}/{result.rel_path.as_posix()}"
     return f"![]({rel})"
 
 
@@ -262,7 +272,7 @@ def _notes_text(slide: Any) -> str:  # pyright: ignore[reportAny]
 def _render_shape(
     shape: Any,  # pyright: ignore[reportAny]
     title_shape: Any,  # pyright: ignore[reportAny]
-    attachments_dir: Path,
+    attachments: _Attachments,
     image_cache: dict[str, Path],
     skipped_types: Counter[str],
     dropped_image_reasons: Counter[str],
@@ -281,7 +291,7 @@ def _render_shape(
     # A filled picture placeholder reports ``PLACEHOLDER`` as its shape type
     # but carries an image just like a free-floating picture.
     if shape_type == MSO_SHAPE_TYPE.PICTURE or isinstance(shape, PlaceholderPicture):  # pyright: ignore[reportAny]
-        link = _try_extract_picture(shape, attachments_dir, image_cache, dropped_image_reasons)
+        link = _try_extract_picture(shape, attachments, image_cache, dropped_image_reasons)
         return [link, ""]
 
     if getattr(shape, "has_text_frame", False):  # pyright: ignore[reportAny]
@@ -299,7 +309,7 @@ def _render_shape(
 def _render_slide(
     slide_num: int,
     slide: Any,  # pyright: ignore[reportAny]
-    attachments_dir: Path,
+    attachments: _Attachments,
     image_cache: dict[str, Path],
     skipped_types: Counter[str],
     dropped_image_reasons: Counter[str],
@@ -328,7 +338,7 @@ def _render_slide(
             _render_shape(
                 shape,
                 title_shape,
-                attachments_dir,
+                attachments,
                 image_cache,
                 skipped_types,
                 dropped_image_reasons,
@@ -370,8 +380,10 @@ def _emit_summaries(
         )
 
 
-def convert_pptx(src: Path, dst: Path) -> None:
+def convert_pptx(src: Path, dst: Path, *, root: Path | None = None) -> None:
     """Convert src .pptx to dst .pptx.md with one slide per ## section.
+
+    No directory between *root* and the written files may be a symlink.
 
     Raises :class:`mdd.convert.CorruptSourceError` when *src* is empty
     or is not a valid Office Open XML package (e.g. truncated downloads,
@@ -405,7 +417,7 @@ def convert_pptx(src: Path, dst: Path) -> None:
 
     # Determine attachments directory (sibling of dst, named <dst.stem>-attachments)
     # dst is e.g. /path/to/foo.pptx.md; stem is "foo.pptx"; attachments = foo.pptx-attachments
-    attachments_dir = dst.parent / (dst.stem + "-attachments")
+    attachments = _Attachments(dir=dst.parent / (dst.stem + "-attachments"), root=root)
 
     # Build YAML frontmatter using yaml.safe_dump for correct encoding
     fm_data: dict[str, object] = {"slide_count": slide_count}
@@ -430,7 +442,7 @@ def convert_pptx(src: Path, dst: Path) -> None:
             _render_slide(
                 slide_num,
                 slide,
-                attachments_dir,
+                attachments,
                 image_cache,
                 skipped_types,
                 dropped_image_reasons,
@@ -441,6 +453,5 @@ def convert_pptx(src: Path, dst: Path) -> None:
 
     content = "\n".join(fm_lines) + "\n".join(body_parts)
 
-    # Atomic write
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(dst, content)
+    mkdir_no_symlink(dst.parent, root=root)
+    atomic_write_text(dst, content, root=root)

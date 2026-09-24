@@ -9,24 +9,26 @@ from pathlib import Path
 from mdd.utils import safe_write
 
 
-def atomic_write_bytes(dest: Path, data: bytes) -> None:
+def atomic_write_bytes(dest: Path, data: bytes, *, root: Path | None = None) -> None:
     """Write *data* to *dest* atomically via a ``.tmp`` sibling.
 
     Creates missing parent directories. Refuses to write through a symlink
-    at *dest* or at the ``.tmp`` sibling.
+    at *dest*, at the ``.tmp`` sibling, or at any directory between *root*
+    and *dest*.
     """
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    safe_write.atomic_write_bytes(dest, data)
+    safe_write.mkdir_no_symlink(dest.parent, root=root)
+    safe_write.atomic_write_bytes(dest, data, root=root)
 
 
-def atomic_write_text(dest: Path, text: str) -> None:
+def atomic_write_text(dest: Path, text: str, *, root: Path | None = None) -> None:
     """Write *text* to *dest* atomically via a ``.tmp`` sibling.
 
     Creates missing parent directories. Refuses to write through a symlink
-    at *dest* or at the ``.tmp`` sibling.
+    at *dest*, at the ``.tmp`` sibling, or at any directory between *root*
+    and *dest*.
     """
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    safe_write.atomic_write_text(dest, text)
+    safe_write.mkdir_no_symlink(dest.parent, root=root)
+    safe_write.atomic_write_text(dest, text, root=root)
 
 
 def backup_office_file(office_path: Path, output_root: Path) -> None:

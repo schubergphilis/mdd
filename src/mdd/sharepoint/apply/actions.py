@@ -27,11 +27,12 @@ def apply_docx_to_md(
     md_path: Path,
     *,
     backup: bool = False,  # noqa: ARG001
-    output_root: Path | None = None,  # noqa: ARG001
+    output_root: Path | None = None,
 ) -> PairResult:
     """Convert *docx_path* → Markdown; overwrite *md_path* and update sync block.
 
-    The conversion result is written atomically.  The existing ``.md``'s
+    The conversion result is written atomically, and no directory between
+    *output_root* and the files written may be a symlink.  The existing ``.md``'s
     non-sharepoint frontmatter and body are replaced by the converter output;
     the ``sharepoint.sync`` block is stamped fresh.
     """
@@ -41,7 +42,7 @@ def apply_docx_to_md(
     # Write converted body to a temp destination
     tmp_md = md_path.with_suffix(md_path.suffix + ".tmp")
     try:
-        do_convert(docx_path, tmp_md)
+        do_convert(docx_path, tmp_md, root=output_root)
         body = tmp_md.read_text(encoding="utf-8", errors="replace")
     finally:
         if tmp_md.exists():
@@ -54,7 +55,7 @@ def apply_docx_to_md(
 
     # Preserve non-sharepoint frontmatter from existing .md if possible
     merged = _merge_body_with_existing_fm(body, md_path, docx_path)
-    atomic_write_text(md_path, merged)
+    atomic_write_text(md_path, merged, root=output_root)
 
     # Stamp sync block — preserve the user's update_office preference.
     office_sha = sha256_file(docx_path)

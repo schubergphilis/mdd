@@ -23,6 +23,7 @@ from mdd.confluence.tree import (
     get_space_id,
     list_pages,
 )
+from mdd.utils.safe_write import SymlinkRefusedError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -585,6 +586,24 @@ class TestAncestorChainForMove:
         )
         chain = ancestor_chain_for_move(client, "P", "S", tmp_path)
         assert len(chain) == 2
+
+    def test_symlinked_parent_dir_is_refused(self, tmp_path: Path) -> None:
+        """A symlink where the parent directory is expected is not used as the move target."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        mirror = tmp_path / "mirror"
+        mirror.mkdir()
+        try:
+            (mirror / "Parent").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks not supported on this platform")
+        client = _make_ancestor_client(
+            ancestors=[],
+            parent_data={"id": "P", "title": "Parent", "spaceId": "S"},
+        )
+
+        with pytest.raises(SymlinkRefusedError):
+            _ = ancestor_chain_for_move(client, "P", "S", mirror)
 
 
 class TestAncestorStep:

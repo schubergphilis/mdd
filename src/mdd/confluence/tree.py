@@ -22,6 +22,7 @@ from mdd.confluence.client import (
 )
 from mdd.confluence.paths import sanitize
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import SymlinkRefusedError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -362,8 +363,12 @@ def _classify_local_state(
     The decision is purely filesystem-based and intentionally does not
     re-parse frontmatter: the walk only needs to know whether
     the *directory* exists (so a child can be placed inside) and, if not,
-    whether a flat ``Title.md`` is available to promote.
+    whether a flat ``Title.md`` is available to promote. A symlink where the
+    directory is expected is refused, since a child moved into it would
+    land wherever the link points.
     """
+    if expected_dir.is_symlink():
+        raise SymlinkRefusedError(expected_dir)
     if expected_dir.is_dir():
         return "dir", None
     flat = expected_dir.parent / f"{safe}.md"

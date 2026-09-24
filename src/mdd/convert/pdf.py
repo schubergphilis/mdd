@@ -105,7 +105,7 @@ def _build_frontmatter(src: Path, doc: Any) -> str:  # pyright: ignore[reportAny
     return "\n".join(["---", *fm_block.rstrip().splitlines(), "---", ""])
 
 
-def _extract_pictures(doc: Any, attachments_dir: Path) -> None:  # pyright: ignore[reportAny,reportExplicitAny]
+def _extract_pictures(doc: Any, attachments_dir: Path, *, root: Path | None = None) -> None:  # pyright: ignore[reportAny,reportExplicitAny]
     """Write Docling-detected pictures to ``attachments_dir`` as PNGs.
 
     Requires the converter to have been built with ``generate_picture_images``;
@@ -114,14 +114,14 @@ def _extract_pictures(doc: Any, attachments_dir: Path) -> None:  # pyright: igno
     pictures: Any = getattr(doc, "pictures", None)  # pyright: ignore[reportAny]
     if not pictures:
         return
-    mkdir_no_symlink(attachments_dir)
+    mkdir_no_symlink(attachments_dir, root=root)
     img_failures = 0
     for i, pic in enumerate(pictures, 1):  # pyright: ignore[reportAny]
         try:
             pil_image: Any = pic.image.pil_image  # pyright: ignore[reportAny]
             buf = io.BytesIO()
             pil_image.save(buf, format="PNG")  # pyright: ignore[reportAny]
-            atomic_write_bytes(attachments_dir / f"image{i}.png", buf.getvalue())
+            atomic_write_bytes(attachments_dir / f"image{i}.png", buf.getvalue(), root=root)
         except Exception as e:
             img_failures += 1
             log.warning("pdf image %d: %r", i, e)
@@ -129,7 +129,9 @@ def _extract_pictures(doc: Any, attachments_dir: Path) -> None:  # pyright: igno
         log.warning("%d image(s) could not be extracted", img_failures)
 
 
-def convert_pdf(src: Path, dst: Path, *, extract_images: bool = False) -> None:
+def convert_pdf(
+    src: Path, dst: Path, *, extract_images: bool = False, root: Path | None = None
+) -> None:
     """Convert src .pdf to dst .pdf.md using Docling.
 
     Extracts body text via Docling. PDF metadata (title, author, page count)
@@ -138,6 +140,8 @@ def convert_pdf(src: Path, dst: Path, *, extract_images: bool = False) -> None:
     With ``extract_images=True``, images detected by Docling are rasterised
     and written to ``<dst.stem>-attachments/``. This requires Docling to
     rasterise PDF pages and is significantly slower; it is off by default.
+
+    No directory between *root* and the written files may be a symlink.
     """
     converter: Any = _get_converter(with_picture_images=extract_images)  # pyright: ignore[reportAny]
     result: Any = converter.convert(str(src))  # pyright: ignore[reportAny]
@@ -147,8 +151,7 @@ def convert_pdf(src: Path, dst: Path, *, extract_images: bool = False) -> None:
     body: str = str(doc.export_to_markdown())  # pyright: ignore[reportAny]
 
     if extract_images:
-        _extract_pictures(doc, dst.parent / (dst.stem + "-attachments"))
+        _extract_pictures(doc, dst.parent / (dst.stem + "-attachments"), root=root)
 
-    # Atomic write
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(dst, fm + body)
+    mkdir_no_symlink(dst.parent, root=root)
+    atomic_write_text(dst, fm + body, root=root)

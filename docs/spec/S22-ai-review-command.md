@@ -24,6 +24,11 @@ Originates from research note R03.
 - Default report path: `docs/review/<YYYY-MM-DD>-<scope>.md`; `--output <path>` overrides
 - Existing report files must not be overwritten; append a numeric suffix. The
   report is never written through a symlink at its path or `*.tmp` sibling
+- The default `docs/review/` location sits inside the working tree, so `docs/`
+  and `docs/review/` must be real directories below the current directory (a
+  symlink there is refused); the current directory itself may be a symlink.
+  An explicit `--output` path is operator-chosen and trusted: only the report
+  file itself is checked
 - Report must be plain markdown with anchors
 - `--all` must share the BM25 index across sub-modes (computed once)
 - Cache keys must include both file hashes, prompt template hash, model id, mdd version, and sub-mode

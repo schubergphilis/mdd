@@ -569,7 +569,7 @@ class TestSyncFolderBasic:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text("# Converted\n", encoding="utf-8")
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             fake_convert(s, d)
             return "docling-docx"
 
@@ -683,7 +683,7 @@ class TestSyncFolderBasic:
         output = tmp_path / "output"
         output.mkdir()
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             d.parent.mkdir(parents=True, exist_ok=True)
             d.write_text("# Converted\n", encoding="utf-8")
             return "docling-docx"
@@ -708,7 +708,7 @@ class TestSyncFolderBasic:
         output = tmp_path / "output"
         output.mkdir()
 
-        def convert_wrapper(s: Path, d: Path) -> str:
+        def convert_wrapper(s: Path, d: Path, *, root: Path | None = None) -> str:
             d.parent.mkdir(parents=True, exist_ok=True)
             d.write_text("# Converted\n", encoding="utf-8")
             return "docling-docx"

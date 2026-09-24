@@ -55,7 +55,14 @@ def refresh_metadata(
     events: list[SyncEvent],
     mirror: Any,
     summary: SyncSummary,  # pyright: ignore[reportAny]  # noqa: ARG001
+    *,
+    output_dir: Path | None = None,
 ) -> None:
+    """Rewrite labels and status for metadata-only events.
+
+    When *output_dir* is given, no directory between it and a rewritten
+    file may be a symlink.
+    """
     for event in events:
         if event.kind != EventKind.METADATA_ONLY:
             continue
@@ -71,7 +78,7 @@ def refresh_metadata(
                 conf: dict[str, Any] = conf_raw  # pyright: ignore[reportUnknownVariableType]
                 conf["labels"] = desired_page.labels
                 conf["status"] = desired_page.status
-                write_frontmatter(current_path, fm, body)
+                write_frontmatter(current_path, fm, body, root=output_dir)
                 pin_mtime_to_exported_at(current_path, fm)
         except (OSError, Exception) as exc:
             log.warning("metadata refresh %s: %s", page_id, exc)
