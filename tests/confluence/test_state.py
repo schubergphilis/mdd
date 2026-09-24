@@ -322,3 +322,28 @@ class TestBuildMirrorStateInvalidFrontmatter:
         assert p in state.manual
         assert p not in state.tracked.values()
         assert any("spcae_key" in record.message for record in caplog.records)
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestBuildMirrorStateSkipsSymlinks:
+    def test_symlinked_md_not_ingested(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        secret = outside / "secret.txt"
+        secret.write_text("not a page", encoding="utf-8")
+        mirror = tmp_path / "mirror"
+        mirror.mkdir()
+        _write_md(mirror / "real.md", {})
+        _plant_symlink(mirror / "link.md", secret)
+
+        state = build_mirror_state(mirror)
+
+        all_paths = list(state.tracked.values()) + state.untracked + state.manual
+        assert mirror / "real.md" in all_paths
+        assert mirror / "link.md" not in all_paths

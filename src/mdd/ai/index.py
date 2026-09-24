@@ -27,6 +27,7 @@ import yaml
 
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from mdd.ai.client import Client
@@ -72,13 +73,7 @@ def _write_frontmatter_and_body(path: Path, fm: dict[str, Any], body: str) -> No
     """Atomically write *path* with YAML frontmatter and *body*."""
     fm_str = yaml.safe_dump(fm, default_flow_style=False, sort_keys=False, allow_unicode=True)
     content = f"---\n{fm_str}---\n{body}"
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    try:
-        tmp.write_text(content, encoding="utf-8")
-        tmp.replace(path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, content)
 
 
 def _body_hash(body: str) -> str:
@@ -107,7 +102,7 @@ def _collect_md_files(directory: Path) -> list[Path]:
     """Walk *directory* recursively, returning .md files excluding INDEX.md."""
     files: list[Path] = []
     for p in sorted(directory.rglob("*.md")):
-        if p.name == "INDEX.md":
+        if p.name == "INDEX.md" or p.is_symlink():
             continue
         files.append(p)
     return files
@@ -572,12 +567,9 @@ def index_dir(
     index_path = directory / "INDEX.md"
 
     if apply:
-        tmp = index_path.with_suffix(".md.tmp")
         try:
-            tmp.write_text(index_content, encoding="utf-8")
-            tmp.replace(index_path)
+            atomic_write_text(index_path, index_content)
         except OSError as exc:
-            tmp.unlink(missing_ok=True)
             return IndexResult(
                 directory=directory,
                 status="error",

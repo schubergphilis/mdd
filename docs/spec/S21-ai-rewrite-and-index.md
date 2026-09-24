@@ -35,7 +35,8 @@ mdd ai index <dir>       [--depth 1|all] [--apply] [--model MODEL]
   candidate-sibling pattern is the primary safety mechanism.
 - `--apply` overwrites in place (atomic `*.tmp → rename`). The
   prior file content is preserved in git history; no separate
-  backup.
+  backup. A path that is a symlink is refused with an error before
+  it is read; a symlink at the `*.tmp` sibling fails the write.
 
 **Tone-of-voice prompt**
 
@@ -224,7 +225,8 @@ cheap signal that something went missing.
 
 **Behaviour**
 - Walks `<dir>` recursively, finding `.md` files (ignoring already-
-  generated `INDEX.md` files at any level).
+  generated `INDEX.md` files at any level). Symlinked `.md` entries
+  are skipped: they are never read, summarised or written back.
 - For each `.md`: compute body hash; if frontmatter has a matching
   `mdd.ai.summary_input_hash`, reuse the cached summary (free).
   Else, summarise via the model (default: `ai.models.summarise`)

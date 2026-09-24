@@ -6,6 +6,7 @@ import hashlib
 from typing import TYPE_CHECKING, Any
 
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import atomic_write_bytes, mkdir_no_symlink
 
 from ._dest import safe_destination
 from ._types import AttachmentManifestEntry
@@ -77,7 +78,7 @@ def _download_one(
     failure (a stderr message is emitted so the caller can keep going)."""
     try:
         data = client.download_attachment(att)
-        dest.write_bytes(data)
+        atomic_write_bytes(dest, data)
     except Exception as exc:
         # Per-attachment failure must not abort the whole page export
         # Mirror the sync_all_attachments pattern: log to
@@ -113,7 +114,7 @@ def download_for_page(
 
     by_filename = _index_attachments_by_filename(client.list_page_attachments(page_id))
     attachments_dir = out_dir / f"{page_name}-attachments"
-    attachments_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(attachments_dir, root=out_dir)
 
     manifest: list[AttachmentManifestEntry] = []
     for ref in refs:

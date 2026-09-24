@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import write_new_text
 
 log = get_logger(__name__)
 
@@ -42,27 +43,34 @@ def create_directory(target_dir: Path) -> bool:
 
 
 def create_qmd_file(qmd_file: Path, template_qmd: Path, base_name: str) -> bool:
-    """Create a QMD file from template, substituting {{TITLE}} with base_name."""
-    if qmd_file.exists():
-        log.error("File already exists: %s", qmd_file)
-        return False
+    """Create a QMD file from template, substituting {{TITLE}} with base_name.
 
+    Refuses to overwrite anything already at *qmd_file*, including a symlink.
+    """
     try:
         content = template_qmd.read_text().replace("{{TITLE}}", base_name)
-        qmd_file.write_text(content)
+        write_new_text(qmd_file, content)
         return True
+    except FileExistsError:
+        log.error("File already exists: %s", qmd_file)
+        return False
     except OSError:
         log.exception("Could not create '%s'", qmd_file)
         return False
 
 
 def create_render_script(render_script: Path, template_render: Path, base_name: str) -> bool:
-    """Create render.sh from template, substituting {{FILE_NAME}} with base_name."""
+    """Create an executable render.sh from template, substituting {{FILE_NAME}}.
+
+    Refuses to overwrite anything already at *render_script*, including a symlink.
+    """
     try:
         content = template_render.read_text().replace("{{FILE_NAME}}", base_name)
-        render_script.write_text(content)
-        render_script.chmod(0o755)
+        write_new_text(render_script, content, mode=0o755)
         return True
+    except FileExistsError:
+        log.error("File already exists: %s", render_script)
+        return False
     except OSError:
         log.exception("Could not create render script '%s'", render_script)
         return False

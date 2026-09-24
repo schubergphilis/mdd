@@ -1,12 +1,15 @@
 """Tests for mdd.confluence.frontmatter"""
 
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import pytest
 
 from mdd.confluence.frontmatter import read, write
+from mdd.utils.safe_write import SymlinkRefusedError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DEEPLY_NESTED_YAML = "x: " + "[" * 2000
 
@@ -80,16 +83,11 @@ class TestWrite:
         path = tmp_path / "page.md"
         tmp_file = path.with_suffix(".md.tmp")
 
-        # Patch Path.open on the specific tmp_path instance to raise after the file
-        # has been created (simulate a mid-write failure by patching fh.write).
-        original_path_open = Path.open
-
-        def failing_open(self: Path, *args: object, **kwargs: object) -> object:
-            if self == tmp_file:
-                raise OSError("disk full")
-            return original_path_open(self, *args, **kwargs)  # type: ignore[arg-type]
-
-        with patch.object(Path, "open", failing_open), pytest.raises(OSError, match="disk full"):
+        # Simulate a mid-write failure after the tmp file has been created.
+        with (
+            patch("mdd.utils.safe_write.os.fsync", side_effect=OSError("disk full")),
+            pytest.raises(OSError, match="disk full"),
+        ):
             write(path, {"x": 1}, "body")
 
         assert not tmp_file.exists()
@@ -146,3 +144,36 @@ class TestRoundTrip:
         first_raw: object = atts[0]
         assert isinstance(first_raw, dict)
         assert first_raw.get("filename") == "img.png"  # pyright: ignore[reportUnknownMemberType]
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestWriteRefusesSymlinks:
+    def test_dangling_tmp_symlink_target_not_created(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        page = tmp_path / "Foo.md"
+        _plant_symlink(tmp_path / "Foo.md.tmp", outside / "target")
+
+        with pytest.raises(SymlinkRefusedError):
+            write(page, {"x": 1}, "body")
+
+        assert not (outside / "target").exists()
+        assert not page.exists()
+
+    def test_symlinked_page_is_refused(self, tmp_path: Path) -> None:
+        victim = tmp_path / "victim"
+        victim.write_text("keep me", encoding="utf-8")
+        page = tmp_path / "Foo.md"
+        _plant_symlink(page, victim)
+
+        with pytest.raises(SymlinkRefusedError):
+            write(page, {"x": 1}, "body")
+
+        assert victim.read_text(encoding="utf-8") == "keep me"
+        assert page.is_symlink()

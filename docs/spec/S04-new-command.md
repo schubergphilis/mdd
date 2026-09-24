@@ -13,6 +13,10 @@
 - `mdd new <dir>` creates a project with both outputs
 - Each creates: `<dir>/<dir>.qmd`, `<dir>/render.sh`, symlink(s) to reference template(s)
 - Error if no directory name given or name starts with `-`
+- A pre-existing `<dir>` is reused, but `<dir>.qmd` and `render.sh` are only
+  ever created, never overwritten: if either already exists (a symlink counts,
+  dangling or not) the command reports the clash and exits 1 without writing
+  through it
 
 ## Design Approach
 

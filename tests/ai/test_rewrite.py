@@ -1261,3 +1261,44 @@ class TestProtectedRegionScaling:
         assert len(regions) == 24_000
         assert transformed.count("__MDD_PROTECTED_") == 24_000
         assert elapsed < 1.0, f"extract_protected took {elapsed:.3f}s"
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestRewriteFileRefusesSymlinks:
+    def test_symlinked_path_is_error_without_reading(self, tmp_path: Path) -> None:
+        secret = tmp_path / "secret.txt"
+        secret.write_text("private", encoding="utf-8")
+        link = tmp_path / "page.md"
+        _plant_symlink(link, secret)
+        mock_client = _make_mock_client("# Rewritten\n")
+
+        result = rewrite_file(link, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert result.error is not None
+        assert "symlink" in result.error
+        mock_client.chat.assert_not_called()
+        assert secret.read_text(encoding="utf-8") == "private"
+        assert link.is_symlink()
+
+    def test_dangling_tmp_symlink_is_write_error(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        src = tmp_path / "page.md"
+        src.write_text("# Hello\n\nSome text.\n", encoding="utf-8")
+        _plant_symlink(tmp_path / "page.md.tmp", outside / "target")
+        mock_client = _make_mock_client("# Hello\n\nRewritten text.\n")
+
+        result = rewrite_file(src, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert result.error is not None
+        assert "Write failed" in result.error
+        assert not (outside / "target").exists()
+        assert src.read_text(encoding="utf-8") == "# Hello\n\nSome text.\n"

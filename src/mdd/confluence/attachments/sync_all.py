@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from mdd.converters import converter_for as _registry_converter_for
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import mkdir_no_symlink
 
 from ._dest import safe_destination
 from ._types import AttachmentManifestEntry, AttachmentSyncSummary
@@ -244,7 +245,7 @@ def sync_all_attachments(
     if not all_attachments:
         return [], AttachmentSyncSummary()
 
-    attachments_dir.mkdir(parents=True, exist_ok=True)
+    mkdir_no_symlink(attachments_dir)
 
     ctx = _PageSyncContext(
         client=client,

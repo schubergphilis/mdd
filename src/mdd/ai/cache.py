@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from mdd.utils.frontmatter import FrontmatterModel, parse_json_mapping
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -165,13 +166,7 @@ class FileSystemCache:
             finish_reason=finish_reason,
             timestamp=time.time(),
         )
-        # Atomic write: write to .tmp then rename
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(
-            entry.model_dump_json(),
-            encoding="utf-8",
-        )
-        tmp.replace(path)
+        atomic_write_text(path, entry.model_dump_json())
 
     def prune(self) -> int:
         """Delete all entries older than TTL.  Returns the count deleted."""

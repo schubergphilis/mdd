@@ -219,6 +219,8 @@ def build_mirror_state(output_dir: Path) -> MirrorState:
     """
     state = MirrorState()
     for md_path in sorted(output_dir.rglob("*.md")):
+        if md_path.is_symlink():
+            continue
         if _under_attachments_dir(md_path.relative_to(output_dir)):
             state.manual.append(md_path)
             continue

@@ -17,12 +17,12 @@ The ``confluence:`` block also carries the ``publish_office`` and
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
+from mdd.utils.safe_write import atomic_write_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -63,13 +63,4 @@ def write(path: Path, frontmatter: dict[str, Any], body: str) -> None:
     )
     content = f"---\n{fm_str}---\n{body}"
 
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    try:
-        with tmp_path.open("w", encoding="utf-8") as fh:
-            fh.write(content)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp_path, path)  # noqa: PTH105
-    except BaseException:
-        tmp_path.unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, content)

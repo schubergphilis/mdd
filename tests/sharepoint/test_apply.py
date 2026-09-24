@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mdd.sharepoint.apply import (
     SyncRunSummary,
     apply_diverged,
@@ -23,6 +25,7 @@ from mdd.sharepoint.apply.io import atomic_write_bytes, atomic_write_text
 from mdd.sharepoint.apply.sync_block import (
     _inject_sync_block,  # pyright: ignore[reportPrivateUsage]
 )
+from mdd.utils.safe_write import SymlinkRefusedError
 
 # Backwards-compatible aliases for tests written against the pre-split names.
 _atomic_write_bytes = atomic_write_bytes
@@ -31,7 +34,6 @@ _atomic_write_text = atomic_write_text
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
 
 # ---------------------------------------------------------------------------
 # Atomic write helpers
@@ -589,3 +591,64 @@ class TestPrintDryRunPlan:
         out = capsys.readouterr().out
         assert "Report.docx" in out
         assert "first_sync_docx_authoritative" in out
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestApplyIoRefusesSymlinks:
+    def test_atomic_write_dangling_tmp_symlink(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        dest = tmp_path / "Foo.docx.md"
+        _plant_symlink(tmp_path / "Foo.docx.md.tmp", outside / "target")
+
+        with pytest.raises(SymlinkRefusedError):
+            atomic_write_text(dest, "payload")
+
+        assert not (outside / "target").exists()
+        assert not dest.exists()
+
+    def test_atomic_write_bytes_symlinked_dest(self, tmp_path: Path) -> None:
+        victim = tmp_path / "victim.docx"
+        victim.write_bytes(b"keep me")
+        dest = tmp_path / "Foo.docx"
+        _plant_symlink(dest, victim)
+
+        with pytest.raises(SymlinkRefusedError):
+            atomic_write_bytes(dest, b"payload")
+
+        assert victim.read_bytes() == b"keep me"
+
+    def test_backup_refuses_symlinked_backup_dir(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        site_root = tmp_path / "site"
+        site_root.mkdir()
+        office = site_root / "Report.docx"
+        office.write_bytes(b"docx data")
+        _plant_symlink(site_root / ".mdd-backups", outside)
+
+        with pytest.raises(SymlinkRefusedError):
+            backup_office_file(office, site_root)
+
+        assert list(outside.iterdir()) == []
+
+    def test_backup_refuses_symlinked_subdir(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        site_root = tmp_path / "site"
+        (site_root / "Team").mkdir(parents=True)
+        office = site_root / "Team" / "Report.docx"
+        office.write_bytes(b"docx data")
+        (site_root / ".mdd-backups").mkdir()
+        _plant_symlink(site_root / ".mdd-backups" / "Team", outside)
+
+        with pytest.raises(SymlinkRefusedError):
+            backup_office_file(office, site_root)
+
+        assert list(outside.iterdir()) == []

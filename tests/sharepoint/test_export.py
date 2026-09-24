@@ -746,3 +746,25 @@ class TestWalkSite:
         (tmp_path / "a.md").write_text("a")
         result = _walk_site(tmp_path)
         assert result == sorted(result)
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestWalkSiteSkipsSymlinks:
+    def test_symlinked_file_excluded(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.md").write_text("private", encoding="utf-8")
+        site = tmp_path / "site"
+        site.mkdir()
+        (site / "doc.md").write_text("content", encoding="utf-8")
+        _plant_symlink(site / "link.md", outside / "secret.md")
+
+        result = _walk_site(site)
+
+        assert result == [site / "doc.md"]

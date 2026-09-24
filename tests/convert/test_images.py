@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from mdd.utils.safe_write import SymlinkRefusedError
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -812,3 +814,30 @@ class TestOptimizePngLossless:
 
         junk = b"not a real png at all"
         assert _optimize_png_lossless(junk) == junk
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestWriteImageRefusesSymlinkedAttachmentsDir:
+    def test_symlinked_attachments_dir(self, tmp_path: Path) -> None:
+        from mdd.convert.images import write_image
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        _plant_symlink(tmp_path / "Foo.docx-attachments", outside)
+
+        with pytest.raises(SymlinkRefusedError):
+            write_image(
+                tmp_path / "Foo.docx-attachments",
+                _minimal_png(),
+                "png",
+                cache={},
+                on_drop=lambda _reason: None,
+            )
+
+        assert list(outside.iterdir()) == []

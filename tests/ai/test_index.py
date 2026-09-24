@@ -588,3 +588,38 @@ class TestIndexIntegration:
         assert result.status == "ok"
         assert (tmp_path / "INDEX.md").exists()
         assert result.files_total == 2
+
+
+def _plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+
+
+class TestCollectMdFilesSkipsSymlinks:
+    def test_symlinked_md_not_collected(self, tmp_path: Path) -> None:
+        secret = tmp_path / "secret.txt"
+        secret.write_text("private", encoding="utf-8")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "real.md").write_text("A", encoding="utf-8")
+        _plant_symlink(docs / "link.md", secret)
+
+        files = _collect_md_files(docs)
+
+        assert files == [docs / "real.md"]
+
+    def test_index_dir_never_reads_symlinked_md(self, tmp_path: Path) -> None:
+        secret = tmp_path / "secret.txt"
+        secret.write_text("private", encoding="utf-8")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        _plant_symlink(docs / "link.md", secret)
+        mock_client = _make_mock_client()
+
+        result = index_dir(docs, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.files_total == 0
+        mock_client.chat.assert_not_called()
+        assert (docs / "link.md").is_symlink()

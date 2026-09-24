@@ -81,7 +81,8 @@ file, apply the first matching rule:
 
 **General rules across conversions.** Mirror the source directory
 structure under `<output>/`. Atomic per-file writes (`*.tmp` then
-rename). Incremental by default — skip if destination is newer than
+rename) that refuse to write through a symlink at the destination or
+its `*.tmp` sibling. Incremental by default — skip if destination is newer than
 source mtime unless `--force`. Every generated `.md` gets a SharePoint
 frontmatter block and a "SharePoint export" callout pointing back to the
 relative path inside the site.
