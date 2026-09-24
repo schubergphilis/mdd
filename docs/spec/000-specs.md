@@ -121,11 +121,14 @@ A spec MAY credit the note a design came from by number, in prose and
 without a link — `Originates from research note R03.` — as long as the
 spec still reads completely on its own.
 
-The same applies to plans (`PNN`). `scripts/spec-check.py` flags relative
-links into `plan/` or `research/`, bare `PNN` / `RNN` numbers, and prose
-such as `research note R03` anywhere other than that credit sentence. It
-only catches those resolvable forms; keeping a spec readable on its own is
-still the author's job.
+That credit is for research notes only. A spec never links to, numbers
+or otherwise names a plan (`PNN`): there is no plan credit sentence.
+
+`scripts/spec-check.py` flags relative links into `plan/` or `research/`,
+bare `PNN` / `RNN` numbers, and prose such as `research note R03`. The
+one exemption is the exact sentence `Originates from research note RNN.`
+It only catches those resolvable forms; keeping a spec readable on its own
+is still the author's job.
 
 ## Status convention
 
