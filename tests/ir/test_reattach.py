@@ -322,3 +322,76 @@ class TestReattachInlineEdits:
         """A bare URL in text comes back as a `Link`; that is not an edit."""
         cached_storage = "<p>see https://example.com/docs</p>"
         assert _publish(cached_storage, "see https://example.com/docs\n") == cached_storage
+
+
+_REMOTE_WARNING_PANEL = (
+    '<ac:structured-macro ac:name="warning" ac:schema-version="1" ac:macro-id="m1">'
+    '<ac:parameter ac:name="title">Remote</ac:parameter>'
+    "<ac:rich-text-body><p>hi</p></ac:rich-text-body></ac:structured-macro>"
+)
+
+_REMOTE_HTML_MACRO = (
+    '<ac:structured-macro ac:name="html" ac:schema-version="1" ac:macro-id="m2">'
+    '<ac:parameter ac:name="foo">bar</ac:parameter>'
+    "<ac:plain-text-body><![CDATA[<b>x</b>]]></ac:plain-text-body></ac:structured-macro>"
+)
+
+_REMOTE_TASK_LIST = (
+    "<ac:task-list><ac:task><ac:task-id>7</ac:task-id>"
+    "<ac:task-status>complete</ac:task-status><ac:task-body>task</ac:task-body>"
+    "</ac:task></ac:task-list>"
+)
+
+
+class TestReattachBlockEdits:
+    """Block-level edits that markdown carries must survive too."""
+
+    def test_edited_code_block_keeps_its_own_characters(self) -> None:
+        """Cached entity offsets are not spliced into different code text."""
+        assert _publish("<pre><code>a &lt; b</code></pre>", "```\nx = 1\n```\n") == (
+            "<pre><code>x = 1</code></pre>"
+        )
+
+    def test_unedited_code_block_keeps_cached_entities(self) -> None:
+        cached_storage = "<pre><code>a &lt; b</code></pre>"
+        assert _publish(cached_storage, "```\na < b\n```\n") == cached_storage
+
+    def test_callout_kind_change_reaches_the_page(self) -> None:
+        """An authored `warning` -> `info` change beats the cached `ac:name`."""
+        out = _publish(_REMOTE_WARNING_PANEL, ":::callout-info\n\nhi\n\n:::\n")
+        assert out.startswith(
+            '<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="m1">'
+        )
+        # The cached title belonged to the replaced panel.
+        assert "Remote" not in out
+
+    def test_same_callout_kind_restores_cached_title(self) -> None:
+        assert _publish(_REMOTE_WARNING_PANEL, ":::callout-warning\n\nhi\n\n:::\n") == (
+            _REMOTE_WARNING_PANEL
+        )
+
+    def test_macro_name_change_drops_cached_params_and_body(self) -> None:
+        """A fresh `toc` at a cached `html` macro's position publishes as `toc`."""
+        out = _publish(_REMOTE_HTML_MACRO, ':::confluence-macro {name="toc"}\n\n:::\n')
+        assert out.startswith(
+            '<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="m2">'
+        )
+        assert "<ac:parameter" not in out
+        assert "<ac:plain-text-body>" not in out
+
+    def test_same_macro_name_restores_cached_shape(self) -> None:
+        assert _publish(_REMOTE_HTML_MACRO, ':::confluence-macro {name="html"}\n\n:::\n') == (
+            _REMOTE_HTML_MACRO
+        )
+
+    def test_unnamed_macro_fence_takes_cached_name_and_shape(self) -> None:
+        """The markdown leg may drop the name entirely; cached then fills it."""
+        assert _publish(_REMOTE_HTML_MACRO, ":::confluence-macro\n\n:::\n") == _REMOTE_HTML_MACRO
+
+    def test_plain_bullet_at_task_position_stays_plain(self) -> None:
+        assert _publish(_REMOTE_TASK_LIST, "- task\n") == "<ul>\n<li>task</li>\n</ul>"
+
+    def test_task_item_keeps_cached_task_id_and_own_status(self) -> None:
+        out = _publish(_REMOTE_TASK_LIST, "- [ ] task\n")
+        assert "<ac:task-id>7</ac:task-id>" in out
+        assert "<ac:task-status>incomplete</ac:task-status>" in out

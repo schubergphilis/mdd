@@ -264,6 +264,23 @@ cached onto fresh. Fresh wins where it carries a value; cached fills
 in what's missing. The semantic contract: if the user did not edit a
 block, the round-trip output is byte-identical to the original.
 
+The converse contract is that an edit markdown can express always
+reaches the page. Where a cached value would override an authored
+typed field, the typed field wins and the cached value is not grafted:
+
+- `Origin.entity_form` offsets are only grafted when the fresh and
+  cached `content` are identical (`Text`, `Code` and `CodeBlock`); the
+  storage writer additionally re-emits an entity only when it decodes
+  to the character actually at that offset.
+- `ac:name` is never grafted onto `Callout`, `ConfluenceMacro` or
+  `InlineMacro`; the storage writer emits the typed `kind` / `name`
+  instead. Cached `params`, `title` and body shape are restored only
+  when the fresh node names the same macro (or, for a macro fence with
+  no `name`, names none).
+- `ac:type` is never grafted onto `LayoutSection`; `layout_type` wins.
+- `task` (and `ac:task-id` when fresh is not a task) is never grafted
+  onto `ListItem`; the markdown task marker wins.
+
 The cache key driving the cached-IR lookup is
 `sha256(canonical_markdown)` — "canonical markdown" is the markdown
 produced by the IR writer in default (normalising) mode (see

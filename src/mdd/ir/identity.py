@@ -29,6 +29,7 @@ from .nodes import (
     HorizontalRule,
     Image,
     Inline,
+    InlineMacro,
     Layout,
     LayoutCell,
     LayoutSection,
@@ -36,6 +37,7 @@ from .nodes import (
     Link,
     ListItem,
     OrderedList,
+    Origin,
     Paragraph,
     RawBlock,
     SoftBreak,
@@ -198,6 +200,44 @@ def _graft_body_ws(fresh: Any, cached: Any, updates: dict[str, Any]) -> None:
         updates["body_trailing_ws"] = cached.body_trailing_ws
 
 
+def _origin_for_content(c_origin: Origin, f_content: Any, c_content: Any) -> Origin:
+    """Return the cached origin, safe to graft onto a node holding ``f_content``.
+
+    ``entity_form`` keys are codepoint offsets into the cached content
+    string. Grafting them onto fresh content of a different length splices
+    entities at the wrong place (e.g. cached Text " — exercise…" has
+    entity_form {1: "&mdash;"}; fresh "shell output" with that origin
+    renders as "s&mdash;ell output"; cached code "a &lt; b" grafted onto an
+    edited "x = 1" renders "x &lt; 1"). Strip entity_form when contents
+    differ — offsets are only meaningful for the content they were
+    calibrated on.
+    """
+    if (
+        c_origin.entity_form
+        and isinstance(c_content, str)
+        and isinstance(f_content, str)
+        and c_content != f_content
+    ):
+        return replace(c_origin, entity_form={})
+    return c_origin
+
+
+# `ac:name` is excluded from attributes grafting on macro-like nodes:
+# markdown carries the macro identity in the typed `name` / `kind` field,
+# so grafting the cached one would let a remote `html` macro or `warning`
+# panel outlive the author replacing it with `toc` or `info` at the same
+# position. The storage writer emits the typed field instead.
+_MACRO_NAME_ATTRS: frozenset[str] = frozenset({"ac:name"})
+_NO_SKIP: frozenset[str] = frozenset()
+
+# `task` is excluded from list-item attributes grafting: markdown carries
+# the task marker itself (`- [ ]` / `- [x]`), so a plain `- item` at the
+# position of a cached task must publish as a plain bullet, not re-emit
+# the cached task status. The cached task id only makes sense on a task.
+_LIST_ITEM_TASK_ATTRS: frozenset[str] = frozenset({"task"})
+_LIST_ITEM_TASK_ID_ATTRS: frozenset[str] = frozenset({"task", "ac:task-id"})
+
+
 def _graft_common_node_metadata(fresh: Block, cached: Block, updates: dict[str, Any]) -> None:
     """Graft `origin` and `trailing_ws` from cached onto fresh.
 
@@ -206,7 +246,9 @@ def _graft_common_node_metadata(fresh: Block, cached: Block, updates: dict[str, 
     """
     c_origin = getattr(cached, "origin", None)
     if c_origin is not None and hasattr(fresh, "origin"):
-        updates["origin"] = c_origin
+        updates["origin"] = _origin_for_content(
+            c_origin, getattr(fresh, "content", None), getattr(cached, "content", None)
+        )
     c_trailing_ws = getattr(cached, "trailing_ws", None)
     if (
         c_trailing_ws is not None
@@ -237,8 +279,9 @@ def _graft_attributes_block(fresh: Block, cached: Block, updates: dict[str, Any]
     f_attributes = getattr(fresh, "attributes", None)
     if not (isinstance(c_attributes, dict) and isinstance(f_attributes, dict) and c_attributes):
         return
+    skip = _MACRO_NAME_ATTRS if isinstance(fresh, (Callout, ConfluenceMacro)) else _NO_SKIP
     merged = _merge_attributes_onto(
-        cast("dict[str, str]", f_attributes), cast("dict[str, str]", c_attributes)
+        cast("dict[str, str]", f_attributes), cast("dict[str, str]", c_attributes), skip=skip
     )
     if merged is not None:
         updates["attributes"] = merged
@@ -268,9 +311,12 @@ def _graft_callout_block(fresh: Callout, cached: Callout, updates: dict[str, Any
     ``{&quot;…&quot;}`` strings that the fenced-div info parser can't
     round-trip). Restore from cached when the fresh side dropped them
     entirely — keep the fresh side when it's non-empty so a genuine edit
-    survives.
+    survives. Params and title belong to the cached panel kind, so they are
+    only restored when the fresh side still has that kind.
     """
     updates["body"] = _reattach_blocks(fresh.body, cached.body)
+    if fresh.kind != cached.kind:
+        return
     if not fresh.params and cached.params:
         updates["params"] = dict(cached.params)
     if fresh.title is None and cached.title is not None:
@@ -292,10 +338,17 @@ def _graft_macro_block(
     ``rich_body`` / ``plain_body`` always reflect the source shape — fresh
     can't tell ``<ac:rich-text-body>`` apart from "no body" in the
     confluence-macro fence form.
+
+    Params and body shape belong to the cached macro, so they are only
+    restored when the fresh side names the same macro (or none at all). A
+    fresh ``toc`` at the position of a cached ``html`` macro publishes as
+    a ``toc`` with the fresh params and body only.
     """
     updates["body"] = _reattach_blocks(fresh.body, cached.body)
     if not fresh.name:
         updates["name"] = cached.name
+    elif fresh.name != cached.name:
+        return
     if not fresh.params and cached.params:
         updates["params"] = dict(cached.params)
     updates["rich_body"] = cached.rich_body
@@ -494,7 +547,8 @@ def _reattach_list_item(fresh: ListItem, cached: ListItem) -> ListItem:
         "children": _reattach_blocks(fresh.children, cached.children),
     }
     if cached.attributes:
-        merged = _merge_attributes_onto(fresh.attributes, cached.attributes)
+        skip = _LIST_ITEM_TASK_ATTRS if "task" in fresh.attributes else _LIST_ITEM_TASK_ID_ATTRS
+        merged = _merge_attributes_onto(fresh.attributes, cached.attributes, skip=skip)
         if merged is not None:
             updates["attributes"] = merged
     return replace(fresh, **updates)
@@ -590,9 +644,11 @@ def _graft_attributes(ftok: Any, ctok: Any, updates: dict[str, Any]) -> None:
         return
     if not c_attributes:
         return
+    skip = _MACRO_NAME_ATTRS if isinstance(ftok, InlineMacro) else _NO_SKIP
     merged = _merge_attributes_onto(
         cast("dict[str, str]", f_attributes),
         cast("dict[str, str]", c_attributes),
+        skip=skip,
     )
     if merged is not None:
         updates["attributes"] = merged
@@ -602,23 +658,9 @@ def _graft_origin(ftok: Any, ctok: Any, updates: dict[str, Any]) -> None:
     c_origin = getattr(ctok, "origin", None)
     if c_origin is None or not hasattr(ftok, "origin"):
         return
-    c_content = getattr(ctok, "content", None)
-    f_content = getattr(ftok, "content", None)
-    # entity_form keys are codepoint offsets into the cached content string.
-    # Grafting them onto fresh content of a different length splices entities
-    # at the wrong place (e.g. fixture 1212604: cached Text " — exercise…"
-    # has entity_form {1: "&mdash;"}; fresh "shell output" with that origin
-    # renders as "s&mdash;ell output"). Strip entity_form when contents differ
-    # — offsets are only meaningful for the content they were calibrated on.
-    if (
-        c_origin.entity_form
-        and isinstance(c_content, str)
-        and isinstance(f_content, str)
-        and c_content != f_content
-    ):
-        updates["origin"] = replace(c_origin, entity_form={})
-    else:
-        updates["origin"] = c_origin
+    updates["origin"] = _origin_for_content(
+        c_origin, getattr(ftok, "content", None), getattr(ctok, "content", None)
+    )
 
 
 def _reattach_inlines(fresh: list[Inline], cached: list[Inline]) -> list[Inline]:
