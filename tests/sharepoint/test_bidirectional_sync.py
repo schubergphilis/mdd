@@ -501,7 +501,9 @@ class TestSyncFolderBasic:
             assert [r.levelno for r in blocked] == [logging.WARNING]
             assert blocked[0].getMessage() == (
                 "pull blocked: Report.docx.md is locally modified; "
-                "changes to Report.docx were not pulled"
+                "changes to Report.docx were not pulled. "
+                "Set 'update_office: true' in the sharepoint.sync block of "
+                "Report.docx.md to reconcile the pair."
             )
             # One clear warning, not a second info line saying the same thing.
             assert not any("both changed" in r.getMessage() for r in caplog.records)

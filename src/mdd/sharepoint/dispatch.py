@@ -56,9 +56,12 @@ def _apply_skip_md_update(
     if both_changed:
         # The office file changed too, so an office-side edit is not arriving.
         log.warning(
-            "pull blocked: %s is locally modified; changes to %s were not pulled",
+            "pull blocked: %s is locally modified; changes to %s were not pulled. "
+            "Set 'update_office: true' in the sharepoint.sync block of %s to "
+            "reconcile the pair.",
             md_path.name,
             docx_path.name,
+            md_path.name,
         )
     elif result.warning:
         log.info(result.warning)
