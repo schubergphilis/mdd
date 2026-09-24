@@ -60,7 +60,7 @@ def _apply_skip_md_update(
             md_path.name,
             docx_path.name,
         )
-    if result.warning:
+    elif result.warning:
         log.info(result.warning)
 
 
