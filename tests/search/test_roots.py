@@ -94,6 +94,34 @@ class TestConfluenceRoots:
         identifiers = {r.identifier for r in roots}
         assert identifiers == {"ENG", "HR"}
 
+    def test_space_key_is_kept_as_written(self, tmp_path: Path) -> None:
+        """A space keyed ``NO`` or ``007`` keeps that name, not ``False`` or ``7``."""
+        d1 = tmp_path / "space1"
+        d1.mkdir()
+        d2 = tmp_path / "space2"
+        d2.mkdir()
+        config = tmp_path / "confluence.yaml"
+        config.write_text(
+            textwrap.dedent(
+                f"""\
+                confluence:
+                  spaces:
+                    NO:
+                      output_dir: {d1}
+                    007:
+                      output_dir: {d2}
+                """
+            )
+        )
+        roots = roots_for_source(CONFLUENCE, config)
+        assert {r.identifier for r in roots} == {"NO", "007"}
+        assert {r.mirror_name for r in roots} == {"confluence/NO", "confluence/007"}
+
+    def test_unparseable_config_yields_no_roots(self, tmp_path: Path) -> None:
+        config = tmp_path / "confluence.yaml"
+        config.write_text("confluence: [\n")
+        assert roots_for_source(CONFLUENCE, config) == []
+
 
 class TestSharepointRoots:
     def test_returns_roots_for_existing_dirs(self, tmp_path: Path) -> None:

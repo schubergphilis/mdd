@@ -14,9 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from mdd.search.sources import RootSource, registered_root_sources
+from mdd.utils.config import ConfigError, load_yaml_plain_text
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -33,17 +32,17 @@ class MirrorRoot:
 
 
 def _load_yaml_safe(path: Path) -> dict[str, Any] | None:
-    """Load a YAML file; return None on any error (file missing, parse error)."""
+    """Load a YAML file; return None on any error (file missing, parse error).
+
+    Scalars are kept as written, so a space or site keyed ``NO`` or ``007``
+    keeps that name rather than becoming ``False`` or ``7``.
+    """
     if not path.exists():
         return None
     try:
-        with path.open(encoding="utf-8") as fh:
-            result: Any = yaml.safe_load(fh)
-        if isinstance(result, dict):
-            return result  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-    except OSError, yaml.YAMLError:
-        pass
-    return None
+        return load_yaml_plain_text(path)
+    except ConfigError:
+        return None
 
 
 def _find_config(name: str) -> Path | None:

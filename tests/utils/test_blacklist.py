@@ -321,6 +321,14 @@ class TestEntriesKeptAsWritten:
         with pytest.raises(BlacklistError, match=str(f)):
             check_sharepoint(written, blacklist_file=f)
 
+    def test_entries_merged_from_an_anchor_are_refused(self, tmp_path: Path) -> None:
+        f = tmp_path / "bl.yaml"
+        f.write_text(
+            "shared: &s\n  blacklisted_spaces: [NO]\nconfluence:\n  <<: *s\n",
+        )
+        with pytest.raises(BlacklistError, match="pattern 'NO'"):
+            check_confluence("NO", blacklist_file=f)
+
     def test_numeric_looking_entry_is_not_renumbered(self, tmp_path: Path) -> None:
         f = tmp_path / "bl.yaml"
         f.write_text("confluence:\n  blacklisted_spaces:\n    - 007\n    - 0x1F\n")

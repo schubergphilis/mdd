@@ -6,7 +6,8 @@ import textwrap
 from typing import TYPE_CHECKING
 
 from mdd.search.filters import filter_blacklisted, frontmatter_line_range, is_frontmatter_line
-from mdd.search.roots import MirrorRoot
+from mdd.search.roots import MirrorRoot, roots_for_source
+from mdd.search.sources import CONFLUENCE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -58,6 +59,18 @@ class TestFilterBlacklisted:
         bl = self._blacklist_file(tmp_path)
         result = filter_blacklisted([root], blacklist_file=bl)
         assert result == []
+
+    def test_removes_space_keyed_unquoted_in_both_configs(self, tmp_path: Path) -> None:
+        """A space keyed ``NO`` in the mirror config matches a ``- NO`` blacklist entry."""
+        d = tmp_path / "d"
+        d.mkdir()
+        config = tmp_path / "confluence.yaml"
+        config.write_text(f"confluence:\n  spaces:\n    NO:\n      output_dir: {d}\n")
+        roots = roots_for_source(CONFLUENCE, config)
+        bl = tmp_path / "bl.yaml"
+        bl.write_text("confluence:\n  blacklisted_spaces:\n    - NO\n")
+        assert [r.identifier for r in roots] == ["NO"]
+        assert filter_blacklisted(roots, blacklist_file=bl) == []
 
     def test_keeps_safe_confluence_space(self, tmp_path: Path) -> None:
         d = tmp_path / "d"

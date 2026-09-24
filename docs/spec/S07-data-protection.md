@@ -265,7 +265,8 @@ plain scalar stays the string written: YAML 1.1 implicit typing is off, so
 unquoted `NO`, `ON`, `OFF`, `YES`, `007`, `0x1F`, `12:30` and `2026-01-01`
 match the space keys and site names spelled that way rather than a bool,
 number or date that could never match. Lists and mappings still load as
-such. An entry that is still not a string, which means null (`~`, `null`,
+such, and anchors, aliases and the `<<` merge key work as usual. An
+entry that is still not a string, which means null (`~`, `null`,
 an empty `-`), a nested list or mapping, or an explicitly tagged value
 such as `!!int 7`, is a config error that names the file and the entry. It
 is never coerced to text, and the gate fails closed on it the same way it
