@@ -130,6 +130,47 @@ class TestClientChat:
         assert result2.text == "Cached text"
         assert result2.prompt_tokens == 0
 
+    def test_rejected_response_not_cached(self, tmp_path: Path) -> None:
+        """A response the caller is going to refuse must not be replayed later."""
+        config = _make_config(tmp_path)
+        client = Client(config=config)
+        completion = _make_completion("unusable")
+
+        with patch.object(client, "_fetch_available_models", return_value=_ALL_MODELS):
+            mock_oai = MagicMock()
+            mock_oai.chat.completions.create.return_value = completion
+            client._oai = mock_oai  # pyright: ignore[reportPrivateUsage]
+
+            first = client.chat(user="Same prompt", accept=lambda text: text != "unusable")
+            second = client.chat(user="Same prompt", accept=lambda text: text != "unusable")
+
+        assert mock_oai.chat.completions.create.call_count == 2
+        assert first.text == "unusable"
+        assert second.cached is False
+
+    def test_rejected_cache_entry_is_ignored(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+        client = Client(config=config)
+
+        with patch.object(client, "_fetch_available_models", return_value=_ALL_MODELS):
+            mock_oai = MagicMock()
+            mock_oai.chat.completions.create.side_effect = [
+                _make_completion("old answer"),
+                _make_completion("new answer"),
+            ]
+            client._oai = mock_oai  # pyright: ignore[reportPrivateUsage]
+
+            client.chat(user="Same prompt")
+            result = client.chat(user="Same prompt", accept=lambda text: text != "old answer")
+            replay = client.chat(user="Same prompt")
+
+        assert mock_oai.chat.completions.create.call_count == 2
+        assert result.cached is False
+        assert result.text == "new answer"
+        # The accepted live answer replaced the rejected entry.
+        assert replay.cached is True
+        assert replay.text == "new answer"
+
     def test_cache_miss_on_different_prompts(self, tmp_path: Path) -> None:
         config = _make_config(tmp_path)
         client = Client(config=config)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +15,15 @@ from mdd.ai.rewrite import (
 )
 from mdd.ai.rewrite import (
     _MAX_OUTPUT_TOKENS as _MAX_OUTPUT_TOKENS,  # pyright: ignore[reportPrivateUsage]
+)
+from mdd.ai.rewrite import (
+    RewriteResult,
+    extract_protected,
+    print_run_summary,
+    rewrite_file,
+    rewrite_files,
+    split_into_chunks,
+    stitch_protected,
 )
 from mdd.ai.rewrite import (
     _compose_system_prompt as _compose_system_prompt,  # pyright: ignore[reportPrivateUsage]
@@ -32,13 +41,9 @@ from mdd.ai.rewrite import (
 from mdd.ai.rewrite import (
     _split_frontmatter as _split_frontmatter,  # pyright: ignore[reportPrivateUsage]
 )
-from mdd.ai.rewrite import (
-    extract_protected,
-    rewrite_file,
-    rewrite_files,
-    split_into_chunks,
-    stitch_protected,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1317,3 +1322,235 @@ class TestRewriteFileRefusesSymlinks:
         assert result.status == "error"
         assert result.fail_path is None
         assert not (outside / "target").exists()
+
+
+# ---------------------------------------------------------------------------
+# Retry after a dropped placeholder
+# ---------------------------------------------------------------------------
+
+_FENCED_PAGE = "Some prose.\n\n```python\nx=1\n```\n\nMore prose.\n"
+_CORRECTION = "<mdd-correction>"
+
+
+def _scripted_client(replies: list[str]) -> tuple[MagicMock, list[str]]:
+    """Return a client that answers with *replies* in order, and the user messages sent."""
+    sent: list[str] = []
+
+    def reply(**kwargs: Any) -> ChatResult:  # pyright: ignore[reportAny]
+        user: str = kwargs["user"]
+        sent.append(user)
+        return ChatResult(
+            text=replies[len(sent) - 1],
+            cached=False,
+            prompt_tokens=10,
+            completion_tokens=5,
+            cost_usd=0.25,
+            finish_reason="stop",
+        )
+
+    mock = MagicMock()
+    mock.chat.side_effect = reply
+    return mock, sent
+
+
+def _multi_chunk_page() -> str:
+    """Return a page long enough to be split, with a fenced block in every section."""
+    return "".join(
+        f"## Section {s}\n\n" + _paragraph(f"s{s}", 300) + f"```\ncode {s}\n```\n\n"
+        for s in range(3)
+    )
+
+
+class TestPlaceholderRetry:
+    def test_retry_recovers_dropped_placeholder(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, sent = _scripted_client(
+            ["Some prose. More prose.", "Some prose.\n\n__MDD_PROTECTED_0__\n\nMore prose."]
+        )
+
+        with caplog.at_level("WARNING", logger="mdd.ai.rewrite"):
+            result = rewrite_file(src, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "rewritten"
+        assert result.placeholder_retries == 1
+        assert result.fail_path is None
+        assert src.read_text(encoding="utf-8") == _FENCED_PAGE
+        assert len(sent) == 2
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any("retrying once" in m and "__MDD_PROTECTED_0__" in m for m in warnings)
+        # Both calls are billed.
+        assert result.prompt_tokens == 20
+        assert result.completion_tokens == 10
+        assert result.cost_usd == pytest.approx(0.5)
+
+    def test_retry_that_also_fails_refuses_and_dumps_retry_output(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, sent = _scripted_client(["first attempt", "second attempt"])
+
+        result = rewrite_file(src, mock_client, apply=True)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert result.placeholder_retries == 1
+        assert "__MDD_PROTECTED_0__" in (result.error or "")
+        assert "after one retry" in (result.error or "")
+        assert len(sent) == 2
+        assert src.read_text(encoding="utf-8") == _FENCED_PAGE
+        assert result.fail_path is not None
+        dump = result.fail_path.read_text(encoding="utf-8")
+        assert dump.endswith("second attempt")
+        assert "present=False" in dump
+
+    def test_retry_prompt_names_every_missing_token(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(
+            "Intro.\n\n```\na\n```\n\nMiddle.\n\n```\nb\n```\n\nEnd.\n\n```\nc\n```\n",
+            encoding="utf-8",
+        )
+        # The first answer keeps only the middle token.
+        mock_client, sent = _scripted_client(["Intro.\n__MDD_PROTECTED_1__\nEnd.", "no tokens"])
+
+        rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert sent[1].startswith(sent[0].rstrip())
+        correction = sent[1][len(sent[0].rstrip()) :]
+        assert "__MDD_PROTECTED_0__" in correction
+        assert "__MDD_PROTECTED_2__" in correction
+        assert "__MDD_PROTECTED_1__" not in correction
+
+    def test_retry_gets_its_own_cache_key(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, _ = _scripted_client(["dropped", "dropped again"])
+
+        rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        keys = [cast("bytes", c.kwargs["cache_key_extra"]) for c in mock_client.chat.call_args_list]
+        assert len(keys) == 2
+        assert keys[0] != keys[1]
+
+    def test_failed_attempts_are_rejected_for_caching(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, _ = _scripted_client(
+            ["Some prose. More prose.", "Some prose.\n__MDD_PROTECTED_0__\nMore prose."]
+        )
+
+        rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        accepts = [
+            cast("Callable[[str], bool]", c.kwargs["accept"])
+            for c in mock_client.chat.call_args_list
+        ]
+        assert accepts[0]("Some prose. More prose.") is False
+        assert accepts[0]("__MDD_PROTECTED_0__") is True
+        assert accepts[1]("__MDD_PROTECTED_0__") is True
+        # An answer that echoes the correction back is refused too.
+        assert accepts[1](f"__MDD_PROTECTED_0__\n{_CORRECTION}\n") is False
+
+    def test_echoed_correction_is_refused(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client, _ = _scripted_client(
+            ["dropped", f"__MDD_PROTECTED_0__\n{_CORRECTION}\nsorry\n</mdd-correction>"]
+        )
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "echoed the placeholder correction" in (result.error or "")
+
+    def test_retry_raising_is_an_error(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client = MagicMock()
+        mock_client.chat.side_effect = [_make_chat_result("dropped"), RuntimeError("gateway down")]
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert result.error == "gateway down"
+        assert result.placeholder_retries == 1
+
+    def test_truncated_retry_is_refused_as_truncated(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_FENCED_PAGE, encoding="utf-8")
+        mock_client = MagicMock()
+        mock_client.chat.side_effect = [
+            _make_chat_result("dropped"),
+            ChatResult(
+                text="Some pro",
+                cached=False,
+                prompt_tokens=10,
+                completion_tokens=5,
+                cost_usd=None,
+                finish_reason="length",
+            ),
+        ]
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "error"
+        assert "finish_reason='length'" in (result.error or "")
+        assert mock_client.chat.call_count == 2
+
+    def test_at_most_one_retry_per_chunk(self, tmp_path: Path) -> None:
+        """Every chunk that drops a token is retried once, and never a second time."""
+        src = tmp_path / "page.md"
+        src.write_text(_multi_chunk_page(), encoding="utf-8")
+        sent: list[str] = []
+
+        def drop_on_first_try(**kwargs: Any) -> ChatResult:  # pyright: ignore[reportAny]
+            user: str = kwargs["user"]
+            sent.append(user)
+            if _CORRECTION in user:
+                return _make_chat_result(user.split(_CORRECTION)[0])
+            return _make_chat_result("dropped everything")
+
+        mock_client = MagicMock()
+        mock_client.chat.side_effect = drop_on_first_try
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        firsts = [u for u in sent if _CORRECTION not in u and "__MDD_PROTECTED_" in u]
+        retries = [u for u in sent if _CORRECTION in u]
+        assert len(firsts) > 1
+        assert len(retries) == len(firsts)
+        for first, retry in zip(firsts, retries, strict=True):
+            assert retry.startswith(first.rstrip())
+        assert result.status == "rewritten"
+        assert result.placeholder_retries == len(firsts)
+
+    def test_persistent_failure_stops_after_the_chunk_retry(self, tmp_path: Path) -> None:
+        src = tmp_path / "page.md"
+        src.write_text(_multi_chunk_page(), encoding="utf-8")
+        mock_client = _make_mock_client("always drops")
+
+        result = rewrite_file(src, mock_client)  # pyright: ignore[reportArgumentType]
+
+        sent = [cast("str", c.kwargs["user"]) for c in mock_client.chat.call_args_list]
+        assert result.status == "error"
+        assert result.placeholder_retries == 1
+        assert "On chunk" in (result.error or "")
+        # The failing chunk and its single retry are the last calls made.
+        assert sum(_CORRECTION in u for u in sent) == 1
+        assert _CORRECTION in sent[-1]
+        assert sent[-1].startswith(sent[-2].rstrip())
+
+
+class TestRunSummaryRetries:
+    def test_summary_reports_placeholder_retries(self, caplog: pytest.LogCaptureFixture) -> None:
+        results = [
+            RewriteResult(path=Path("a.md"), status="rewritten", placeholder_retries=1),
+            RewriteResult(path=Path("b.md"), status="error", placeholder_retries=2),
+            RewriteResult(path=Path("c.md"), status="rewritten"),
+        ]
+        client = _make_mock_client("unused")
+
+        with caplog.at_level("INFO", logger="mdd.ai.rewrite"):
+            print_run_summary(results, client)  # pyright: ignore[reportArgumentType]
+
+        assert "Placeholder retries: 3 across 2 of 3 file(s), 1 file(s) recovered." in caplog.text

@@ -94,6 +94,16 @@ ai:
   output from disk, with no API call to notice the problem — the
   failure would become permanent and free.
 
+**Caller-rejected responses are never cached**
+- `chat()` takes an optional `accept` check on the response text.
+  A live response it rejects is returned to the caller but **not
+  written to the cache**, and a cached entry it rejects is ignored
+  in favour of a live call.
+- Rationale: same as for truncation. A caller that is about to
+  refuse the answer (e.g. `mdd ai rewrite` when a placeholder went
+  missing, see [S21](S21-ai-rewrite-and-index.md)) must not have
+  it replayed from disk on the next run.
+
 **Cost / token reporting**
 - Each `chat()` call returns a `ChatResult` containing the response
   text, `cached` flag, `prompt_tokens`, `completion_tokens`,
