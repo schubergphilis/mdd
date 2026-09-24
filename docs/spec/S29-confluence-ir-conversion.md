@@ -84,7 +84,7 @@ src/mdd/confluence/ir/
 
 | Storage XHTML | IR node | Notes |
 |---|---|---|
-| `<p>` | `Paragraph` | Empty `<p></p>` preserved (matters for the trailing-paragraph case from research note R13). |
+| `<p>` | `Paragraph` | Empty `<p></p>` preserved (Confluence storage often ends a page or macro body with an empty paragraph, and the round trip must keep it). |
 | `<h1>`–`<h6>` | `Heading(level=N)` | |
 | `<ul>` | `BulletList` | `tight` inferred from `<li>` shape (one block child → tight). |
 | `<ol>` | `OrderedList(start=...)` | `start` preserved verbatim. |

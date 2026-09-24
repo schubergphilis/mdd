@@ -171,7 +171,7 @@ argparse only accepts one Namespace at `parse_args()` time. With subparser dispa
 ### Trade-offs (recorded for posterity)
 
 - **Cast is an unchecked assertion.** Pyright trusts the cast; runtime trusts argparse to populate the attrs. The only way the assertion is wrong is a programmer error where the handler reads an attr the parser doesn't add. Tests already exercise each `_run_*` end-to-end via `mdd.cli.main([...])`; misalignments surface as `AttributeError` in tests, not silently.
-- **Field declarations are duplicated next to `add_argument`.** The Namespace subclass restates each `dest` and type. This duplication is the price of vanilla argparse + strict typing. Alternatives evaluated (dataclass `from_ns`, `getarg` helper, `pydantic-settings CliApp`, `cyclopts`, `tyro`, `Tap`) either kept the duplication, introduced framework churn, or regressed `--help` output quality. The full evaluation is in P03 session D's DONE stanza.
+- **Field declarations are duplicated next to `add_argument`.** The Namespace subclass restates each `dest` and type. This duplication is the price of vanilla argparse + strict typing. Alternatives evaluated (dataclass `from_ns`, `getarg` helper, `pydantic-settings CliApp`, `cyclopts`, `tyro`, `Tap`) either kept the duplication, introduced framework churn, or regressed `--help` output quality.
 - **One Namespace subclass per `_run_*` handler.** ~30 small classes across 16 modules. They are short (5–15 lines each) and live next to the handler that owns them.
 - **Root flags stay typed in `cli.py`.** `cli.py:_resolve_log_level` and `cli.py:_apply_logging` use the same cast pattern with a `_RootArgs(argparse.Namespace)` subclass.
 

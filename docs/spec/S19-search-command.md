@@ -171,7 +171,7 @@ frontmatter at format time.
 ## Out of scope
 
 - Building a search index. ripgrep over filesystem is enough.
-- Semantic / embedding-based search (deferred per research note R03;
+- Semantic / embedding-based search (deferred;
   reconsidered if review-quality demands it).
 - Cross-mirror linking. Search returns paths; the user (or agent)
   navigates.

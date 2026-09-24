@@ -170,7 +170,7 @@ metadata available").
 
 There is no on-disk IR sidecar in production. An earlier design
 called for `<page>.confluence.json` next to each markdown file
-(`SidecarCache`); that design was retired in P03 phase 5 because
+(`SidecarCache`); that design was retired because
 production metadata (page id, version, update timestamp) already
 lives in the markdown's YAML frontmatter, and the cache-key
 lookup happens in-process from the remote-storage parse rather

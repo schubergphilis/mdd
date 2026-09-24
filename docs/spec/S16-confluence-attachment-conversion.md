@@ -13,9 +13,9 @@ siblings inside the page's `<page-name>-attachments/` directory. The original
 binary stays for fidelity; the markdown sibling lets readers grep, diff, and
 review in the git mirror without leaving the browser.
 
-This is the **pull side** of the bidirectional Office story described in
-research note R02. The push side (rendering markdown to office-format attachments)
-is [S17](S17-confluence-office-publishing.md).
+This is the **pull side** of the bidirectional Office story. The push side
+(rendering markdown to office-format attachments) is
+[S17](S17-confluence-office-publishing.md). Originates from research note R02.
 
 ## Requirements
 
