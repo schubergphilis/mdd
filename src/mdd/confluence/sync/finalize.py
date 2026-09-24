@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from mdd.confluence.apply import ApplyError
+from mdd.confluence.frontmatter import pin_mtime_to_exported_at
 from mdd.confluence.frontmatter import read as read_frontmatter
 from mdd.confluence.frontmatter import write as write_frontmatter
 from mdd.confluence.state import DuplicatePageIdError, build_mirror_state
@@ -23,7 +24,6 @@ from mdd.mirror.registry import default_backend
 from mdd.utils.git import is_git_repo as _is_git_repo
 from mdd.utils.logging import get_logger
 
-from ._helpers import pin_mtime_to_exported_at
 from .renames import resolve_path_after_rename
 
 if TYPE_CHECKING:

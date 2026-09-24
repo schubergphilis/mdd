@@ -469,6 +469,86 @@ class TestUpdatePageEmptyDiff:
         assert "no changes" in msgs or "empty" in msgs
 
 
+def _is_locally_edited(md_path: Path) -> bool:
+    from mdd.confluence.state import LocalPage
+    from mdd.confluence.sync.local_edits import detect_local_edits
+    from mdd.confluence.sync_diff import DesiredPage
+
+    tracked = {
+        "12345": LocalPage(
+            path=md_path,
+            page_id="12345",
+            title="My Page",
+            parent_id=None,
+            status="current",
+            version_number=3,
+            space_key="SPACE",
+            space_id="98306",
+        )
+    }
+    desired = {
+        "12345": DesiredPage(
+            page_id="12345",
+            title="My Page",
+            parent_id=None,
+            status="current",
+            version_number=3,
+            version_created_at="2024-02-01T00:00:00Z",
+            space_id="98306",
+        )
+    }
+    return bool(detect_local_edits(tracked, desired, md_path.parent))
+
+
+class TestUpdatePageNoOpClearsLocalEdit:
+    def _run(self, md_path: Path, *, dry_run: bool = False) -> MagicMock:
+        mock_client = _make_mock_client()
+        with (
+            patch("mdd.confluence.update.ConfluenceClient", return_value=mock_client),
+            patch("mdd.confluence.update.get_mirror_url", return_value=None),
+            patch("mdd.confluence.update.insert_mdd_footer", return_value=_STORAGE_XHTML),
+        ):
+            from mdd.confluence.update import update_page
+
+            assert update_page(md_path, _make_config(), yes=True, dry_run=dry_run) == 0
+        return mock_client
+
+    def test_noop_push_is_no_longer_a_local_edit(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(
+            md_path, _make_frontmatter(version=3), f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n"
+        )
+        original = md_path.read_text()
+        assert _is_locally_edited(md_path)
+
+        mock_client = self._run(md_path)
+
+        mock_client.put_page.assert_not_called()
+        assert not _is_locally_edited(md_path)
+        assert md_path.read_text() == original
+
+    def test_dry_run_noop_leaves_mtime_alone(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_md_file(
+            md_path, _make_frontmatter(version=3), f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n"
+        )
+
+        self._run(md_path, dry_run=True)
+
+        assert _is_locally_edited(md_path)
+
+    def test_attachment_only_push_is_no_longer_a_local_edit(self, tmp_path: Path) -> None:
+        md_path = tmp_path / "My-Page.md"
+        _write_local_image(md_path)
+        body = f"```{{=confluence}}\n{_STORAGE_XHTML}\n```\n\n![d](diagram.png)\n"
+        _write_md_file(md_path, _make_frontmatter(version=3), body)
+
+        mock_client = self._run(md_path)
+
+        mock_client.upload_attachment.assert_called_once()
+        assert not _is_locally_edited(md_path)
+
+
 def _page_with_storage(storage: str) -> dict[str, Any]:
     page = dict(_SAMPLE_PAGE)
     page["body"] = {"storage": {"value": storage, "representation": "storage"}}
