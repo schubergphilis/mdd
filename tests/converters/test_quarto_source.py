@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mdd.converters.quarto_source import prepare_quarto_source
 from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
+
+_FILTER_BLOCK = "---\nfilters: [/tmp/evil.lua]\n---\n"
+_NEUTRALISED_BLOCK = "***\nfilters: [/tmp/evil.lua]\n---\n"
 
 
 def _frontmatter(text: str) -> dict[str, object]:
@@ -25,7 +30,7 @@ class TestFrontmatterAllowList:
             "toc: true\n"
             "format:\n"
             "  docx:\n"
-            "    reference-doc: ref.docx\n"
+            "    slide-level: 2\n"
             "    toc: true\n"
             "---\n"
             "# Body\n"
@@ -38,7 +43,7 @@ class TestFrontmatterAllowList:
             "author": "Someone",
             "date": "today",
             "toc": True,
-            "format": {"docx": {"reference-doc": "ref.docx", "toc": True}},
+            "format": {"docx": {"slide-level": 2, "toc": True}},
         }
         assert prepared.dropped_keys == []
         assert prepared.text.endswith("---\n# Body\n")
@@ -64,15 +69,15 @@ class TestFrontmatterAllowList:
             "include-before-body",
         ]
 
-    def test_format_level_execution_keys_dropped(self) -> None:
+    def test_format_level_file_keys_dropped(self) -> None:
         src = (
-            "---\nformat:\n  docx:\n    filters: [x.lua]\n    toc: true\n  pptx: default\n---\n"
-            "body\n"
+            "---\nformat:\n  docx:\n    filters: [x.lua]\n    reference-doc: /tmp/x.docx\n"
+            "    toc: true\n  pptx: default\n---\nbody\n"
         )
         prepared = prepare_quarto_source(src)
         fm = _frontmatter(prepared.text)
         assert fm == {"format": {"docx": {"toc": True}, "pptx": "default"}}
-        assert prepared.dropped_keys == ["format.docx.filters"]
+        assert prepared.dropped_keys == ["format.docx.filters", "format.docx.reference-doc"]
 
     def test_tool_owned_blocks_dropped_silently(self) -> None:
         src = (
@@ -97,6 +102,23 @@ class TestFrontmatterAllowList:
         prepared = prepare_quarto_source("---\n- just\n- a list\n---\nbody\n")
         assert prepared.text == "body\n"
 
+    def test_frontmatter_after_blank_lines_is_treated_as_body_block(self) -> None:
+        """Quarto trims leading blank lines before looking for frontmatter; mdd does not."""
+        prepared = prepare_quarto_source("\n\n" + _FILTER_BLOCK + "body\n")
+        assert prepared.text == "\n\n" + _NEUTRALISED_BLOCK + "body\n"
+
+    def test_leading_byte_order_mark_is_dropped(self) -> None:
+        prepared = prepare_quarto_source("\ufeff---\ntitle: T\nfilters: [x]\n---\nbody\n")
+        assert prepared.text == "---\ntitle: T\n---\nbody\n"
+        assert prepared.dropped_keys == ["filters"]
+
+    def test_crlf_frontmatter_is_parsed(self) -> None:
+        prepared = prepare_quarto_source("---\r\ntitle: T\r\nfilters: [x]\r\n---\r\nbody\r\n")
+        assert prepared.text == "---\ntitle: T\n---\nbody\n"
+        assert prepared.dropped_keys == ["filters"]
+
+
+class TestMetadataStrings:
     def test_shortcodes_in_metadata_strings_are_escaped(self) -> None:
         src = (
             "---\ntitle: '{{< include /etc/passwd >}}'\nauthor:\n  - name: '{{< meta x >}}'\n---\n"
@@ -106,51 +128,210 @@ class TestFrontmatterAllowList:
         assert fm["title"] == "{{{< include /etc/passwd >}}}"
         assert fm["author"] == [{"name": "{{{< meta x >}}}"}]
 
+    @pytest.mark.parametrize(
+        "spelling",
+        [
+            "{{&lt; env HOME &gt;}}",
+            "{{&#60; env HOME &#62;}}",
+            "&#123;{< env HOME >}}",
+            "{{\\< env HOME \\>}}",
+            "\\{\\{< env HOME >\\}\\}",
+        ],
+    )
+    def test_entity_and_backslash_spellings_in_metadata_are_escaped(self, spelling: str) -> None:
+        """Pandoc reads metadata as Markdown, so encoded delimiters would become ``{{<``."""
+        prepared = prepare_quarto_source(f"---\ntitle: '{spelling}'\n---\nbody\n")
+        assert _frontmatter(prepared.text)["title"] == "{{{< env HOME >}}}"
 
-class TestBody:
-    def test_mid_document_yaml_block_is_neutralised(self) -> None:
-        src = "Intro\n\n---\nfilters: [/tmp/evil.lua]\n---\n\nMore\n"
+    def test_plain_entities_in_metadata_are_decoded_only(self) -> None:
+        prepared = prepare_quarto_source("---\ntitle: 'Q &amp; A &lt;3'\n---\nbody\n")
+        assert _frontmatter(prepared.text)["title"] == "Q & A <3"
+
+    def test_non_string_scalars_pass_through(self) -> None:
+        prepared = prepare_quarto_source("---\ntitle: 5\ntoc: true\ntoc-depth: 2\n---\nbody\n")
+        assert _frontmatter(prepared.text) == {"title": 5, "toc": True, "toc-depth": 2}
+
+
+class TestBodyYamlBlocks:
+    def test_mid_document_yaml_block_opener_is_neutralised(self) -> None:
+        src = "Intro\n\n" + _FILTER_BLOCK + "\nMore\n"
         prepared = prepare_quarto_source(src)
-        assert prepared.text == "Intro\n\n***\nfilters: [/tmp/evil.lua]\n***\n\nMore\n"
+        assert prepared.text == "Intro\n\n" + _NEUTRALISED_BLOCK + "\nMore\n"
 
-    def test_delimiter_with_trailing_whitespace_and_crlf(self) -> None:
-        prepared = prepare_quarto_source("a\r\n--- \r\nb\r\n")
-        assert prepared.text == "a\r\n***\r\nb\r\n"
+    def test_block_directly_after_paragraph_is_neutralised(self) -> None:
+        """Quarto does not require a blank line before a metadata block."""
+        prepared = prepare_quarto_source("Intro\n" + _FILTER_BLOCK)
+        assert prepared.text == "Intro\n" + _NEUTRALISED_BLOCK
 
-    def test_delimiter_inside_code_fence_is_left_alone(self) -> None:
-        src = "```yaml\n---\nkey: value\n---\n```\n\n---\n"
-        prepared = prepare_quarto_source(src)
-        assert prepared.text == "```yaml\n---\nkey: value\n---\n```\n\n***\n"
+    def test_dots_terminator_is_a_block(self) -> None:
+        prepared = prepare_quarto_source("Intro\n\n---\nfilters: [x]\n...\n")
+        assert prepared.text == "Intro\n\n***\nfilters: [x]\n...\n"
 
-    def test_tilde_fence_and_longer_closing_fence(self) -> None:
-        src = "~~~\n---\n~~~~\n---\n"
-        prepared = prepare_quarto_source(src)
-        assert prepared.text == "~~~\n---\n~~~~\n***\n"
+    def test_opener_with_trailing_whitespace_and_crlf(self) -> None:
+        prepared = prepare_quarto_source("a\r\n--- \r\nfilters: [x]\r\n---\r\nb\r\n")
+        assert prepared.text == "a\n*** \nfilters: [x]\n---\nb\n"
 
-    def test_backtick_fence_with_backtick_in_info_string_is_not_a_fence(self) -> None:
-        src = "``` a`b\n---\n"
-        prepared = prepare_quarto_source(src)
-        assert prepared.text == "``` a`b\n***\n"
+    @pytest.mark.parametrize("terminator", ["\r", "\u2028", "\u2029"])
+    def test_other_line_terminators_start_a_line(self, terminator: str) -> None:
+        prepared = prepare_quarto_source(f"Intro{terminator}" + _FILTER_BLOCK)
+        assert prepared.text == "Intro\n" + _NEUTRALISED_BLOCK
 
-    def test_unclosed_fence_swallows_rest(self) -> None:
-        src = "```\n---\nstill code\n"
-        prepared = prepare_quarto_source(src)
-        assert prepared.text == src
+    def test_consecutive_blocks_are_all_neutralised(self) -> None:
+        src = "---\na: 1\n---\nb: 2\n---\nc: 3\n---\n"
+        prepared = prepare_quarto_source("x\n" + src)
+        assert prepared.text == "x\n***\na: 1\n***\nb: 2\n***\nc: 3\n---\n"
 
-    def test_include_shortcode_is_escaped(self) -> None:
-        src = "Hello {{< include ../../secret.md >}} world\n"
-        prepared = prepare_quarto_source(src)
-        assert prepared.text == "Hello {{{< include ../../secret.md >}}} world\n"
-
-    def test_shortcode_inside_code_fence_is_left_alone(self) -> None:
-        src = "```\n{{< include x >}}\n```\n"
+    def test_lone_rule_without_closer_is_left_alone(self) -> None:
+        src = "a\n\n---\n\nb\n"
         assert prepare_quarto_source(src).text == src
 
-    def test_plain_markdown_is_unchanged(self) -> None:
-        src = "# Title\n\nSome *text* with a [link](http://x) and `code`.\n\n- a\n- b\n"
+    def test_setext_heading_is_left_alone(self) -> None:
+        """A ``---`` followed by a blank line is never a metadata block."""
+        src = "My Heading\n---\n\nbody\n"
+        assert prepare_quarto_source(src).text == src
+
+    def test_indented_delimiter_is_not_an_opener(self) -> None:
+        src = "a\n\n ---\nfilters: [x]\n---\n"
         assert prepare_quarto_source(src).text == src
 
     def test_body_starting_with_delimiter_after_frontmatter(self) -> None:
         src = "---\ntitle: T\n---\n---\nfilters: [x]\n---\n"
         prepared = prepare_quarto_source(src)
-        assert prepared.text == "---\ntitle: T\n---\n***\nfilters: [x]\n***\n"
+        assert prepared.text == "---\ntitle: T\n---\n***\nfilters: [x]\n---\n"
+
+    def test_plain_markdown_is_unchanged(self) -> None:
+        src = "# Title\n\nSome *text* with a [link](http://x) and `code`.\n\n- a\n- b\n"
+        assert prepare_quarto_source(src).text == src
+
+
+class TestBodyFences:
+    """Quarto's scanner only treats same-prefix backtick fences as code."""
+
+    def test_delimiters_inside_backtick_fence_are_left_alone(self) -> None:
+        src = "```yaml\n---\nkey: value\n---\n```\n\n---\n"
+        assert prepare_quarto_source(src).text == src
+
+    def test_fence_with_matching_blockquote_prefix_is_code(self) -> None:
+        src = "> ```\n> ---\n> filters: [x]\n> ---\n> ```\n"
+        assert prepare_quarto_source(src).text == src
+
+    def test_fence_with_indented_prefix_is_code_when_closer_matches(self) -> None:
+        src = " ```\n---\nfilters: [x]\n---\n ```\n"
+        assert prepare_quarto_source(src).text == src
+
+    @pytest.mark.parametrize(
+        ("name", "src", "expected"),
+        [
+            (
+                "tilde fence",
+                "~~~\n---\nfilters: [x]\n---\n~~~\n",
+                "~~~\n***\nfilters: [x]\n---\n~~~\n",
+            ),
+            (
+                "fence in list item",
+                "- ```\n  code\n  ```\n\n" + _FILTER_BLOCK,
+                "- ```\n  code\n  ```\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "fence in ordered list item",
+                "1. ```\n   code\n   ```\n\n" + _FILTER_BLOCK,
+                "1. ```\n   code\n   ```\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "closer indented differently",
+                "```\ncode\n    ```\n\n" + _FILTER_BLOCK,
+                "```\ncode\n    ```\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "opener indented, closer not",
+                " ```\n---\nfilters: [x]\n---\n```\n",
+                " ```\n***\nfilters: [x]\n---\n```\n",
+            ),
+            (
+                "closer shorter than opener",
+                "````\ncode\n```\n\n" + _FILTER_BLOCK,
+                "````\ncode\n```\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "backtick in info string",
+                "``` a`b\n---\nfilters: [x]\n---\n```\n",
+                "``` a`b\n***\nfilters: [x]\n---\n```\n",
+            ),
+            (
+                "unclosed fence",
+                "```\n---\nfilters: [x]\n---\n",
+                "```\n***\nfilters: [x]\n---\n",
+            ),
+            (
+                "closer followed by a character Python calls whitespace but JavaScript does not",
+                "```\n---\nfilters: [x]\n---\n```\x85\n",
+                "```\n***\nfilters: [x]\n---\n```\x85\n",
+            ),
+            (
+                "fence inside html comment",
+                "<!--\n```\n-->\n\n" + _FILTER_BLOCK,
+                "<!--\n```\n-->\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "fence inside pre block",
+                "<pre>\n```\n</pre>\n\n" + _FILTER_BLOCK,
+                "<pre>\n```\n</pre>\n\n" + _NEUTRALISED_BLOCK,
+            ),
+            (
+                "fence inside display math",
+                "$$\n```\n$$\n\n" + _FILTER_BLOCK,
+                "$$\n```\n$$\n\n" + _NEUTRALISED_BLOCK,
+            ),
+        ],
+    )
+    def test_shapes_quarto_does_not_treat_as_code(self, name: str, src: str, expected: str) -> None:
+        assert prepare_quarto_source(src).text == expected, name
+
+
+class TestBodyHtmlComments:
+    """Quarto strips HTML comments before scanning, which can join lines."""
+
+    def test_opener_formed_by_comment_removal(self) -> None:
+        src = "Intro\n\n<!--\n-->---\nfilters: [x]\n...\n"
+        prepared = prepare_quarto_source(src)
+        assert prepared.text == "Intro\n\n<!--\n-->***\nfilters: [x]\n...\n"
+
+    def test_opener_with_trailing_comment(self) -> None:
+        src = "Intro\n\n---<!-- x -->\nfilters: [x]\n...\n"
+        prepared = prepare_quarto_source(src)
+        assert prepared.text == "Intro\n\n***<!-- x -->\nfilters: [x]\n...\n"
+
+    def test_opener_split_by_comment(self) -> None:
+        src = "Intro\n\n-<!-- x -->--\nfilters: [x]\n...\n"
+        prepared = prepare_quarto_source(src)
+        assert prepared.text == "Intro\n\n*<!-- x -->**\nfilters: [x]\n...\n"
+
+    def test_block_entirely_inside_comment_is_left_alone(self) -> None:
+        src = "<!--\n" + _FILTER_BLOCK + "-->\n"
+        assert prepare_quarto_source(src).text == src
+
+
+class TestBodyShortcodes:
+    def test_include_shortcode_is_escaped(self) -> None:
+        src = "Hello {{< include ../../secret.md >}} world\n"
+        prepared = prepare_quarto_source(src)
+        assert prepared.text == "Hello {{{< include ../../secret.md >}}} world\n"
+
+    def test_shortcode_without_inner_spaces_is_escaped(self) -> None:
+        assert prepare_quarto_source("{{<env HOME>}}\n").text == "{{{<env HOME>}}}\n"
+
+    def test_shortcode_spanning_lines_is_escaped(self) -> None:
+        assert prepare_quarto_source("{{<\nenv HOME\n>}}\n").text == "{{{<\nenv HOME\n>}}}\n"
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "```\n{{< env HOME >}}\n```\n",
+            "~~~\n{{< env HOME >}}\n~~~\n",
+            "Hello `{{< env HOME >}}` world\n",
+            "- ```\n  code\n  ```\n\n{{< env HOME >}}\n",
+        ],
+    )
+    def test_shortcodes_are_escaped_inside_code_too(self, src: str) -> None:
+        """Quarto expands shortcodes in code blocks and inline code as well."""
+        assert prepare_quarto_source(src).text == src.replace("{{<", "{{{<").replace(">}}", ">}}}")

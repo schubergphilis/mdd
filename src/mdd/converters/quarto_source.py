@@ -3,23 +3,33 @@
 Quarto treats the rendered Markdown as a program, not as data: YAML
 frontmatter (and any ``---`` delimited YAML block later in the body) can name
 Lua filters, external metadata files, bibliographies and include files, and
-``{{< include >}}`` shortcodes splice arbitrary files into the output. The
-files mdd renders were written by whoever authored the source document or
-the mirror page, so none of those directives may reach Quarto.
+``{{< … >}}`` shortcodes read environment variables or splice files into the
+output. The files mdd renders were written by whoever authored the source
+document or the mirror page, so none of those directives may reach Quarto.
 
 :func:`prepare_quarto_source` rewrites the Markdown so only presentation
 metadata survives:
 
 * frontmatter keys are reduced to an explicit allow-list; everything else is
   dropped and reported,
-* body lines consisting solely of ``---`` outside fenced code become ``***``
-  (the same thematic break, but one Pandoc never reads as YAML),
-* shortcode delimiters ``{{<`` / ``>}}`` become their escaped forms, which
-  Quarto renders literally.
+* every ``---`` line that Quarto's own metadata scanner would take as the start
+  of a YAML block becomes ``***`` (the same thematic break, never read as
+  YAML),
+* shortcode delimiters ``{{<`` / ``>}}`` become their escaped forms everywhere,
+  including inside code, because Quarto expands shortcodes in code blocks and
+  inline code too.
+
+Quarto does not use a Markdown parser to find metadata blocks. It strips HTML
+comments, then strips backtick fences whose closing line repeats the opening
+line's prefix exactly, and searches what is left with a regular expression
+anchored at line starts. Tilde fences, fences inside list items and fences
+whose closing indentation differs are *not* code to that scanner, so this
+module reproduces the scanner instead of tracking CommonMark fences.
 """
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -45,14 +55,15 @@ ALLOWED_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Keys allowed inside ``format: <name>:`` mappings.
+# Keys allowed inside ``format: <name>:`` mappings. ``reference-doc`` is not
+# among them: it names a file Quarto opens, and mdd supplies the template on
+# the command line where one is wanted.
 ALLOWED_FORMAT_KEYS: frozenset[str] = frozenset(
     {
         "toc",
         "toc-depth",
         "toc-title",
         "number-sections",
-        "reference-doc",
         "slide-level",
         "incremental",
         "fig-width",
@@ -66,8 +77,29 @@ ALLOWED_FORMAT_KEYS: frozenset[str] = frozenset(
 # worth a warning.
 _TOOL_OWNED_KEYS: frozenset[str] = frozenset({"sharepoint", "confluence", "publish_office", "pptx"})
 
-_YAML_DELIMITER_RE = re.compile(r"^---[ \t]*$")
-_FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# Quarto's scanner runs in JavaScript, where ``^`` and ``$`` in multiline mode
+# also break on CR, U+2028 and U+2029. Everything is folded to LF first so the
+# Python regular expressions below see the same line boundaries.
+_LINE_TERMINATOR_RE = re.compile(r"\r\n|[\r\u2028\u2029]")
+
+# JavaScript's ``\s``. Python's also matches NEL and the C0 separators, which
+# would make a fence closer followed by one of those count as code here but
+# not for Quarto.
+_JS_WHITESPACE = r"\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+
+# The three regular expressions Quarto applies, in this order, to find YAML
+# blocks in a Markdown document.
+_HTML_COMMENT_RE = re.compile(r"<!--[\W\w]*?-->")
+_BACKTICK_FENCE_RE = re.compile(
+    r"^([\t >]*`{3,})[^`\n]*\n[\W\w]*?\n\1[" + _JS_WHITESPACE + r"]*$", re.MULTILINE
+)
+_YAML_BLOCK_RE = re.compile(
+    r"^(---)[ \t]*\n+(?![ \t]*\n+)[\W\w]*?\n+(?:---|\.\.\.)[ \t]*$", re.MULTILINE
+)
+
+# Pandoc reads metadata strings as Markdown, so these forms of ``{`` ``<``
+# ``>`` ``}`` reach Quarto's shortcode handler as the bare characters.
+_ESCAPED_DELIMITER_CHAR_RE = re.compile(r"\\([{}<>])")
 
 
 @dataclass
@@ -82,8 +114,13 @@ class PreparedSource:
 
 
 def prepare_quarto_source(text: str) -> PreparedSource:
-    """Return *text* reduced to what Quarto may act on for a plain render."""
+    """Return *text* reduced to what Quarto may act on for a plain render.
+
+    Line endings are normalised to LF and a leading byte-order mark is
+    removed; the result is only ever written to a temporary file for Quarto.
+    """
     dropped: list[str] = []
+    text = _LINE_TERMINATOR_RE.sub("\n", text.removeprefix("\ufeff"))
     split = split_frontmatter(text)
     if split is None:
         body = text
@@ -92,7 +129,7 @@ def prepare_quarto_source(text: str) -> PreparedSource:
         fm_block, body = split
         frontmatter = _filter_frontmatter(fm_block, dropped)
 
-    safe_body = _neutralise_body(body)
+    safe_body = _escape_shortcodes(_neutralise_yaml_blocks(body))
 
     if not frontmatter:
         return PreparedSource(text=safe_body, dropped_keys=dropped)
@@ -146,7 +183,7 @@ def _filter_format(value: object, dropped: list[str]) -> object:
 def _neutralise_value(value: object) -> object:
     """Escape shortcode delimiters inside every string scalar of *value*."""
     if isinstance(value, str):
-        return _escape_shortcodes(value)
+        return _neutralise_metadata_string(value)
     if isinstance(value, list):
         return [_neutralise_value(item) for item in cast("list[object]", value)]
     if isinstance(value, dict):
@@ -156,50 +193,47 @@ def _neutralise_value(value: object) -> object:
     return value
 
 
+def _neutralise_metadata_string(text: str) -> str:
+    """Escape shortcodes in a metadata string, including entity and backslash spellings."""
+    plain = _ESCAPED_DELIMITER_CHAR_RE.sub(r"\1", html.unescape(text))
+    return _escape_shortcodes(plain)
+
+
 def _escape_shortcodes(text: str) -> str:
     return text.replace("{{<", "{{{<").replace(">}}", ">}}}")
 
 
-def _neutralise_body(body: str) -> str:
-    """Rewrite YAML delimiters and shortcodes outside fenced code blocks."""
-    out: list[str] = []
-    fence_char = ""
-    fence_len = 0
-    for raw_line in body.splitlines(keepends=True):
-        line = raw_line.rstrip("\r\n")
-        ending = raw_line[len(line) :]
-        if fence_char:
-            if _closes_fence(line, fence_char, fence_len):
-                fence_char = ""
-                fence_len = 0
-            out.append(raw_line)
-            continue
-        opened = _opens_fence(line)
-        if opened is not None:
-            fence_char, fence_len = opened
-            out.append(raw_line)
-            continue
-        if _YAML_DELIMITER_RE.match(line):
-            out.append("***" + ending)
-            continue
-        out.append(_escape_shortcodes(line) + ending)
-    return "".join(out)
+def _neutralise_yaml_blocks(body: str) -> str:
+    """Turn every ``---`` that Quarto would read as the start of a YAML block into ``***``.
+
+    Works on Quarto's view of the text (comments and backtick fences removed)
+    and maps each match back to the original characters, so a delimiter that
+    only lines up after a comment is removed is caught as well. Repeats until
+    the scanner finds nothing, because removing one block can expose the next.
+    """
+    chars = list(body)
+    while True:
+        text = "".join(chars)
+        without_comments, comment_map = _remove_spans(text, _HTML_COMMENT_RE)
+        view, fence_map = _remove_spans(without_comments, _BACKTICK_FENCE_RE)
+        openers = [m.start(1) for m in _YAML_BLOCK_RE.finditer(view)]
+        if not openers:
+            return text
+        for start in openers:
+            for offset in range(3):
+                chars[comment_map[fence_map[start + offset]]] = "*"
 
 
-def _opens_fence(line: str) -> tuple[str, int] | None:
-    match = _FENCE_OPEN_RE.match(line)
-    if match is None:
-        return None
-    run, info = match.group(1), match.group(2)
-    if run[0] == "`" and "`" in info:
-        return None
-    return run[0], len(run)
+def _remove_spans(text: str, pattern: re.Pattern[str]) -> tuple[str, list[int]]:
+    """Delete every *pattern* match from *text*.
 
-
-def _closes_fence(line: str, fence_char: str, fence_len: int) -> bool:
-    stripped = line.strip()
-    return (
-        len(stripped) >= fence_len
-        and stripped == fence_char * len(stripped)
-        and len(line) - len(line.lstrip(" ")) <= 3
-    )
+    Returns the shortened text and, for each character of it, that character's
+    index in *text*.
+    """
+    kept: list[int] = []
+    pos = 0
+    for match in pattern.finditer(text):
+        kept.extend(range(pos, match.start()))
+        pos = match.end()
+    kept.extend(range(pos, len(text)))
+    return "".join(text[i] for i in kept), kept

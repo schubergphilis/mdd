@@ -192,13 +192,23 @@ would push the document's own text through Quarto unguarded.
 Markdown is rewritten into a temporary copy: frontmatter is reduced
 to an allow-list of presentation keys (`title`, `subtitle`,
 `author`, `date`, `abstract`, `lang`, `toc*`, `number-sections`,
-and `format.<name>` options such as `reference-doc`), body lines
-consisting solely of `---` outside fenced code become `***`, and
-`{{< … >}}` shortcodes are escaped so they render literally. Quarto
+and `format.<name>` layout options such as `toc`, `slide-level` and
+`fig-*`; `reference-doc` is not among them because it names a file
+Quarto opens, and mdd passes the template on the command line), every
+`---` that Quarto's own metadata scanner would take as the start of a
+YAML block becomes `***`, and `{{< … >}}` shortcodes are escaped
+everywhere, including inside code and in metadata strings, so they
+render literally. Quarto finds metadata blocks with regular
+expressions rather than a Markdown parser (HTML comments and
+same-prefix backtick fences are stripped first; tilde fences and
+fences inside list items are not code to it), so the rewrite
+reproduces that scanner instead of tracking CommonMark fences. Quarto
 directives that run code or read files (`filters`,
-`metadata-files`, `bibliography`, `include-*`, `{{< include >}}`)
-therefore never take effect, whoever authored the file. Dropped keys
-are logged and surfaced as render warnings.
+`metadata-files`, `bibliography`, `include-*`, `{{< include >}}`,
+`{{< env >}}`) therefore never take effect, whoever authored the file.
+Dropped keys are logged and surfaced as render warnings. Line endings
+in the temporary copy are normalised to LF and a leading byte-order
+mark is dropped; the mirror `.md` on disk is never modified.
 
 **Office-only files.** `.docx`/`.pptx` files with no `.md` sibling
 go through the appropriate converter ([S16](S16-confluence-attachment-conversion.md) / [S11](S11-convert-pptx.md))
