@@ -12,6 +12,8 @@ from mdd.utils.frontmatter import (
     split_frontmatter,
 )
 
+DEEPLY_NESTED_YAML = "x: " + "[" * 2000
+
 # ---------------------------------------------------------------------------
 # FrontmatterModel
 # ---------------------------------------------------------------------------
@@ -105,6 +107,10 @@ class TestParseYamlMapping:
 
     def test_parse_error_returns_none(self) -> None:
         assert parse_yaml_mapping(": invalid: yaml: [") is None
+
+    def test_deeply_nested_input_returns_none(self) -> None:
+        # PyYAML gives up with RecursionError rather than YAMLError here.
+        assert parse_yaml_mapping(DEEPLY_NESTED_YAML) is None
 
 
 # ---------------------------------------------------------------------------

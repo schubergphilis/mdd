@@ -17,6 +17,11 @@ from mdd.ai.review import ReviewConfig, run_review
 from mdd.ai.review import (
     _is_stale as _is_stale,  # pyright: ignore[reportPrivateUsage]
 )
+from mdd.ai.review import (
+    _load_docs as _load_docs,  # pyright: ignore[reportPrivateUsage]
+)
+
+DEEPLY_NESTED_YAML = "x: " + "[" * 2000
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -58,6 +63,26 @@ LOW_CONFIDENCE_RESPONSE = json.dumps(
         "evidence": "Superficial similarity only.",
     }
 )
+
+
+# ---------------------------------------------------------------------------
+# _load_docs
+# ---------------------------------------------------------------------------
+
+
+class TestLoadDocs:
+    def test_deeply_nested_frontmatter_is_treated_as_no_frontmatter(self, tmp_path: Path) -> None:
+        nested = f"---\n{DEEPLY_NESTED_YAML}\n---\nBody A.\n"
+        (tmp_path / "a.md").write_text(nested, encoding="utf-8")
+        (tmp_path / "b.md").write_text("---\ntitle: B\n---\nBody B.\n", encoding="utf-8")
+
+        docs = _load_docs(tmp_path)
+
+        assert [(rel, fm) for rel, _content, fm in docs] == [
+            (Path("a.md"), {}),
+            (Path("b.md"), {"title": "B"}),
+        ]
+        assert docs[0][1] == nested
 
 
 # ---------------------------------------------------------------------------

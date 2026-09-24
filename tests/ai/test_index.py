@@ -27,6 +27,7 @@ from mdd.ai.models import ChatResult
 # ---------------------------------------------------------------------------
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+DEEPLY_NESTED_YAML = "x: " + "[" * 2000
 
 
 def _make_chat_result(text: str, cached: bool = False) -> ChatResult:
@@ -433,6 +434,20 @@ class TestIndexDir:
         assert result.status == "ok"
         index_content = (tmp_path / "INDEX.md").read_text()
         assert "## " not in index_content  # no H2 sections
+
+    def test_deeply_nested_frontmatter_is_treated_as_no_frontmatter(self, tmp_path: Path) -> None:
+        (tmp_path / "a.md").write_text(
+            f"---\n{DEEPLY_NESTED_YAML}\n---\nContent A.\n", encoding="utf-8"
+        )
+        _write_md(tmp_path / "b.md", "Content B.")
+
+        mock_client = _make_mock_client("A one-sentence summary.")
+        result = index_dir(tmp_path, mock_client)  # pyright: ignore[reportArgumentType]
+
+        assert result.status == "ok"
+        assert result.files_total == 2
+        assert result.errors == 0
+        assert result.summaries_computed == 2
 
     def test_error_in_one_file_continues(self, tmp_path: Path) -> None:
         """If one file fails summarisation, others should still succeed."""

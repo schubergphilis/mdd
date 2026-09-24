@@ -77,12 +77,16 @@ def parse_yaml_mapping(text: str) -> Mapping[str, object] | None:
     Returns ``None`` on: empty text, parse error, decoded ``None``,
     decoded list, decoded scalar.  Callers that want a hard error on
     "expected a mapping" should validate the return and raise.
+
+    PyYAML raises ``RecursionError`` rather than ``YAMLError`` when the
+    input nests deeper than the interpreter stack allows; that counts
+    as a parse error here.
     """
     if not text.strip():
         return None
     try:
         parsed: Any = yaml.safe_load(text)  # pyright: ignore[reportAny]
-    except yaml.YAMLError:
+    except yaml.YAMLError, RecursionError:
         return None
     if not isinstance(parsed, dict):
         return None

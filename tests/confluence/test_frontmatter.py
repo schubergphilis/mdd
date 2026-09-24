@@ -8,6 +8,8 @@ import pytest
 
 from mdd.confluence.frontmatter import read, write
 
+DEEPLY_NESTED_YAML = "x: " + "[" * 2000
+
 
 class TestRead:
     def test_file_with_frontmatter(self, tmp_path: Path) -> None:
@@ -45,6 +47,14 @@ class TestRead:
         fm, _body = read(path)
         # yaml.safe_load("") returns None; should fall back to {}
         assert isinstance(fm, dict)
+
+    def test_deeply_nested_frontmatter_returns_no_frontmatter(self, tmp_path: Path) -> None:
+        path = tmp_path / "page.md"
+        content = f"---\n{DEEPLY_NESTED_YAML}\n---\nContent\n"
+        path.write_text(content, encoding="utf-8")
+        fm, body = read(path)
+        assert fm == {}
+        assert body == content
 
 
 class TestWrite:
