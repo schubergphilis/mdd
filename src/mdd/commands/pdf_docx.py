@@ -21,18 +21,25 @@ class _PdfDocxArgs(argparse.Namespace):
     directory: Path | None
 
 
+# The source and PDF paths arrive as ``argv`` items so the script text is a
+# fixed constant and file names can never change the program.
+DOCX_APPLESCRIPT = """
+on run argv
+    set srcFile to POSIX file (item 1 of argv)
+    set pdfFile to POSIX file (item 2 of argv)
+    tell application "Microsoft Word"
+        open srcFile
+        set theDoc to active document
+        save as theDoc file name pdfFile file format format PDF
+        close theDoc saving no
+    end tell
+end run
+"""
+
+
 def export_docx_to_pdf(docx_path: Path) -> bool:
     """Export a DOCX file to PDF using Word via AppleScript."""
-    pdf_path = Path(str(docx_path) + ".pdf")
-    applescript = f"""
-tell application "Microsoft Word"
-    open POSIX file "{docx_path.resolve()}"
-    set theDoc to active document
-    save as theDoc file name POSIX file "{pdf_path.resolve()}" file format format PDF
-    close theDoc saving no
-end tell
-"""
-    return export_to_pdf_via_applescript(docx_path, applescript, "Word")
+    return export_to_pdf_via_applescript(docx_path, DOCX_APPLESCRIPT, "Word")
 
 
 def run_docx_pipeline(directory: Path) -> int:

@@ -11,13 +11,17 @@
 - `mdd pdf [dir]` runs both
 - Staleness: only export if PDF missing or source is newer than PDF
 - Excludes symlinks and files in `templates/` directory
+- Skips (with a warning) files whose name contains control characters
 - Double-extension output: `file.pptx.pdf`, `file.docx.pdf`
 - Defaults to current directory if no `[dir]` argument
 
 ## Design Approach
 
 - Commands in `src/mdd/commands/pdf*.py`; shared helpers in `src/mdd/utils/pdf_export.py`
-- AppleScript invoked via `subprocess.run(['osascript', '-e', script])`
+- AppleScript invoked via `subprocess.run(['osascript', '-e', script, '--', src, pdf])`;
+  the script is a fixed constant with an `on run argv` handler that reads the
+  source and PDF paths as `POSIX file (item N of argv)`, so file names are
+  data, never part of the program text
 - macOS only — fails gracefully on other platforms (osascript not found)
 
 ## Implementation Notes

@@ -23,18 +23,25 @@ class _PdfPptxArgs(argparse.Namespace):
     directory: Path | None
 
 
+# The source and PDF paths arrive as ``argv`` items so the script text is a
+# fixed constant and file names can never change the program.
+PPTX_APPLESCRIPT = """
+on run argv
+    set srcFile to POSIX file (item 1 of argv)
+    set pdfFile to POSIX file (item 2 of argv)
+    tell application "Microsoft PowerPoint"
+        open srcFile
+        set theDoc to active presentation
+        save theDoc in pdfFile as save as PDF
+        close theDoc
+    end tell
+end run
+"""
+
+
 def export_pptx_to_pdf(pptx_path: Path) -> bool:
     """Export a PPTX file to PDF using PowerPoint via AppleScript."""
-    pdf_path = Path(str(pptx_path) + ".pdf")
-    applescript = f"""
-tell application "Microsoft PowerPoint"
-    open POSIX file "{pptx_path.resolve()}"
-    set theDoc to active presentation
-    save theDoc in POSIX file "{pdf_path.resolve()}" as save as PDF
-    close theDoc
-end tell
-"""
-    return export_to_pdf_via_applescript(pptx_path, applescript, "PowerPoint")
+    return export_to_pdf_via_applescript(pptx_path, PPTX_APPLESCRIPT, "PowerPoint")
 
 
 def resolve_directory(directory: Path | None) -> Path | None:
