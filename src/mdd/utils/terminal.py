@@ -38,3 +38,20 @@ def neutralise_lines(text: str) -> str:
     are kept.
     """
     return "\n".join(neutralise_controls(line.removesuffix("\r")) for line in text.split("\n"))
+
+
+# Everything neutralise_controls replaces, plus the characters that start a
+# new line: LF, and the Unicode line and paragraph separators. VT, FF, CR and
+# NEL are already in the control ranges above.
+_LINE_BREAKING_RE = re.compile(r"[\n\u2028\u2029]")
+
+
+def neutralise_line(text: str) -> str:
+    """Neutralise *text* that is shown inside a single line, such as a title or path.
+
+    Like :func:`neutralise_controls`, except that line breaks are replaced
+    too, so a value interpolated into a one-line message cannot start a new
+    line of its own. Tabs are kept and each replaced character maps to one
+    placeholder.
+    """
+    return _LINE_BREAKING_RE.sub(_CONTROL_PLACEHOLDER, neutralise_controls(text))

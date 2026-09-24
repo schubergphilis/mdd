@@ -24,7 +24,7 @@ from mdd.search.output import StreamingFormatter, write_output
 from mdd.search.roots import MirrorRoot, resolve_roots
 from mdd.search.sources import SOURCES, known_types_hint
 from mdd.utils.logging import get_logger
-from mdd.utils.terminal import neutralise_controls, neutralise_lines
+from mdd.utils.terminal import neutralise_line, neutralise_lines
 
 if TYPE_CHECKING:
     from mdd.cli import CommonParents, SubParsers
@@ -109,7 +109,7 @@ def _open_rg(cmd: list[str]) -> subprocess.Popen[str]:
 
 def _trace_cmd(cmd: list[str]) -> None:
     """Log the rg invocation (used by --trace)."""
-    log.info("[mdd search] %s", neutralise_controls(shlex.join(cmd)))
+    log.info("[mdd search] %s", neutralise_line(shlex.join(cmd)))
 
 
 def _terminate_proc(proc: subprocess.Popen[str]) -> None:

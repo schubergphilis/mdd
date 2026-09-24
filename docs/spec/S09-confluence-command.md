@@ -66,9 +66,13 @@ TTY). With `--yes` the summary is logged at INFO instead of printed.
 printed diff carry text from Confluence and from the mirror, so terminal
 control and bidi override characters in them are shown as `U+FFFD`
 (the [S19](S19-search-command.md) rule; CRLF line ends are kept as line
-breaks). This is display only: the diff used to decide whether to push,
+breaks). Titles, page ids and space keys in the summary lines, and in
+the space-mismatch refusal, also have their line breaks shown as
+`U+FFFD`, so a title cannot add a line to the summary. This is display
+only: the diff used to decide whether to push,
 and the body that is pushed, are unchanged. Error messages quoting an
-HTTP error response body get the same treatment. `--message` sets the
+HTTP error response body get the same treatment, line breaks included,
+so the quoted body stays on the error line. `--message` sets the
 version comment in Confluence page history. Image sync runs as part of
 update. On success, frontmatter is rewritten with the new version and
 updated attachment manifest.

@@ -58,7 +58,7 @@ from mdd.confluence.url import URLMismatchError
 from mdd.confluence.url import parse as parse_url
 from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.utils.logging import get_logger
-from mdd.utils.terminal import neutralise_controls, neutralise_lines
+from mdd.utils.terminal import neutralise_line, neutralise_lines
 
 if TYPE_CHECKING:
     from mdd.confluence.config import ConfluenceConfig
@@ -390,8 +390,8 @@ def _prompt_identity(page_state: _PageState, remote: RemotePage) -> tuple[str, s
         log.warning(
             'Remote title "%s" differs from local title "%s" for page %s; '
             "the prompt shows the remote title.",
-            neutralise_controls(remote_title),
-            neutralise_controls(page_state.title),
+            neutralise_line(remote_title),
+            neutralise_line(page_state.title),
             page_state.page_id,
         )
     return remote_title, remote.space_label
@@ -658,8 +658,8 @@ def rename_page(md_path: Path, new_title: str, *, opts: MutateOptions) -> int:
             page_data, remote = _preflight(client, page_state, repo_dir, opts)
             remote_title, space_key = _prompt_identity(page_state, remote)
             preview = (
-                f'Rename: "{remote_title}" -> "{new_title}"\n'
-                f"        space {space_key}, page {page_state.page_id}"
+                f'Rename: "{neutralise_line(remote_title)}" -> "{neutralise_line(new_title)}"\n'
+                f"        space {neutralise_line(space_key)}, page {page_state.page_id}"
             )
             if not _prompt(preview, opts):
                 return 0
@@ -728,9 +728,9 @@ def move_page(md_path: Path, parent_ref: str, *, opts: MutateOptions) -> int:
             _check_same_space(page_data, parent_data)
             remote_title, space_key = _prompt_identity(page_state, remote)
             preview = (
-                f'Move: "{remote_title}" (page {page_state.page_id})\n'
+                f'Move: "{neutralise_line(remote_title)}" (page {page_state.page_id})\n'
                 f"      to parent {_remote_title(parent_data)!r} (page {new_parent_id})\n"
-                f"      space {space_key}"
+                f"      space {neutralise_line(space_key)}"
             )
             if not _prompt(preview, opts):
                 return 0
@@ -937,7 +937,10 @@ def _call_archive_api(
 def _archive_preview(page_state: _PageState, remote: RemotePage, action: str) -> str:
     verb = "Archive" if action == "archive" else "Unarchive"
     remote_title, space_key = _prompt_identity(page_state, remote)
-    return f'{verb}: "{remote_title}" (page {page_state.page_id})\n        space {space_key}'
+    return (
+        f'{verb}: "{neutralise_line(remote_title)}" (page {page_state.page_id})\n'
+        f"        space {neutralise_line(space_key)}"
+    )
 
 
 def _archive_dispatch(md_path: Path, *, action: str, opts: MutateOptions) -> int:

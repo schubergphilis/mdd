@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 from mdd.search.color import NO_COLOR, Color
 from mdd.search.filters import frontmatter_line_range, is_frontmatter_line
 from mdd.utils.frontmatter import parse_yaml_mapping
-from mdd.utils.terminal import neutralise_controls
+from mdd.utils.terminal import neutralise_controls, neutralise_line
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -330,13 +330,13 @@ def _relative_display_path(path: Path, mirror: MirrorRoot | None) -> str:
 
 def _format_file_header_lines(fm: FileMatches, color: Color) -> list[str]:
     """Return the header block (display path + optional title) for one file."""
-    display_path = neutralise_controls(_relative_display_path(fm.path, fm.mirror))
+    display_path = neutralise_line(_relative_display_path(fm.path, fm.mirror))
     header = color.path(display_path)
     if fm.page_id:
-        header += "  " + color.meta(f"(page {neutralise_controls(fm.page_id)})")
+        header += "  " + color.meta(f"(page {neutralise_line(fm.page_id)})")
     lines = [header]
     if fm.title:
-        lines.append(f"{color.meta('  Title:')} {neutralise_controls(fm.title)}")
+        lines.append(f"{color.meta('  Title:')} {neutralise_line(fm.title)}")
     return lines
 
 

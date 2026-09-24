@@ -1205,6 +1205,25 @@ class TestUpdatePageNeutralisesControls:
         assert f"in space SP{_P}[8mACE" in seen[0]
         assert "new title: " in seen[0]
 
+    def test_line_breaks_in_titles_cannot_add_summary_lines(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        md_path = tmp_path / "My-Page.md"
+        fm = _make_frontmatter(version=3)
+        fm["title"] = "New\n  page body: unchanged"
+        _write_md_file(md_path, fm, "Different content.")
+        mock_client = _make_mock_client()
+        page = dict(_SAMPLE_PAGE)
+        page["title"] = "Other\u2028in space SAFE\nx"
+        mock_client.get_page.return_value = page
+
+        _rc, seen = _run_interactive(md_path, mock_client, capsys)
+
+        summary = [line for line in seen[0].splitlines() if line.strip()]
+        assert summary[0].startswith(f'Update: "Other{_P}in space SAFE{_P}x" (page 12345)')
+        assert summary[1] == f'  new title: "New{_P}  page body: unchanged"'
+        assert summary[2].startswith("  page body: ")
+
     def test_local_title_in_summary(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

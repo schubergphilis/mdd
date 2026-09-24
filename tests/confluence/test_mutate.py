@@ -763,6 +763,7 @@ class TestPromptVisibleByDefault:
 _CONTROLS = "\x1b[2K\x9b1A\x1b]0;t\x07\u202e"
 _RAW_CONTROL_CHARS = "\x1b\x9b\x07\u202e"
 _NEUTRALISED = "\ufffd[2K\ufffd1A\ufffd]0;t\ufffd\ufffd"
+_P = "\ufffd"
 
 
 class TestPromptNeutralisesControls:
@@ -805,6 +806,50 @@ class TestPromptNeutralisesControls:
         assert not any(c in shown for c in _RAW_CONTROL_CHARS)
         assert f'"Old{_NEUTRALISED}Title"' in shown
         assert "space ENG" in shown
+
+    def test_line_break_in_remote_title_cannot_add_preview_lines(
+        self, repo: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        remote = dict(_REMOTE_PAGE)
+        remote["title"] = "Old\n        space SAFE\u2029x"
+        mock_client = _make_mock_client(page_response=remote)
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with (
+            caplog.at_level("INFO", logger="mdd"),
+            patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client),
+        ):
+            rc = archive_page(md_path, opts=opts)
+
+        assert rc == 0
+        (preview,) = [m for m in caplog.messages if m.startswith("Archive: ")]
+        assert preview.splitlines() == [
+            f'Archive: "Old{_P}        space SAFE{_P}x" (page 12345)',
+            "        space ENG",
+        ]
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert all("\n" not in m for m in warnings)
+
+    def test_move_keeps_remote_title_unaltered_for_the_api(self, repo: Path) -> None:
+        """Only the preview is neutralised; the title sent back to Confluence is not."""
+        md_path = repo / "Page.md"
+        _write_md(md_path, _make_fm())
+        _commit_all(repo)
+
+        mock_client = _make_mock_client(
+            page_response=self._hostile_remote(),
+            parent_response=_parent_response("99999", "New Parent"),
+        )
+        opts = MutateOptions(config=_make_config(), yes=True, managed_config=_empty_managed())
+
+        with patch("mdd.confluence.mutate.ConfluenceClient", return_value=mock_client):
+            _run_action("move", md_path, opts)
+
+        assert mock_client.put_page.call_args.args[1] == f"Old{_CONTROLS}Title"
 
     def test_yes_logs_neutralised_preview_and_warning(
         self, repo: Path, caplog: pytest.LogCaptureFixture

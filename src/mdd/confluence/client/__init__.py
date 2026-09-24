@@ -23,7 +23,7 @@ import httpx
 from mdd.utils.http_trace import format_body, make_event_hooks, trace_bodies_enabled
 from mdd.utils.logging import TRACE, get_logger
 from mdd.utils.retry import backoff_for_response, jittered_delay, should_retry
-from mdd.utils.terminal import neutralise_controls
+from mdd.utils.terminal import neutralise_line
 
 from .errors import ConfluenceError
 from .paths import assert_relative_api_path, rest_attachment_download_path
@@ -61,9 +61,9 @@ def _http_error(method: str, path: str, response: httpx.Response) -> ConfluenceE
     """Build the error for a failed request, quoting the start of the response body.
 
     The body is server text that may echo page content, so control characters
-    in it are neutralised before it can reach a terminal.
+    and line breaks in it are neutralised before it can reach a terminal.
     """
-    snippet = neutralise_controls(response.text[:200])
+    snippet = neutralise_line(response.text[:200])
     return ConfluenceError(f"{method} {path} failed with {response.status_code}: {snippet}")
 
 

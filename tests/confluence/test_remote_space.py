@@ -139,3 +139,10 @@ class TestSpaceMismatch:
         assert "\x9b" not in msg
         assert "space H\ufffd[2KR" in msg
         assert "frontmatter says space EN\ufffdG" in msg
+
+    def test_line_breaks_in_space_keys_are_neutralised(self) -> None:
+        msg = space_mismatch(
+            _remote(space_key="HR\nin space ENG"), local_space_key="ENG", local_space_id=""
+        )
+        assert "\n" not in msg
+        assert "space HR\ufffdin space ENG (id 131077) on Confluence" in msg

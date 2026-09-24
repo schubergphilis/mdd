@@ -333,8 +333,10 @@ frontmatter title, a warning is logged before the prompt so the
 drift is visible. Titles in the preview and in that warning come from
 Confluence and the mirror, so terminal control and bidi override
 characters in them are shown as `U+FFFD` (the
-[S19](S19-search-command.md) rule). `--yes` skips the prompt and logs the preview at
-INFO instead; `--dry-run` prints the preview and skips both the
+[S19](S19-search-command.md) rule), and so are line breaks inside a
+title or space key, so a title cannot add a line to the preview. The
+title a move sends back to Confluence is the unaltered remote title.
+`--yes` skips the prompt and logs the preview at INFO instead; `--dry-run` prints the preview and skips both the
 prompt and the actual call, with or without `--yes`. Examples:
 ```
 Rename: "Old Title" -> "New Title"

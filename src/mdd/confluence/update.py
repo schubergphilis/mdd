@@ -41,7 +41,7 @@ from mdd.confluence.version import VersionDriftError, check_version_drift
 from mdd.ir import reattach
 from mdd.markdown.ir import parse_markdown
 from mdd.utils.logging import get_logger
-from mdd.utils.terminal import neutralise_lines
+from mdd.utils.terminal import neutralise_line, neutralise_lines
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -475,12 +475,15 @@ def _push_summary(preview: _PushPreview) -> str:
     """Render the target line plus a one-line change count for the push.
 
     Titles and the space key come from Confluence and the mirror, so
-    control characters in them are neutralised.
+    control characters and line breaks in them are neutralised.
     """
     remote = preview.remote
-    lines = [f'Update: "{remote.title}" (page {remote.page_id}) in space {remote.space_label}']
+    lines = [
+        f'Update: "{neutralise_line(remote.title)}" (page {neutralise_line(remote.page_id)})'
+        f" in space {neutralise_line(remote.space_label)}"
+    ]
     if preview.new_title != remote.title:
-        lines.append(f'  new title: "{preview.new_title}"')
+        lines.append(f'  new title: "{neutralise_line(preview.new_title)}"')
     if preview.diff:
         added, removed = _count_changed_lines(preview.diff)
         detail = "" if log.isEnabledFor(logging.INFO) else " (run with -v to see the diff)"
@@ -489,7 +492,7 @@ def _push_summary(preview: _PushPreview) -> str:
         lines.append("  page body: unchanged")
     if preview.attachments_pending:
         lines.append("  attachments: changes will be uploaded")
-    return neutralise_lines("\n".join(lines))
+    return "\n".join(lines)
 
 
 def _show_push_summary(preview: _PushPreview) -> None:

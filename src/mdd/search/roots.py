@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from mdd.search.sources import RootSource, registered_root_sources
 from mdd.utils.config import ConfigError, load_yaml_plain_text
 from mdd.utils.logging import get_logger
-from mdd.utils.terminal import neutralise_controls
+from mdd.utils.terminal import neutralise_line
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -108,7 +108,7 @@ def roots_for_source(source: RootSource, config_path: Path | None = None) -> lis
             log.warning(
                 "%s mirror root does not exist locally, skipping: %s",
                 source.label,
-                neutralise_controls(str(p)),
+                neutralise_line(str(p)),
             )
             continue
         roots.append(
@@ -191,7 +191,7 @@ def resolve_roots(
             else:
                 log.warning(
                     "Extra search path does not exist, skipping: %s",
-                    neutralise_controls(str(ep)),
+                    neutralise_line(str(ep)),
                 )
 
     # Remove excluded paths

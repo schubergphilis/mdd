@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 from mdd.confluence.client.errors import ConfluenceError
 from mdd.utils.logging import get_logger
-from mdd.utils.terminal import neutralise_controls
+from mdd.utils.terminal import neutralise_line
 
 if TYPE_CHECKING:
     from mdd.confluence.client import ConfluenceClient
@@ -135,7 +135,7 @@ def space_mismatch(remote: RemotePage, *, local_space_key: str, local_space_id: 
 
     Values that are missing on either side are not compared; see
     :func:`_spaces_differ` for which fields decide. The message is for
-    display, so control characters in the space names are neutralised.
+    display, so control characters and line breaks in it are neutralised.
     """
     if not _spaces_differ(remote, local_space_key=local_space_key, local_space_id=local_space_id):
         return ""
@@ -145,7 +145,7 @@ def space_mismatch(remote: RemotePage, *, local_space_key: str, local_space_id: 
     actual = remote.space_label
     if remote.space_id:
         actual += f" (id {remote.space_id})"
-    return neutralise_controls(
+    return neutralise_line(
         f"page {remote.page_id} is in space {actual} on Confluence, but the "
         f"frontmatter says space {local}. Refusing to change a page outside "
         "the space the file belongs to; check confluence.page_id."
