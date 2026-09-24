@@ -122,10 +122,10 @@ def _clone(remote: Path, work: Path) -> Path:
 
 
 def _check_out_dash_branch(work: Path, name: str) -> None:
-    """Check out a branch whose name starts with ``-``.
+    """Check out a branch whose name starts with ``-`` or ``+``.
 
-    ``git branch`` refuses such names, but the full ref is valid, so it is
-    created the way a clone would receive it.
+    ``git branch`` refuses a leading ``-``, but the full ref is valid, so it
+    is created the way a clone would receive it.
     """
     _ = _git(work, "update-ref", f"refs/heads/{name}", "HEAD")
     _ = _git(work, "symbolic-ref", "HEAD", f"refs/heads/{name}")
@@ -157,7 +157,21 @@ class TestGenericGitBackendBranchName:
         work = _clone(remote, tmp_path / "work")
         _check_out_dash_branch(work, "--mirror")
 
-        with pytest.raises(MirrorPushError, match="'--mirror' is not a valid branch name"):
+        with pytest.raises(MirrorPushError, match="'--mirror' cannot be pushed by name"):
+            GenericGitBackend().push(work)
+
+        assert _git(remote, "show-ref") == before
+
+    def test_plus_named_branch_is_refused_and_remote_untouched(self, tmp_path: Path) -> None:
+        # ``+main`` passes ``check-ref-format --branch``, but ``git push`` would
+        # read it as a forced refspec and overwrite the remote's ``main``.
+        remote = _remote_with_refs(tmp_path)
+        before = _git(remote, "show-ref")
+        work = _clone(remote, tmp_path / "work")
+        _ = _git(work, "checkout", "-q", "-b", "plus-source")
+        _check_out_dash_branch(work, "+main")
+
+        with pytest.raises(MirrorPushError, match=r"'\+main' cannot be pushed by name"):
             GenericGitBackend().push(work)
 
         assert _git(remote, "show-ref") == before
