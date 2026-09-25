@@ -611,6 +611,19 @@ class TestUploadAttachment:
             result = client.upload_attachment("page123", f)
         assert isinstance(result, dict)
 
+    def test_upload_uses_put_so_an_existing_filename_gets_a_new_version(
+        self, tmp_path: Path
+    ) -> None:
+        client = _make_client()
+        f = tmp_path / "image.png"
+        f.write_bytes(b"\x89PNG")
+        resp = _mock_response(200, {"results": [{"id": "att1"}]})
+        with patch.object(httpx.Client, "request", return_value=resp) as request:
+            client.upload_attachment("page123", f)
+        method, url = request.call_args.args[:2]
+        assert method == "PUT"
+        assert url.endswith("/wiki/rest/api/content/page123/child/attachment")
+
     def test_upload_4xx_raises(self, tmp_path: Path) -> None:
         client = _make_client()
         f = tmp_path / "image.png"
