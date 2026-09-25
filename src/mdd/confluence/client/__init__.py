@@ -485,8 +485,11 @@ class ConfluenceClient:
         """Upload a file as an attachment to a Confluence page.
 
         Uses the v1 ``/wiki/rest/api/content/{page_id}/child/attachment`` endpoint
-        with a multipart POST.  The ``X-Atlassian-Token: no-check`` header is
-        already set on the underlying HTTP client.
+        with a multipart PUT, which creates the attachment or, when the page already
+        has one with this filename, adds a new version of it. A POST is rejected with
+        400 for a filename the page already has, which happens whenever a re-rendered
+        image changes bytes under an unchanged name. The ``X-Atlassian-Token:
+        no-check`` header is already set on the underlying HTTP client.
         """
         self._validate_id(page_id, "page_id")
         path = f"/wiki/rest/api/content/{page_id}/child/attachment"
@@ -501,13 +504,13 @@ class ConfluenceClient:
         for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
             try:
                 response = client.request(
-                    "POST",
+                    "PUT",
                     url,
                     files={"file": (filename, file_bytes, mime_type)},
                 )
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
                 last_exc = exc
-                _log_transport_error("POST", path, exc, attempt, max_attempts)
+                _log_transport_error("PUT", path, exc, attempt, max_attempts)
                 if delay is None:
                     break
                 time.sleep(jittered_delay(delay))
@@ -517,21 +520,21 @@ class ConfluenceClient:
                 result: Any = response.json()  # pyright: ignore[reportAny]
                 if not isinstance(result, dict):
                     raise ConfluenceError(
-                        f"Expected JSON object from POST {path}, got {type(result)}"
+                        f"Expected JSON object from PUT {path}, got {type(result)}"
                     )
                 return result  # pyright: ignore[reportReturnType, reportUnknownVariableType]
 
             if not should_retry(response):
-                raise _http_error("POST", path, response)
+                raise _http_error("PUT", path, response)
 
-            last_exc = _http_error("POST", path, response)
+            last_exc = _http_error("PUT", path, response)
             if delay is None:
                 break
             time.sleep(backoff_for_response(response, delay))
 
         exc_summary = f": {type(last_exc).__name__}: {last_exc}" if last_exc is not None else ""
         raise ConfluenceError(
-            f"POST {path} failed after {max_attempts} attempts{exc_summary}"
+            f"PUT {path} failed after {max_attempts} attempts{exc_summary}"
         ) from last_exc
 
     def post_page(

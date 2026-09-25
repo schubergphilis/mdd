@@ -182,7 +182,11 @@ pages but appear as parents; the tree builder resolves them via
 Attachment listing uses v2
 (`/wiki/api/v2/pages/{id}/attachments`); v1 carried a
 `Warning: 299 - Deprecated API` header.  Attachment **upload** still
-uses the v1 multipart endpoint because v2 has no equivalent.
+uses the v1 multipart endpoint because v2 has no equivalent, and uses it
+with `PUT`, which creates the attachment or adds a version to one the page
+already has under that filename. `POST` is rejected with 400 for a known
+filename, which a re-rendered image hits whenever its bytes change under an
+unchanged name.
 
 **HTTP client.** Direct `httpx` calls with a thin retry wrapper —
 avoiding the heavier `atlassian-python-api` dependency for control over
