@@ -9,12 +9,12 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.42.0",
+    "@astrojs/starlight": "^0.42.4",
     "@fontsource/merriweather": "^5.3.0",
     "@fontsource/merriweather-sans": "^5.3.0",
-    "astro": "^7.3.2",
+    "astro": "^7.3.5",
     "sharp": "^0.35.4",
-    "starlight-llms-txt": "^0.11.0",
+    "starlight-llms-txt": "^0.12.0",
     "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
