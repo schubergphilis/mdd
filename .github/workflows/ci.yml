@@ -36,7 +36,7 @@ jobs:
           sudo dpkg -i /tmp/quarto.deb
 
       - name: Set up mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: true
           cache: true
@@ -108,12 +108,16 @@ jobs:
       # install: false skips [tools] — this job needs neither Python nor bun.
       # `mise run` auto-installs the task's own tools (actionlint, shellcheck).
       - name: Set up mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: false
           cache: true
       # zizmor above checks whether the workflows are safe; actionlint checks
       # whether they run at all — schema, expression contexts, the needs: graph,
       # and shellcheck over each run: block. Neither substitutes for the other.
+      # mise-action no longer exports its token to later steps, and the lazy
+      # tool install here calls the GitHub API, so pass it to this step only.
       - name: Lint GitHub Actions workflows (actionlint)
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise run actions-lint
