@@ -30,13 +30,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y librsvg2-bin
           # Quarto via official .deb (apt repo lags behind)
-          QUARTO_VER=1.10.18
+          QUARTO_VER=1.10.19
           curl -fsSL -o /tmp/quarto.deb \
             "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VER}/quarto-${QUARTO_VER}-linux-amd64.deb"
           sudo dpkg -i /tmp/quarto.deb
 
       - name: Set up mise
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           install: true
           cache: true
@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload IR artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ir-build-artifacts
           path: |
@@ -102,13 +102,13 @@ jobs:
         with:
           persist-credentials: false
       - name: Audit GitHub Actions workflows (zizmor)
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           advanced-security: false
       # install: false skips [tools] — this job needs neither Python nor bun.
       # `mise run` auto-installs the task's own tools (actionlint, shellcheck).
       - name: Set up mise
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           install: false
           cache: true

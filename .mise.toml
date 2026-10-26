@@ -13,7 +13,7 @@ minimum_release_age = "7d"
 
 [tools]
 python = "3.14"
-uv = "0.12"
+uv = "0.13"
 # `mdd search` shells out to ripgrep, and the search tests exercise it, so it
 # is a real dependency rather than an optional nicety.
 ripgrep = "15"
@@ -23,6 +23,9 @@ bun = "1.4"
 vale = "3"
 
 [env]
+# uv 0.13 prefers Python 3.15 when it picks an interpreter itself, even with
+# the 3.14 above on PATH, and torch has no 3.15 wheels yet. Keep uv on 3.14.
+UV_PYTHON = "3.14"
 _.file = { path = ".env", optional = true }
 
 [tasks.install]
