@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=84.1.0", "setuptools-scm>=10.3.4", "wheel"]
+requires = ["setuptools>=84.2.1", "setuptools-scm>=10.3.4", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,13 +9,13 @@ description = "Markdown and Quarto document tooling"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "docling>=2.142.0",
+    "docling>=2.142.1",
     "httpx>=0.28.1",
     "linkify-it-py>=2.2.0",
     "lxml>=6.1.3",
     "markdown-it-py>=4.2.0",
     "mdit-py-plugins>=0.6.1",
-    "openai>=3.35.1",
+    "openai>=3.37.0",
     "pillow>=13.0.0",
     "pydantic>=2.14.1",
     "rank-bm25>=0.2.2",
@@ -40,7 +40,7 @@ classifiers = [
 # In-process mermaid rendering for `mdd confluence create-page` / `update-page`.
 # Optional because it ships a JavaScript engine (~5 MB); the same feature can
 # instead shell out to mermaid-cli via the `mermaid.renderer` config knob.
-mermaid = ["mermaidx>=0.10.0"]
+mermaid = ["mermaidx>=0.10.1"]
 
 [project.scripts]
 mdd = "mdd.cli:main"
@@ -152,11 +152,11 @@ exclude = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.2",
     "basedpyright>=1.40.2",
     "lxml-stubs>=0.5.1",
     "complexipy>=8.1.0",
-    "reportlab>=5.0.1",
+    "reportlab>=5.1.0",
     "setuptools-scm>=10.3.4",
     "pip-audit>=2.10.1",
 ]
@@ -177,16 +177,3 @@ filterwarnings = [
 
 [tool.uv]
 exclude-newer = "1 week"
-# Security exceptions to the cooldown, each scoped to the smallest set of
-# packages and the earliest cutoff that picks up the fix. Drop an entry once
-# the global window has passed its date.
-[tool.uv.exclude-newer-package]
-# Pillow 13.0.0 fixes critical and high advisories in 12.x, and the docling
-# packages only lifted their `pillow<13` caps in releases from 2026-10-21/22.
-docling = "2026-10-22T23:59:59Z"
-docling-slim = "2026-10-22T23:59:59Z"
-docling-core = "2026-10-22T23:59:59Z"
-docling-ibm-models = "2026-10-22T23:59:59Z"
-docling-parse = "2026-10-22T23:59:59Z"
-# certifi 2026.10.19 fixes PYSEC-2026-4320 in 2026.10.18.
-certifi = "2026-10-20T03:00:00Z"
