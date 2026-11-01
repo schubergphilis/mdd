@@ -544,6 +544,12 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   and the fix leaves it alone: removing it joins two lines, which changes the
   document, so it is the author's call. Lint's other fixes in the same file
   still apply.
+- The other form of hard break, a trailing backslash, is reported the same
+  way under `allow-hard-break: false`: as `trailing-whitespace`, with
+  `fixable: false`, since that is the rule the setting belongs to. Only a
+  backslash on a prose line the paragraph continues after counts; one in a
+  code span or other masked construct, an escaped `\\`, and a backslash at
+  the end of a paragraph are literal text and not findings.
 - `punctuation-outside-quote` is off by default because it encodes a house
   style — the American convention — that not every corpus follows.
   `quote-punctuation: inside | outside | off` selects the convention;

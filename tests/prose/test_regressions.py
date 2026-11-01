@@ -516,6 +516,20 @@ def test_reflow_write_honours_a_directive_on_a_list_marker_line(
     assert read_file(target) == source
 
 
+def test_lint_write_leaves_a_backslash_hard_break_alone_when_breaks_are_off(
+    tmp_path: Path,
+) -> None:
+    """Only the trailing-space form of a hard break was reported in strict mode."""
+    config = tmp_path / "prose.yaml"
+    _ = config.write_text("prose:\n  lint:\n    allow-hard-break: false\n", encoding="utf-8")
+    source = "First line ends with a backslash break\\\nsecond line.\n"
+    target = tmp_path / "a.md"
+    write_file(target, source)
+    assert cli_main(["prose", "lint", "--config", str(config), str(target)]) == 1
+    _ = cli_main(["prose", "lint", "--write", "--config", str(config), str(target)])
+    assert read_file(target) == source
+
+
 def test_lint_write_leaves_a_line_under_a_bare_suppression_alone(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     source = "Intro.\n\n<!-- mdd-prose-ignore -->\nTwo  spaces   \n"

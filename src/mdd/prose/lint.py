@@ -190,6 +190,34 @@ def _trailing_whitespace(
     )
 
 
+def _backslash_break(line: Line, config: LintConfig, *, breaks: bool) -> Iterable[Edit]:
+    """Flag a trailing backslash that makes a hard line break, when hard breaks are off.
+
+    Only a line the paragraph continues after ends in a break: at the end of a
+    paragraph the backslash is literal, and an even run of them is escaped
+    backslashes. Removing the break joins two lines, so like the two-space form
+    it is reported under ``trailing-whitespace`` and never fixed.
+    """
+    if config.allow_hard_break or not breaks:
+        return
+    run = len(line.text) - len(line.text.rstrip("\\"))
+    if run % 2 == 0:
+        return
+    at = len(line.text) - 1
+    # Unlike trailing whitespace, the backslash is content, so the masks say
+    # whether it sits in a code span or another literal construct.
+    if not _unmasked(line)[at]:
+        return
+    yield Edit(
+        rule="trailing-whitespace",
+        start=at,
+        end=at + 1,
+        replacement="\\",
+        message="a trailing backslash makes a hard line break, and hard breaks are off",
+        fixable=False,
+    )
+
+
 _BYTE_ORDER_MARK = "\ufeff"
 
 
@@ -304,6 +332,7 @@ def _line_edits(
         *_multiple_spaces(line),
         *_space_before_punctuation(line),
         *_trailing_whitespace(line, config, breaks=breaks, continued_construct=continued_construct),
+        *_backslash_break(line, config, breaks=breaks),
         *_invisible_space(line),
         *_punctuation_outside_quote(line, config),
     ]

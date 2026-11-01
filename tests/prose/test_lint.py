@@ -100,6 +100,38 @@ def test_strict_mode_reports_the_hard_break_without_fixing_it() -> None:
         assert outcome.fixed is None
 
 
+def test_strict_mode_reports_a_backslash_hard_break_without_fixing_it() -> None:
+    config = defaults(lint=LintConfig(allow_hard_break=False))
+    source = (
+        "First line ends with a backslash break\\\nsecond line.\n\n"
+        "Third line has two spaces  \nfourth line.\n"
+    )
+    outcome = run(PATH, ok(source), config)
+    assert [(f.line, f.rule, f.fixable) for f in outcome.findings] == [
+        (1, "trailing-whitespace", False),
+        (4, "trailing-whitespace", False),
+    ]
+    assert "backslash" in outcome.findings[0].message
+    assert outcome.findings[0].column == len("First line ends with a backslash break") + 1
+    assert outcome.fixed is None
+
+
+def test_a_backslash_that_is_not_a_hard_break_is_not_reported() -> None:
+    config = defaults(lint=LintConfig(allow_hard_break=False))
+    for source in (
+        "the last line of a paragraph\\\n",
+        "an escaped backslash\\\\\nnext line.\n",
+        "a code span `a\\\nb` here.\n",
+        "```\ncode\\\nmore\n```\n",
+        "    indented code\\\n    more\n",
+    ):
+        assert rules_found(source, config) == [], source
+
+
+def test_a_backslash_hard_break_is_allowed_by_default() -> None:
+    assert rules_found("a\\\nb\n") == []
+
+
 def test_strict_mode_still_applies_the_other_fixes() -> None:
     config = defaults(lint=LintConfig(allow_hard_break=False))
     source = "Two  spaces and a break  \nnext line.   \n"
