@@ -51,6 +51,15 @@ log = get_logger(__name__)
 #: typographic choice, and collapsing it would let a writer silently drop one.
 _MARKDOWN_WHITESPACE = re.compile(r"[ \t\r\n]+")
 
+#: Inline HTML that opens or closes an element whose text keeps its whitespace
+#: when a browser renders it, so text inside one is compared byte for byte.
+_LITERAL_ELEMENT_OPEN = re.compile(
+    r"<(pre|code|kbd|samp|textarea|listing|xmp)(?=[\s>/])[^>]*(?<!/)>", re.IGNORECASE
+)
+_LITERAL_ELEMENT_CLOSE = re.compile(
+    r"</(pre|code|kbd|samp|textarea|listing|xmp)\s*>", re.IGNORECASE
+)
+
 #: Human-readable names for token types, for the reason a user is shown.
 _NOUNS: dict[str, str] = {
     "blockquote": "block quote",
@@ -64,6 +73,7 @@ _NOUNS: dict[str, str] = {
     "hr": "thematic break",
     "html_block": "HTML block",
     "html_inline": "inline HTML",
+    "html_literal_text": "run of preformatted HTML text",
     "math_block": "math block",
     "math_inline": "inline math",
     "ordered_list": "numbered list",
@@ -158,11 +168,17 @@ class _InlineFlattener:
         self.items: list[_Item] = []
         self._text: list[str] = []
         self._text_line = line
+        self._literal_depth = 0
 
     def _flush(self) -> None:
         if self._text:
-            joined = _collapse("".join(self._text))
-            self.items.append(_Item("text", ("text",), joined, self._text_line))
+            if self._literal_depth:
+                joined = "".join(self._text)
+                kind = "html_literal_text"
+            else:
+                joined = _collapse("".join(self._text))
+                kind = "text"
+            self.items.append(_Item(kind, (kind,), joined, self._text_line))
             self._text = []
 
     def feed(self, children: Sequence[Token]) -> None:
@@ -192,6 +208,15 @@ class _InlineFlattener:
         # token this module does not know about.
         self.items.append(_Item(child.type, _shape(child), child.content, self.line))
         self.line += 1 if child.type == "hardbreak" else child.content.count("\n")
+        if child.type == "html_inline":
+            self._track_literal_element(child.content)
+
+    def _track_literal_element(self, html: str) -> None:
+        """Count the whitespace-preserving elements an inline HTML tag opens or closes."""
+        if _LITERAL_ELEMENT_OPEN.fullmatch(html.strip()):
+            self._literal_depth += 1
+        elif _LITERAL_ELEMENT_CLOSE.fullmatch(html.strip()) and self._literal_depth:
+            self._literal_depth -= 1
 
     def finish(self) -> list[_Item]:
         """Flush pending text and strip the whitespace at either end."""
@@ -285,6 +310,8 @@ def _content(left: Sequence[_Item], right: Sequence[_Item]) -> Verdict:
             continue
         if old.type == "text":
             reason = "the text changed by more than whitespace"
+        elif old.type == "html_literal_text":
+            reason = "the text inside a whitespace-preserving HTML element changed"
         else:
             reason = f"the content of {_noun_phrase(old.type)} changed"
         return Verdict(passed=False, line=old.line, reason=reason)

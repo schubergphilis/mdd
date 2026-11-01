@@ -317,9 +317,43 @@ WRITER_DAMAGE = [
         "-     code  x\n",
         id="lint-rewrites-list-item-code",
     ),
+    pytest.param(
+        "reflow",
+        "1. | the |\n| --- |\n\n\xa0The\nthe.\n2. \xa0The\nthe.\n3. <pre>\nThe\nthe.\n</pre>",
+        id="reflow-joins-lines-inside-inline-pre",
+    ),
+    pytest.param(
+        "lint",
+        "---\n---\n\n\xa0The\nthe.\n\n\xa0The\nthe.\n\n1. ***\n"
+        "2. <!-- mdd-prose-ignore: trailing-whitespace -->\n\xa0The\nthe.\n3. The\n\tthe.\n\n"
+        "\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
+        id="lint-trims-blank-line-inside-list-item-code",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="trailing-whitespace edits a blank line inside indented code in a list item",
+        ),
+    ),
+]
+
+REFLOW_UNSTABLE = [
+    pytest.param(
+        ">\xa0The\nthe.\n>\n[^1]: The\n>    No.\n    5\n    the.\n    The\n"
+        "    the\n    the\n    the\n    the\n>    the.",
+        id="reflow-unstable-footnote-with-lazy-quote-lines",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="a second reflow joins a lazy block quote line the first one kept",
+        ),
+    ),
 ]
 
 
 @pytest.mark.parametrize(("check", "text"), WRITER_DAMAGE)
 def test_writer_counterexample(check: str, text: str) -> None:
     assert_same_document(text, run_writer(check, text).text)
+
+
+@pytest.mark.parametrize("text", REFLOW_UNSTABLE)
+def test_reflow_counterexample_is_idempotent(text: str) -> None:
+    once = run_writer("reflow", text)
+    assert run_writer("reflow", once.text).text == once.text

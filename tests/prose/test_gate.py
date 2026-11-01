@@ -224,6 +224,20 @@ def test_dollar_amounts_are_text() -> None:
     assert compare("It costs $5 and $6 today.\n", "It costs $5\nand $6 today.\n").passed
 
 
+def test_rewrapped_text_inside_an_inline_pre_element_is_refused() -> None:
+    verdict = refused("Intro <pre>\nThe\nthe.\n</pre> end.\n", "Intro <pre> The the. </pre> end.\n")
+    assert verdict.reason == "the text inside a whitespace-preserving HTML element changed"
+
+
+def test_collapsed_spaces_inside_an_inline_code_element_are_refused() -> None:
+    refused("A <CODE>x  y</CODE> b.\n", "A <CODE>x y</CODE> b.\n")
+
+
+def test_rewrapped_text_after_an_inline_pre_element_passes() -> None:
+    before = "Intro <pre>x</pre> and then\nsome more text.\n"
+    assert verify(before, "Intro <pre>x</pre> and then some more text.\n") == PASSED
+
+
 def test_changed_inline_html_is_refused() -> None:
     verdict = refused('A <span  class="x">b</span>.\n', 'A <span class="x">b</span>.\n')
     assert verdict.reason == "the content of an inline HTML changed"

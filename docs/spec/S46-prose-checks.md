@@ -312,7 +312,11 @@ is a test:
      attributes and every hard line break must be identical; text must match
      once runs of Markdown whitespace (space, tab, line ending, soft break)
      are collapsed to one space. A no-break or other Unicode space is not
-     Markdown whitespace and is never collapsed.
+     Markdown whitespace and is never collapsed. Text between inline HTML
+     tags that open and close an element a browser renders with its
+     whitespace intact (`pre`, `code`, `kbd`, `samp`, `textarea`, `listing`,
+     `xmp`) must be byte identical. Footnote definitions are compared where
+     they are written, including those nothing references.
    - **Model comparison.** Parse both with
      [`parse_markdown`](S30-markdown-ir-conversion.md), run the
      [normalising pipeline](S31-ir-normalization-and-whitespace.md), and
