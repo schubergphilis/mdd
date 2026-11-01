@@ -159,6 +159,7 @@ dev = [
     "reportlab>=5.1.0",
     "setuptools-scm>=10.3.4",
     "pip-audit>=2.10.1",
+    "hypothesis>=6.170.9",
 ]
 
 [tool.pytest.ini_options]
