@@ -130,6 +130,9 @@ prose:
     anchors: error
     freshness: warning
 
+  rules:                   # rules that belong to no check
+    unused-suppression: warning   # report suppressions that suppress nothing
+
   reflow:
     width: 100             # a soft target, not a hard limit
     min-line: 32
@@ -157,6 +160,12 @@ Two keys can set a severity, and the order is fixed. `checks.<name>: off` means
 the check does not run at all, and nothing under `<name>.rules` can re-enable
 it. Otherwise `checks.<name>` sets the default for every rule in that check, and
 a rule named under `<name>.rules` overrides that. Specific beats general.
+
+A rule goes under the check that owns it; `mdd` rejects one filed under another
+check and tells you where it belongs. The rules that belong to no check
+(`parse-error`, `unknown-suppression`, `unused-suppression`, `mirrored-file`
+and `write-failed`) always run, and their severities go under the top-level
+`rules:` key.
 
 Severity and gating are separate decisions: everything at `warning` or above is
 always printed, and `--min-severity` (default `error`) decides what makes the

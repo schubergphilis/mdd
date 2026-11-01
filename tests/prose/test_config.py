@@ -142,6 +142,11 @@ def test_freshness_knobs(tmp_path: Path) -> None:
         ("prose:\n  checks:\n    lint: loud\n", "must be one of"),
         ("prose:\n  checks:\n    lint: 3\n", "must be one of"),
         ("prose:\n  lint:\n    rules:\n      nope: error\n", "not a known rule id"),
+        ("prose:\n  rules:\n    nope: error\n", "not a known rule id"),
+        ("prose:\n  rules:\n    multiple-spaces: error\n", "set it under prose.lint.rules"),
+        ("prose:\n  lint:\n    rules:\n      unused-suppression: warning\n", "prose.rules"),
+        ("prose:\n  rules:\n    unused-suppression: loud\n", "must be one of"),
+        ("prose:\n  rules: 3\n", "must be a mapping"),
         ("prose:\n  reflow:\n    width: 0\n", "positive integer"),
         ("prose:\n  reflow:\n    abbreviations: 3\n", "list of strings"),
         ("prose:\n  reflow:\n    abbreviations: [3]\n", "list of strings"),
@@ -196,6 +201,29 @@ def test_every_registered_rule_has_a_check_that_can_configure_it() -> None:
 
     for rule in RULES.values():
         assert rule.check in (*CHECK_NAMES, CROSS_CUTTING), rule
+
+
+def _rule_config(check: str, rule: str, level: str) -> str:
+    from mdd.prose.rules import CROSS_CUTTING
+
+    if check == CROSS_CUTTING:
+        return f"prose:\n  rules:\n    {rule}: {level}\n"
+    return f"prose:\n  {check}:\n    rules:\n      {rule}: {level}\n"
+
+
+@pytest.mark.parametrize("rule", sorted(RULES))
+def test_every_registered_rule_can_be_set_from_its_own_section(tmp_path: Path, rule: str) -> None:
+    registered = RULES[rule]
+    level = Severity.WARNING if registered.default is not Severity.WARNING else Severity.ERROR
+    body = _rule_config(registered.check, rule, level.value)
+    assert prose_config.load(write_config(tmp_path, body)).severity(rule) is level
+
+
+def test_cross_cutting_rule_is_configured_under_prose_rules(tmp_path: Path) -> None:
+    body = "prose:\n  rules:\n    unused-suppression: warning\n"
+    loaded = prose_config.load(write_config(tmp_path, body))
+    assert loaded.severity("unused-suppression") is Severity.WARNING
+    assert loaded.severity("parse-error") is Severity.ERROR
 
 
 def test_a_config_naming_an_unknown_rule_is_rejected(tmp_path: Path) -> None:

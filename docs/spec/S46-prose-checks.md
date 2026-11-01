@@ -183,7 +183,8 @@ cannot promise.
 - A suppression whose rule id does not exist is itself a finding
   (`unknown-suppression`, `warning`). A suppression that suppresses nothing is
   reported under an opt-in `unused-suppression` rule, default `off` — useful
-  when cleaning up, noisy in normal work.
+  when cleaning up, noisy in normal work. Opt in with
+  `prose: {rules: {unused-suppression: warning}}`.
 
 ### The shared line classifier
 
@@ -453,6 +454,14 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   3. A rule named in `<name>.rules` takes that severity, overriding step 2.
      Specific beats general.
 
+  A rule is accepted only under the check that owns it; naming it under
+  another check's `rules` is a config error that says where it belongs. The
+  cross-cutting rules (`parse-error`, `unknown-suppression`,
+  `unused-suppression`, `mirrored-file`, `write-failed`) belong to no check and
+  always run, so they have no `checks:` entry and are configured in a top-level
+  `prose.rules` section. The set of cross-cutting rules is whatever the rule
+  registry says it is, not a list in the config loader.
+
   Stated because `--min-severity` turns severity into the build's outcome: a
   reader of `prose.yaml` must be able to tell what gates CI without knowing
   which key the implementation happened to consult first.
@@ -471,6 +480,9 @@ prose:
     lint: error
     anchors: error
     freshness: warning
+
+  rules:                   # the cross-cutting rules, which belong to no check
+    unused-suppression: warning
 
   reflow:
     width: 100

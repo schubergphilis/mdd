@@ -14,7 +14,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from mdd.prose.rules import CHECK_NAMES, DEFAULT_ENABLED, RULES, Severity, rules_for
+from mdd.prose.rules import (
+    CHECK_NAMES,
+    CROSS_CUTTING,
+    DEFAULT_ENABLED,
+    RULES,
+    Severity,
+    rules_for,
+)
 from mdd.utils.config import ConfigError, load_yaml
 
 _CONFIG_NAME = "prose.yaml"
@@ -194,14 +201,33 @@ def _apply_check_level(severities: dict[str, Severity], name: str, checks: dict[
         severities[rule.rule] = resolved
 
 
-def _apply_rule_level(
-    severities: dict[str, Severity], name: str, raw_prose: dict[str, Any]
-) -> None:
-    """Step 3: a rule named under ``<check>.rules`` beats the check-level default."""
-    for rule_id, raw in _section(_section(raw_prose, name), "rules").items():  # pyright: ignore[reportAny]
-        if rule_id not in RULES:
-            raise ConfigError(f"prose.{name}.rules.{rule_id} is not a known rule id")
-        severities[rule_id] = _severity_value(f"prose.{name}.rules.{rule_id}", raw)
+def _rules_key(check: str) -> str:
+    """Where a rule owned by *check* is configured.
+
+    The cross-cutting rules belong to no check, so they live directly under
+    ``prose.rules`` rather than under a check's own section.
+    """
+    return "prose.rules" if check == CROSS_CUTTING else f"prose.{check}.rules"
+
+
+def _apply_rule_level(severities: dict[str, Severity], owner: str, rules: dict[str, Any]) -> None:
+    """Step 3: a rule named under its owner's ``rules`` beats the check-level default.
+
+    A rule is accepted only under the section of the check that owns it. Filing
+    it under another check would read as though that check's ``off`` governs it,
+    which it does not.
+    """
+    where = _rules_key(owner)
+    for rule_id, raw in rules.items():  # pyright: ignore[reportAny]
+        registered = RULES.get(rule_id)
+        if registered is None:
+            raise ConfigError(f"{where}.{rule_id} is not a known rule id")
+        if registered.check != owner:
+            raise ConfigError(
+                f"{where}.{rule_id} is in the wrong section; "
+                f"set it under {_rules_key(registered.check)}"
+            )
+        severities[rule_id] = _severity_value(f"{where}.{rule_id}", raw)
 
 
 def _resolve_severities(raw_prose: dict[str, Any], checks: dict[str, Any]) -> dict[str, Severity]:
@@ -209,7 +235,8 @@ def _resolve_severities(raw_prose: dict[str, Any], checks: dict[str, Any]) -> di
     severities = {rule.rule: rule.default for rule in RULES.values()}
     for name in CHECK_NAMES:
         _apply_check_level(severities, name, checks)
-        _apply_rule_level(severities, name, raw_prose)
+        _apply_rule_level(severities, name, _section(_section(raw_prose, name), "rules"))
+    _apply_rule_level(severities, CROSS_CUTTING, _section(raw_prose, "rules"))
     return severities
 
 

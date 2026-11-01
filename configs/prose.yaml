@@ -8,6 +8,12 @@ prose:
     lint: error
     anchors: error
 
+  # Rules that belong to no check (parse-error, unknown-suppression,
+  # unused-suppression, mirrored-file, write-failed) always run; set their
+  # severities here rather than under a check's own `rules:`. Example:
+  # rules:
+  #   unused-suppression: warning
+
   lint:
     quote-punctuation: off
     allow-hard-break: true
