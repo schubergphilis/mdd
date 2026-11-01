@@ -294,15 +294,37 @@ The load-bearing subcommand.
 is a test:
 
 1. **Idempotence.** `reflow(reflow(x)) == reflow(x)` for every input.
-2. **Rendered-output equivalence.** Reflowing must not change what the document
-   means. Verified by parsing before and after with
-   [`parse_markdown`](S30-markdown-ir-conversion.md), running the
-   [normalising pipeline](S31-ir-normalization-and-whitespace.md) over both,
-   and requiring the two documents to compare equal modulo node ids. A file
-   whose reflow fails this check is **not written**, and the failure is
-   reported as an `error` naming the file. This is cheap, it is the property
-   that actually matters, and it turns "the reflow ate my nested list" from a
-   bug report into a build failure.
+2. **Rendered-output equivalence: the write gate.** Reflowing must not change
+   what the document means. The rewrite is produced by the line classifier,
+   which approximates CommonMark by hand, so the classifier must not also be
+   what certifies the rewrite. The gate is independent of it and has two
+   parts, each blind to what the other sees:
+   - **Token comparison.** Parse before and after with markdown-it, configured
+     as mdd's flavour (`src/mdd/markdown/ir/flavour.py`) plus the front matter,
+     footnote and dollar-math plugins, so those constructs are literal blocks.
+     The block token sequences must be identical in type, nesting, tag,
+     markup, info, attributes and `hidden` (which is what tells a tight list
+     from a loose one). Every block token's content, which covers fences,
+     indented code, HTML blocks, math blocks and front matter, must be byte
+     identical. Inline: code spans, inline math, inline HTML, link and image
+     attributes and every hard line break must be identical; text must match
+     once runs of Markdown whitespace (space, tab, line ending, soft break)
+     are collapsed to one space. A no-break or other Unicode space is not
+     Markdown whitespace and is never collapsed.
+   - **Model comparison.** Parse both with
+     [`parse_markdown`](S30-markdown-ir-conversion.md), run the
+     [normalising pipeline](S31-ir-normalization-and-whitespace.md), and
+     require the re-rendered documents to compare equal.
+
+   The gate applies to **both writers**: `lint --write` passes it exactly as
+   `reflow --write` does. A file whose fix fails it is **not written**, and a
+   cross-cutting `not-equivalent` finding (default `error`) names the first
+   differing line and what changed there, without quoting content. The gate
+   also runs **without `--write`**, so the check-only report and the write
+   agree: a refused fix is reported as not fixable, with the same
+   `not-equivalent` finding, in both modes. The unit is the file, because
+   that is what gets written. This turns "the reflow ate my nested list" from
+   a bug report into a build failure.
 3. **Byte preservation outside prose.** Every non-`prose` byte in the output is
    identical to the input, including the final newline, the file's line-ending
    convention, and trailing frontmatter whitespace.
@@ -372,10 +394,12 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - A fix touches only bytes inside a span the classifier called `prose`, and only
   the whitespace the rule matched. No other character in the file changes.
 - `lint --write` is a **strictly smaller** writer than `reflow --write`: it
-  deletes whitespace within a line and never moves text between lines, so no
-  block can change structure. It therefore does not need the
-  rendered-output-equivalence gate reflow needs — but it inherits every other
-  `--write` rule in
+  deletes whitespace within a line and never moves text between lines. That
+  does not make it safe by construction. Deleting a three-space run at a line
+  end removes a hard line break, and deleting the space in `OSC 9 ; 4` changes
+  the rendered text. So it passes the same
+  [write gate](#mdd-prose-reflow--semantic-line-breaks) as reflow, in check-only
+  mode as well as under `--write`, and it inherits every other `--write` rule in
   [Data protection](#data-protection-and-destructive-behaviour) without
   exception: opt-in per invocation, never from config; atomic write; the file
   written only if it classified cleanly; `.mddignore` honoured; one `info` line
@@ -544,10 +568,9 @@ prose:
     authorise the *write*.
   - Writes are atomic — temp file, `fsync`, rename — reusing the existing
     frontmatter-writer shape rather than a second implementation.
-  - A file is written only if it parsed cleanly and its masking was balanced,
-    and — for `reflow` — only if it passed the rendered-output-equivalence check
-    above. Fail closed: any doubt means the file is left exactly as it was and
-    an `error` is reported.
+  - A file is written only if it parsed cleanly, its masking was balanced, and
+    the rewrite passed the write gate above. Fail closed: any doubt means the
+    file is left exactly as it was and an `error` is reported.
   - Only files under a `PATH` the user named are ever opened for writing, and
     `.mddignore` is honoured on the write path exactly as on the read path.
   - Each modified file is logged at `info`, one line per file, so a destructive
@@ -703,7 +726,8 @@ src/mdd/prose/
     reflow/
         sentences.py          # sentence segmentation, abbreviations, initials
         clauses.py            # clause-boundary detection, greedy packing
-        apply.py              # per-block rewriting, IR equivalence check, write
+        apply.py              # per-block rewriting and the reflow findings
+    gate.py                   # the write gate both writers pass; no classifier
     write.py                  # the shared atomic-write + mirror-refusal path
     lint.py                   # rules, and the whitespace fixers
     anchors.py                # slugging, link extraction, resolution, suggestions
@@ -780,10 +804,14 @@ lines; re-apply the prefix. Masked spans travel as opaque tokens through the
 whole pipeline and are substituted back at the end, which is what makes "never
 break inside a link" structural rather than a rule that can be forgotten.
 
-Then the equivalence gate: parse the before and after text, normalise both,
-compare with node ids stripped. Comparing whole documents rather than per-block
-keeps the check simple and catches the interesting failures, which are the ones
-where a rewrite changes block *structure*.
+Then the write gate, in `gate.py`, which both writers share: compare the
+markdown-it token streams of the before and after text, then their normalised
+renderings through the IR. `gate.py` does not import the classifier. Comparing
+whole documents rather than per-block keeps the check simple and catches the
+interesting failures, which are the ones where a rewrite changes block
+*structure*. The runner gates every fix it computes, with or without `--write`.
+A `--write` run drives one writer only, so the gate always compares the bytes
+as read with exactly the bytes that would be written.
 
 ### Composition with `mdd ai`
 
@@ -868,6 +896,12 @@ with them.
   over the existing IR corpus ([S32](S32-ir-test-corpus-expansion.md)), which
   is already the most hostile pile of Markdown in the repository and is exactly
   the right adversary for a reflow.
+- The write gate has a passing and a failing pair for each thing it compares:
+  a change inside a fence, a list turning loose, a lost hard break, a code
+  span's internal spaces, a collapsed no-break space, a line that becomes a
+  setext underline or a lazy continuation, a broken table, and changed front
+  matter. Runner tests show both writers refusing a gate failure, and the
+  check-only report matching the `--write` one.
 - For `lint --write`: a fixture pair per fixable rule, a test that a fixed file
   has no fixable finding on a second run (the same idempotence property reflow
   has), a test
