@@ -86,17 +86,24 @@ class RunResult:
         return len(self.written_paths)
 
 
-def _read(path: Path, result: RunResult) -> str | None:
-    # newline="" disables universal-newline translation. Without it every CRLF
-    # file arrives as LF, and a writer then re-emits the whole file with the
-    # wrong line endings while reporting that it changed nothing.
+def _read(path: Path, result: RunResult) -> str | ClassifyError | None:
+    """Return the file's text, why it cannot be read as text, or ``None`` if it cannot be read.
+
+    The bytes are decoded without newline translation. With translation every
+    CRLF file arrives as LF, and a writer then re-emits the whole file with the
+    wrong line endings while reporting that it changed nothing.
+    """
     try:
-        with path.open(encoding="utf-8", newline="") as handle:
-            return handle.read()
-    except (OSError, UnicodeDecodeError) as exc:
+        data = path.read_bytes()
+    except OSError as exc:
         log.error("cannot read %s: %s", path, exc)
         result.failed = True
         return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        line = data.count(b"\n", 0, exc.start) + 1
+        return ClassifyError(line, f"not valid UTF-8 at byte {exc.start}")
 
 
 def _parse_error(path: Path, error: ClassifyError, config: ProseConfig) -> list[Finding]:
@@ -280,6 +287,9 @@ def run(
         if text is None:
             continue
         result.file_count += 1
+        if isinstance(text, ClassifyError):
+            result.findings.extend(_parse_error(path, text, config))
+            continue
         classified = classify(text)
         if isinstance(classified, ClassifyError):
             result.findings.extend(_parse_error(path, classified, config))

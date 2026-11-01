@@ -216,7 +216,9 @@ cannot promise.
   classifier makes that class of bug impossible rather than unlikely.
 - The classifier **fails closed**. An unbalanced fence, an unterminated HTML
   comment, or frontmatter that does not close is a `parse-error` finding and
-  the file is skipped by every check — and, critically, never written to.
+  the file is skipped by every check — and, critically, never written to. A
+  file that is not valid UTF-8 is the same `parse-error`, at the line of the
+  first bad byte, rather than an unnamed operational failure.
 - It also fails closed line by line. Where placing a construct exactly would
   need substantial parsing, such as a link definition whose title runs over
   several lines, a doubtful line is called something other than `prose` and

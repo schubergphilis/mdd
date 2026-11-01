@@ -90,6 +90,19 @@ def test_a_write_names_every_file_it_wrote(
     assert "clean" not in err
 
 
+
+def test_an_undecodable_file_is_a_finding_with_its_path(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = corpus / "a.md"
+    _ = target.write_bytes(b"First line.\ncaf\xe9   \n")
+    assert prose(["lint", "--write", "docs"]) == 1
+    captured = capsys.readouterr()
+    assert f"{Path('docs') / 'a.md'}:2:0: error: parse-error: not valid UTF-8" in captured.out
+    assert "1 error, 0 warnings in 1 files" in captured.err
+    assert target.read_bytes() == b"First line.\ncaf\xe9   \n"
+
+
 def _lint_report(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, list[str]]:
     code = prose(["lint", "--no-excerpt", *args, "docs"])
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
