@@ -1,0 +1,63 @@
+name: Prose corpus
+
+# Both prose writers over a public Markdown corpus pinned by commit SHA and
+# fetched at run time, never copied into this repository. Kept out of
+# `mise run ci`, which needs no network. Path-filtered to the writers, the
+# Markdown model they are checked against, their tests, the pin, and the
+# dependency lock, which pins markdown-it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/mdd/prose/**'
+      - 'src/mdd/markdown/**'
+      - 'tests/prose/**'
+      - 'scripts/prose-corpus.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.mise.toml'
+      - '.github/workflows/prose-corpus.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/mdd/prose/**'
+      - 'src/mdd/markdown/**'
+      - 'tests/prose/**'
+      - 'scripts/prose-corpus.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.mise.toml'
+      - '.github/workflows/prose-corpus.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prose-corpus-pinned:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # CI never pushes; don't leave the token in .git/config (zizmor artipacked).
+          persist-credentials: false
+
+      - name: Set up mise
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          install: true
+          cache: true
+
+      - name: Cache uv dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: ${{ runner.os }}-uv-
+
+      - name: Install
+        run: mise run install
+
+      - name: Prose writers over the pinned corpus
+        run: mise run prose-corpus-pinned
