@@ -778,3 +778,8 @@ def test_an_html_block_ends_with_its_container(source: str, expected: list[str])
 
 def test_an_unclosed_raw_html_block_runs_to_the_end_of_the_file() -> None:
     assert classes("<pre>\na  b\n\nc  d\n") == ["html-block"] * 4
+
+
+@pytest.mark.parametrize("comment", ["<!-->", "<!--->", "  <!-- x -->"])
+def test_a_one_line_html_comment_is_closed(comment: str) -> None:
+    assert classes(f"{comment}\n\nSome  text here.\n") == ["html-comment", "blank", "prose"]

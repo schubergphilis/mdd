@@ -494,7 +494,9 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
         return Line(number, raw, LineClass.FENCED_CODE)
     stripped = rest.lstrip()
     if stripped.startswith("<!--"):
-        if "-->" not in stripped[4:]:
+        # The closer may share the opener's dashes: `<!-->` and `<!--->` are
+        # whole comments.
+        if "-->" not in stripped[2:]:
             state.in_comment = True
             state.open_at = number
         return Line(number, raw, LineClass.HTML_COMMENT)

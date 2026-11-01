@@ -267,7 +267,8 @@ cannot promise.
 - An HTML block, or a fence, opened in a block quote or a list item ends
   where that container ends, as neither has a lazy continuation. An HTML
   block that waits for a closing marker, such as `<pre>`, and never meets
-  one runs to the end of the file; that is not an error.
+  one runs to the end of the file; that is not an error. `<!-->` and
+  `<!--->` are whole HTML comments, as in CommonMark.
 - Front matter is recognised behind a leading byte order mark, as the sync
   commands recognise it, so the writers never touch it. markdown-it does not
   skip the mark and reads such a block as paragraph text or a heading.
