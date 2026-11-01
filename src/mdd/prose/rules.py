@@ -47,7 +47,9 @@ _RULES: tuple[Rule, ...] = (
     Rule("reflow", "reflow", Severity.ERROR, fixable=True),
     Rule("reflow", "not-equivalent", Severity.ERROR),
     Rule("lint", "multiple-spaces", Severity.ERROR, fixable=True),
-    Rule("lint", "space-before-punctuation", Severity.ERROR, fixable=True),
+    # Reported but never fixed: the space can be part of the rendered text,
+    # as in `OSC 9 ; 4` or `{=confluence} .`, and deleting it changes that text.
+    Rule("lint", "space-before-punctuation", Severity.ERROR),
     Rule("lint", "blank-run", Severity.ERROR, fixable=True),
     Rule("lint", "trailing-whitespace", Severity.ERROR, fixable=True),
     Rule("lint", "punctuation-outside-quote", Severity.OFF),
@@ -62,16 +64,12 @@ _RULES: tuple[Rule, ...] = (
 
 RULES: dict[str, Rule] = {r.rule: r for r in _RULES}
 
-#: The `lint` rules `--write` is allowed to fix. Each is a whitespace deletion
-#: inside a single line with exactly one correct outcome.
-LINT_FIXABLE: tuple[str, ...] = (
-    "multiple-spaces",
-    "space-before-punctuation",
-    "blank-run",
-    "trailing-whitespace",
-)
-
 
 def rules_for(check: str) -> tuple[Rule, ...]:
     """Return every rule owned by *check*, in registry order."""
     return tuple(r for r in _RULES if r.check == check)
+
+
+#: The `lint` rules `--write` is allowed to fix. Each is a whitespace change
+#: with exactly one correct outcome that leaves the rendered text alone.
+LINT_FIXABLE: tuple[str, ...] = tuple(r.rule for r in rules_for("lint") if r.fixable)

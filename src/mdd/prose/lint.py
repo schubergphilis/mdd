@@ -262,13 +262,11 @@ def _finding(path: Path, line: Line, edit: Edit, config: ProseConfig) -> Finding
     )
 
 
-#: Which rule wins when two edits cover the same span. `space-before-punctuation`
-#: deletes the whole run and `multiple-spaces` only collapses it, so letting the
-#: latter win leaves `two ,` — still a finding, so the file would not be clean on
-#: a rerun, breaking the idempotence property `--write` is required to have.
+#: Which rule wins when two fixable edits cover the same span. Trailing
+#: whitespace deletes the whole run; collapsing it first would leave a single
+#: trailing space behind, still a finding on a rerun.
 _EDIT_PRECEDENCE: tuple[str, ...] = (
     "trailing-whitespace",
-    "space-before-punctuation",
     "multiple-spaces",
 )
 
@@ -286,9 +284,8 @@ def apply_edits(text: str, edits: Sequence[Edit]) -> str:
     """Apply *edits* to *text*, rightmost first so earlier offsets stay valid.
 
     Overlapping edits are dropped rather than applied. Two rules can match the
-    same whitespace run — ``multiple-spaces`` and ``space-before-punctuation``
-    both match the run in ``two  ,`` — and applying both left the second one's
-    end offset stale by a character, so it deleted the punctuation mark itself.
+    same whitespace run, and applying both leaves the second one's end offset
+    stale, so it deletes a character outside the run it matched.
     """
     out = text
     applied: list[Edit] = []

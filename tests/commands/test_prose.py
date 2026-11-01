@@ -53,14 +53,19 @@ def test_clean_corpus_exits_zero(corpus: Path, capsys: pytest.CaptureFixture[str
     assert "clean (1 files)" in capsys.readouterr().err
 
 
-def test_lint_write_fixes_and_then_passes(corpus: Path) -> None:
+def test_lint_write_fixes_what_it_can_and_reports_the_rest(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     target = corpus / "a.md"
     _ = target.write_text(MESSY, encoding="utf-8")
-    assert prose(["lint", "--write", "docs"]) == 0
-    assert target.read_text(encoding="utf-8") == (
-        "A sentence. With two spaces and a space before a comma, and trailing space.\n"
-    )
-    assert prose(["lint", "docs"]) == 0
+    assert prose(["lint", "--write", "docs"]) == 1
+    fixed = "A sentence. With two spaces and a space before a comma , and trailing space.\n"
+    assert target.read_text(encoding="utf-8") == fixed
+    _ = capsys.readouterr()
+    assert prose(["lint", "docs"]) == 1
+    assert "space-before-punctuation" in capsys.readouterr().out
+    assert prose(["lint", "--write", "docs"]) == 1
+    assert target.read_text(encoding="utf-8") == fixed
 
 
 def test_lint_write_refuses_a_mirrored_file(

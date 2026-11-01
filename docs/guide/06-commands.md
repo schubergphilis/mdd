@@ -100,8 +100,10 @@ There are four checks behind it.
 or more spaces, a space before terminal punctuation, more than one consecutive
 blank line, trailing whitespace, an invisible space where a plain one was
 meant, and — off by default, because it is a house style — punctuation placed
-outside a closing quote. `--write` fixes the four unambiguous whitespace rules
-and reports the rest.
+outside a closing quote. `--write` fixes the three unambiguous whitespace
+rules (runs of spaces, blank runs, trailing whitespace) and reports the rest.
+A space before punctuation is reported but never fixed, because in text such as
+`OSC 9 ; 4` the space is part of what the reader sees.
 
 `mdd prose anchors` checks that every internal `file.md#anchor` link resolves:
 the target file exists, and a heading in it slugs to the anchor under GitHub's

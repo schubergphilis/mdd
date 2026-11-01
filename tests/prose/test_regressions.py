@@ -190,16 +190,19 @@ def test_overlapping_edits_do_not_delete_the_punctuation(tmp_path: Path) -> None
     """Two rules matched one run; the second's stale end offset ate the mark."""
     target = tmp_path / "a.md"
     write_file(target, "Intro.\n\nAlso two  , and two  . and two  : here.\n")
-    assert lint_write(target) == 0
-    assert read_file(target).splitlines()[2] == "Also two, and two. and two: here."
+    assert lint_write(target) == 1  # the unfixable space before each mark remains
+    assert read_file(target).splitlines()[2] == "Also two , and two . and two : here."
 
 
-def test_a_fixed_file_is_clean_on_a_second_run(tmp_path: Path) -> None:
-    """Overlap resolution has to pick the edit that leaves nothing to find."""
+def test_a_fixed_file_is_stable_on_a_second_run(tmp_path: Path) -> None:
+    """Overlap resolution has to pick the edit that leaves nothing fixable."""
     target = tmp_path / "a.md"
     write_file(target, "Intro.\n\nAlso two  , and trailing.   \n")
-    assert lint_write(target) == 0
-    assert cli_main(["prose", "lint", str(target)]) == 0
+    _ = lint_write(target)
+    once = read_file(target)
+    assert once.splitlines()[2] == "Also two , and trailing."
+    _ = lint_write(target)
+    assert read_file(target) == once
 
 
 def test_space_before_a_path_or_ellipsis_is_left_alone(tmp_path: Path) -> None:

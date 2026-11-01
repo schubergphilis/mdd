@@ -139,7 +139,7 @@ cannot promise.
   {"path": "docs/ch01.md", "line": 42, "column": 17,
    "severity": "error", "check": "lint", "rule": "space-before-punctuation",
    "message": "space before ';'", "excerpt": "… the plan ; then …",
-   "fixable": true}
+   "fixable": false}
   ```
 
   `--json` implies no colour and no progress output on stdout, for the reason
@@ -308,7 +308,7 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 | Rule id | Finds | `--write` |
 |---|---|---|
 | `multiple-spaces` | two or more spaces between words on a prose line | fixable |
-| `space-before-punctuation` | whitespace before `,` `;` `:` `.` `!` `?` | fixable |
+| `space-before-punctuation` | whitespace before `,` `;` `:` `.` `!` `?` | no |
 | `blank-run` | more than one consecutive blank line | fixable |
 | `trailing-whitespace` | trailing spaces or tabs at end of line | fixable |
 | `punctuation-outside-quote` | a `,` or `.` placed after a closing quote where house style puts it inside — **`off` by default** | no |
@@ -338,9 +338,13 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 
 - `mdd prose lint --write` fixes the rules marked fixable above and reports the
   rest. The fixable set is exactly the unambiguous whitespace rules:
-  `multiple-spaces`, `space-before-punctuation`, `blank-run` and
-  `trailing-whitespace`. Each is a deletion of whitespace with one correct
-  outcome, and each is reversible by rerunning the check.
+  `multiple-spaces`, `blank-run` and `trailing-whitespace`. Each is a deletion
+  of whitespace with one correct outcome that leaves the rendered text alone,
+  and each is reversible by rerunning the check.
+- `space-before-punctuation` is **not** fixable: the space is sometimes part of
+  the text a reader sees. `OSC 9 ; 4` names an escape sequence and
+  `{=confluence} .` closes a raw attribute; deleting the space changes both. The
+  finding stays, so an author still sees the slip and decides.
 - `invisible-space` is **not** fixable: replacing a non-breaking space with a
   plain space is sometimes right and sometimes destroys a deliberate
   typographic choice, and the tool cannot tell which. Neither is
@@ -836,7 +840,8 @@ with them.
   is already the most hostile pile of Markdown in the repository and is exactly
   the right adversary for a reflow.
 - For `lint --write`: a fixture pair per fixable rule, a test that a fixed file
-  is clean on a second run (the same idempotence property reflow has), a test
+  has no fixable finding on a second run (the same idempotence property reflow
+  has), a test
   that a file containing only unfixable findings is **not** written at all, and
   a test that whitespace inside every masked construct survives a `--write` run
   byte for byte.
@@ -889,8 +894,10 @@ Recorded rather than deleted, so the reasoning is not re-litigated.
    surface that can corrupt a file. That was overweighted: a within-line
    whitespace deletion cannot change block structure, which makes it both safer
    and *easier to test exhaustively* than reflow, and it is the fix an author
-   most wants applied for them. The four fixable rules are named explicitly and
-   the ambiguous two are excluded.
+   most wants applied for them. The three fixable rules are named explicitly
+   and the ambiguous three are excluded. `space-before-punctuation` was
+   fixable in the first implementation; it was withdrawn once real corpora
+   showed the deleted space can be part of the rendered text.
 2. **Is a single `--width` enough, or do list items and block quotes want their
    own target?** One knob. A prefix-aware second width is additive if a corpus
    ever complains, and speculating now buys nothing.

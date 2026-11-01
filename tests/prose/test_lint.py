@@ -49,9 +49,12 @@ def test_multiple_spaces_inside_code_is_ignored() -> None:
     assert rules_found("a `b  c` d\n") == []
 
 
-def test_space_before_punctuation_is_found_and_fixed() -> None:
-    assert rules_found("a word ; then\n") == ["space-before-punctuation"]
-    assert fixed_text("a word ; then\n") == "a word; then\n"
+def test_space_before_punctuation_is_found_but_not_fixed() -> None:
+    """Deleting the space changes rendered text, as in ``OSC 9 ; 4``."""
+    outcome = run(PATH, ok("a word ; then\n"), defaults())
+    assert [f.rule for f in outcome.findings] == ["space-before-punctuation"]
+    assert not outcome.findings[0].fixable
+    assert outcome.fixed is None
 
 
 def test_space_before_punctuation_inside_code_is_ignored() -> None:
@@ -155,7 +158,9 @@ def test_a_rule_set_to_off_is_neither_reported_nor_fixed() -> None:
 
 def test_fixing_is_idempotent() -> None:
     once = fixed_text("a  b ; c   \n\n\n\nd\n")
-    assert rules_found(once) == []
+    assert once == "a b ; c\n\nd\n"
+    assert rules_found(once) == ["space-before-punctuation"]
+    assert run(PATH, ok(once), defaults()).fixed is None
 
 
 def test_masked_whitespace_survives_a_fix() -> None:
