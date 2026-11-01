@@ -579,6 +579,10 @@ def _interrupts_paragraph(rest: str) -> bool:
     Only an item with content may, and of ordered items only one numbered 1. A
     bare `-` under a paragraph is a setext underline, and `10. x` continues it.
     """
+    if _FOOTNOTE_DEF.match(rest):
+        # markdown-it's footnote rule may; cmark-gfm's may not, and the scan
+        # makes both paragraphs divergent.
+        return True
     item = _LIST.match(rest)
     if item is None:
         return False
@@ -963,6 +967,13 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
             continue
+        if number == 1 and raw.startswith(_BYTE_ORDER_MARK):
+            # cmark-gfm skips the mark and markdown-it does not. Classified
+            # without it, a fence or a heading on the first line is seen, and
+            # the mark is kept as prefix so no writer moves it.
+            line = _scan_line(number, raw[1:], out, state)
+            out.append(replace(line, text=raw, prefix=_BYTE_ORDER_MARK + line.prefix))
+            continue
         out.append(_scan_line(number, raw, out, state))
     return out, _unclosed(state), state
 
@@ -977,6 +988,8 @@ def _scan_line(number: int, raw: str, out: list[Line], state: _State) -> Line:
     if not _in_literal_block(rest, state):
         quote, rest = _strip_quote_in_item(quote, rest, state)
     deep_lazy = _deep_lazy_line(quote, rest, state)
+    lazy_tag = _lazy_line(quote, rest, state) and _HTML_BLOCK.match(rest) is not None
+    footnote_interrupts = state.in_paragraph and _FOOTNOTE_DEF.match(rest) is not None
     # A deeper block quote opens a new container, and no paragraph is open
     # inside it yet. A shallower one is a lazy continuation.
     if _quote_depth(quote) > state.paragraph_depth:
@@ -990,6 +1003,8 @@ def _scan_line(number: int, raw: str, out: list[Line], state: _State) -> Line:
         state.divergent_paragraphs.add(number)
     if line.cls is LineClass.PROSE and deep_lazy:
         state.divergent_lines.update((number - 1, number))
+    if line.cls is LineClass.PROSE and (lazy_tag or footnote_interrupts):
+        state.divergent_paragraphs.update((number - 1, number))
     _track_list_div(line, rest, state)
     _track_nesting(number, quote, state)
     line = replace(line, quote=quote)
@@ -1030,6 +1045,13 @@ def _deep_quote_marker(quote: str, state: _State) -> bool:
     return False
 
 
+def _lazy_line(quote: str, rest: str, state: _State) -> bool:
+    """True when *rest* may be a lazy continuation line of a quoted paragraph."""
+    if not state.in_paragraph or _quote_depth(quote) >= state.paragraph_depth:
+        return False
+    return bool(rest.strip(MD_SPACE))
+
+
 def _deep_lazy_line(quote: str, rest: str, state: _State) -> bool:
     """True when *rest* is a lazy line, indented four or more, of a quoted paragraph.
 
@@ -1037,9 +1059,7 @@ def _deep_lazy_line(quote: str, rest: str, state: _State) -> bool:
     CommonMark reads one more paragraph line, so a hard break at the end of
     the line above means something only to CommonMark.
     """
-    if not state.in_paragraph or _quote_depth(quote) >= state.paragraph_depth:
-        return False
-    if not rest.strip(MD_SPACE):
+    if not _lazy_line(quote, rest, state):
         return False
     indent = _indent_columns(rest)
     return indent - _container_column(indent, state) >= _INDENTED_CODE_COLUMN

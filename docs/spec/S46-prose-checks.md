@@ -261,7 +261,11 @@ cannot promise.
   block quote makes its whole paragraph divergent, and a lazy line indented
   four or more columns under a quoted paragraph makes itself and the line
   above it divergent, since only one of the renderers reads the trailing
-  spaces there as a hard break. A run of two or more blank lines inside or
+  spaces there as a hard break. A lazy line under a quoted paragraph that
+  opens with an HTML tag, and a footnote definition straight under
+  paragraph text, make both paragraphs involved divergent: cmark-gfm ends
+  the quote at the tag, and does not let a footnote definition interrupt a
+  paragraph. A run of two or more blank lines inside or
   directly after a list item is divergent when an indented line follows it,
   so `blank-run` leaves it alone: in CommonMark, whether that line is still
   in the item can depend on the number of blank lines.
@@ -272,7 +276,9 @@ cannot promise.
   `<!--->` are whole HTML comments, as in CommonMark.
 - Front matter is recognised behind a leading byte order mark, as the sync
   commands recognise it, so the writers never touch it. markdown-it does not
-  skip the mark and reads such a block as paragraph text or a heading.
+  skip the mark and reads such a block as paragraph text or a heading. The
+  first line is classified without the mark, as cmark-gfm reads it, so a
+  fence there is a fence; the mark itself is prefix and is never moved.
 - Tables follow GFM: a table runs from its header row to the next blank line
   or the start of another block. A line directly below a table is one more
   row, not prose, whether or not it contains a pipe. A row is not a

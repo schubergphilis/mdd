@@ -220,6 +220,8 @@ def test_classifier_counterexample(text: str) -> None:
 
 
 WRITER_DAMAGE = [
+    pytest.param("lint", "\ufeff```\nthe\nthe. ", id="lint-trims-fence-behind-a-byte-order-mark"),
+    pytest.param("reflow", ">\xa0The\n<br>\nthe.", id="reflow-joins-lazy-html-line-in-quote"),
     pytest.param(
         "reflow",
         "[^1]:# A sentence. B.\n",

@@ -797,3 +797,26 @@ def test_a_one_line_html_comment_is_closed(comment: str) -> None:
 def test_a_link_definition_cannot_interrupt_a_paragraph(source: str, expected: list[str]) -> None:
     assert classes(source) == expected
     assert len({line.block for line in ok(source).lines if line.cls.value == "prose"}) <= 1
+
+
+def test_a_byte_order_mark_does_not_hide_a_fence() -> None:
+    assert classes("\ufeff```\na  b\n```\n") == ["fenced-code"] * 3
+
+
+def test_a_byte_order_mark_stays_in_a_prose_line_prefix() -> None:
+    line = ok("\ufeffSome  text.\n").lines[0]
+    assert (line.cls.value, line.prefix, line.content) == ("prose", "\ufeff", "Some  text.")
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        # cmark-gfm ends the quote at a lazy line that opens with a tag.
+        (">\xa0The\n<br>\nthe.\n", ["divergent"] * 3),
+        # markdown-it lets a footnote definition interrupt a paragraph,
+        # cmark-gfm does not.
+        ("The\nthe\n[^1]: a  b\n", ["divergent"] * 3),
+    ],
+)
+def test_more_lines_commonmark_renderers_disagree_on(source: str, expected: list[str]) -> None:
+    assert classes(source) == expected
