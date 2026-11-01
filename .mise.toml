@@ -79,6 +79,15 @@ run = "uv run python -m pytest -m integration --no-cov"
 description = "Office tests — require Microsoft Office installed locally (macOS)"
 run = "uv run python -m pytest -m office --no-cov"
 
+# `mise run test` runs the same property tests under the derandomized `ci`
+# profile, a few hundred examples each. This is the long, randomized search:
+# tens of thousands of generated documents per property. Run it after
+# touching the prose classifier or either writer.
+[tasks.prose-fuzz]
+description = "Prose property tests under the long, randomized Hypothesis fuzz profile"
+env = { MDD_HYPOTHESIS_PROFILE = "fuzz" }
+run = "uv run python -m pytest tests/prose/test_properties.py -k \"not counterexample\" --no-cov -q --hypothesis-show-statistics"
+
 [tasks.test-all]
 description = "Every test — unit + integration + office (needs services and Office)"
 run = "uv run python -m pytest -m \"\""
