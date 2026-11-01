@@ -463,3 +463,19 @@ def test_reflow_never_starts_a_line_with_a_block_starter() -> None:
             once = reflow(text)
             assert once == text, (starter, once)
             assert verify(text, once).passed, starter
+
+
+def test_a_footnote_definition_first_line_is_never_a_single_token() -> None:
+    # mdd's model has no footnotes. It reads `[^1]: Ibid.` alone on a line as a
+    # link definition, and the indented rest as code.
+    text = "Text[^1].\n\n[^1]: Ibid. Page 4 of the annual report. Then more.\n"
+    once = reflow(text)
+    assert once == "Text[^1].\n\n[^1]: Ibid. Page 4 of the annual report.\n      Then more.\n"
+    assert verify(text, once).passed
+
+
+def test_a_footnote_definition_first_sentence_with_spaces_is_split() -> None:
+    text = "Text[^1].\n\n[^1]: First sentence here. Page 4 of the annual report.\n"
+    once = reflow(text)
+    assert once == "Text[^1].\n\n[^1]: First sentence here.\n      Page 4 of the annual report.\n"
+    assert verify(text, once).passed

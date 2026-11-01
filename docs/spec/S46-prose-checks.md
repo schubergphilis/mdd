@@ -263,6 +263,11 @@ The load-bearing subcommand.
   footnote definition (`[x]:`, `[^x]:`). A line a break leaves behind always
   ends at a clause mark or a sentence terminator, so it never ends in a hard
   line break.
+- The first line of a footnote definition keeps at least two tokens. mdd's
+  model has no footnotes and reads `[^1]: Ibid.` alone on a line as a link
+  definition, which makes the indented lines after it code. So reflow does
+  not break `[^1]: Ibid. Page 4.` after `Ibid.`; a first sentence with a
+  space in it is broken as usual.
 
 **Clause breaking — the part that is easy to get wrong**
 

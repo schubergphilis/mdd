@@ -136,14 +136,31 @@ _BLOCK_STARTER = re.compile(
 )
 
 
-def merge_block_starters(lines: Sequence[PackedLine]) -> list[str]:
+def _must_join(out: Sequence[str], line: PackedLine, *, definition: bool) -> bool:
+    """True when *line* may not start a line of its own after *out*.
+
+    In a footnote definition the first line must hold more than one token.
+    mdd's model has no footnotes and reads ``[^1]: Ibid.`` alone on a line as
+    a link definition, which turns the indented lines below it into code. A
+    line a break leaves behind ends in a clause mark or a terminator, never in
+    a link title's closing quote, so any whitespace on it is enough.
+    """
+    if not out:
+        return False
+    if _BLOCK_STARTER.match(line.text):
+        return True
+    return definition and len(out) == 1 and not any(char in MD_SPACE for char in out[0])
+
+
+def merge_block_starters(lines: Sequence[PackedLine], *, definition: bool = False) -> list[str]:
     """Join back any generated line that would start a new Markdown block.
 
     The line is rejoined with the whitespace that preceded it in the source.
+    *definition* says the block is a footnote definition.
     """
     out: list[str] = []
     for line in lines:
-        if out and _BLOCK_STARTER.match(line.text):
+        if _must_join(out, line, definition=definition):
             out[-1] = out[-1] + line.gap + line.text
         else:
             out.append(line.text)

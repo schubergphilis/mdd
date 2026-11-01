@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,10 @@ if TYPE_CHECKING:
 
     from mdd.prose.classify import Classified, Line
     from mdd.prose.config import ProseConfig, ReflowConfig
+
+
+#: A block prefix that opens a footnote definition, after any container prefix.
+_FOOTNOTE_DEFINITION = re.compile(r"\[\^[^\]]*\]:[ \t]*$")
 
 
 def _join_block(lines: Sequence[Line]) -> tuple[str, list[bool]]:
@@ -57,7 +62,8 @@ def reflow_block(lines: Sequence[Line], config: ReflowConfig) -> list[str] | Non
                 cont_indent=len(cont),
             )
         )
-    merged = merge_block_starters(packed)
+    definition = _FOOTNOTE_DEFINITION.search(prefix) is not None
+    merged = merge_block_starters(packed, definition=definition)
     return [(prefix if index == 0 else cont) + text for index, text in enumerate(merged)]
 
 
