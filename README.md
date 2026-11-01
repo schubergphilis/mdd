@@ -76,6 +76,16 @@ Run `mdd help` to discover more.
 | `mdd skills list` | List bundled AI agent skills |
 | `mdd skills install` | Symlink bundled skills into `~/.claude/skills/` |
 
+### Prose checks
+
+| Command | Description |
+|---|---|
+| `mdd prose check [path ...]` | Run every enabled prose check, for CI |
+| `mdd prose lint [path ...]` | Find mechanical slips such as doubled spaces; `--write` fixes the whitespace ones |
+| `mdd prose reflow [path ...]` | Check for one sentence per line; `--write` rewrites the prose |
+| `mdd prose anchors [path ...]` | Check that internal links and `#anchor` targets resolve |
+| `mdd prose freshness [path ...]` | Check the `last-verified` date in each file's front matter |
+
 ## Dependencies
 
 Install these tools for more functionality:
