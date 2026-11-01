@@ -257,6 +257,10 @@ class _State:
     in_html_block: bool = False
     #: What ends the open HTML block: a closing marker, or ``None`` for a blank line.
     html_end: re.Pattern[str] | None = None
+    #: The block-quote depth and list item content column the open HTML block
+    #: is in. It ends where that container ends.
+    html_quote_depth: int = 0
+    html_container: int = 0
     in_indented_code: bool = False
     #: The content columns of the open list items, innermost last.
     list_cols: list[int] = field(default_factory=list)
@@ -386,23 +390,24 @@ def _closes_fence(rest: str, quote: str, state: _State) -> bool:
 _ONE_QUOTE = re.compile(r"[ \t]*>[ \t]?")
 
 
-def _leaves_fence_container(raw: str, state: _State) -> bool:
-    """True when *raw* ends the container the open fence is in, and so the fence.
+def _leaves_container(raw: str, depth: int, column: int) -> bool:
+    """True when *raw* ends a container *depth* quotes deep, in an item at *column*.
 
-    A fence is not a paragraph, so it has no lazy continuation: a line with
-    fewer ``>`` than the fence's opener ends its block quote, and a non-blank
-    line indented less than its list item's content column ends the item. The
-    indent is measured inside the fence's own block quotes; a ``>`` beyond
-    those is fence content. Treating either as fence content let a later
-    fence-shaped line close the block, and the code after that read as prose.
+    A fence or an HTML block is not a paragraph, so it has no lazy
+    continuation: a line with fewer ``>`` than its opener ends its block
+    quote, and a non-blank line indented less than its list item's content
+    column ends the item, and the block with it. The indent is measured
+    inside the block's own block quotes; a ``>`` beyond those is content.
+    Treating either as content let a later fence-shaped line close a fence,
+    and the code after that read as prose.
     """
     inside = raw
-    for _ in range(state.fence_quote_depth):
+    for _ in range(depth):
         marker = _ONE_QUOTE.match(inside)
         if marker is None:
             return True
         inside = inside[marker.end() :]
-    return bool(inside.strip(MD_SPACE)) and _indent_columns(inside) < state.fence_container
+    return bool(inside.strip(MD_SPACE)) and _indent_columns(inside) < column
 
 
 def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
@@ -411,7 +416,7 @@ def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -
         state.in_frontmatter = rest.strip(MD_SPACE) not in ("---", "...")
         return Line(number, raw, LineClass.FRONTMATTER)
     if state.fence is not None:
-        if _leaves_fence_container(raw, state):
+        if _leaves_container(raw, state.fence_quote_depth, state.fence_container):
             state.fence = None
             return None
         if _closes_fence(rest, quote, state):
@@ -441,6 +446,9 @@ def _continuation_tail(number: int, raw: str, rest: str, state: _State) -> Line 
         state.in_math = not _closes_math(rest)
         return Line(number, raw, LineClass.MATH)
     if not state.in_html_block:
+        return None
+    if _leaves_container(raw, state.html_quote_depth, state.html_container):
+        state.in_html_block = False
         return None
     if state.html_end is not None:
         state.in_html_block = state.html_end.search(rest) is None
@@ -506,6 +514,8 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
         state.divs.append((fence, _quote_depth(quote)))
         return Line(number, raw, LineClass.DIV_MARKER)
     if _open_html_block(rest, state):
+        state.html_quote_depth = _quote_depth(quote)
+        state.html_container = 0
         return Line(number, raw, LineClass.HTML_BLOCK)
     return None
 
@@ -763,12 +773,19 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
     state.in_paragraph = False
     opened = _open_block(number, raw, prefix, content, state)
     if opened is not None:
-        if opened.cls is LineClass.FENCED_CODE:
-            state.fence_indent = _columns(markers)
-            state.fence_container = _container_column(state.fence_indent, state)
+        _set_block_container(opened, _columns(markers), state)
         return replace(opened, prefix=prefix)
     single = _single_line_class(content)
     return Line(number, raw, single, prefix=prefix) if single is not None else None
+
+
+def _set_block_container(opened: Line, indent: int, state: _State) -> None:
+    """Record the list item a fence or an HTML block opened at *indent* is in."""
+    if opened.cls is LineClass.FENCED_CODE:
+        state.fence_indent = indent
+        state.fence_container = _container_column(indent, state)
+    elif opened.cls is LineClass.HTML_BLOCK:
+        state.html_container = _container_column(indent, state)
 
 
 def _close_div(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
@@ -803,9 +820,7 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     )
     if opened is not None:
         _close_items(rest, state)
-        if opened.cls is LineClass.FENCED_CODE:
-            state.fence_indent = _indent_columns(rest)
-            state.fence_container = _container_column(state.fence_indent, state)
+        _set_block_container(opened, _indent_columns(rest), state)
         return opened
     # A one-line block is looked for at any indent that is not code. Which list
     # item a line sits in is a guess, and a wrong guess must not hide a heading
@@ -1177,6 +1192,9 @@ def _unclosed(state: _State) -> ClassifyError | None:
         return ClassifyError(state.open_at, "HTML comment never closes")
     if state.in_math:
         return ClassifyError(state.open_at, "math block never closes")
+    # An HTML block still open here is not an error: one that waits for a
+    # closing marker, such as `<pre>`, runs to the end of the document, and
+    # every line of it has been classified as such.
     return state.dropped
 
 

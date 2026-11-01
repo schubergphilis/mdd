@@ -748,3 +748,33 @@ def test_link_definition_labels_follow_commonmark(source: str, expected: list[st
 def test_a_fenced_div_opened_on_a_footnote_line_fails_closed(source: str) -> None:
     result = classify(source)
     assert result == ClassifyError(3, "a fenced div opened on a footnote line may drop lines")
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "> <pre>\n> x\n\nLater  paragraph  text.\n",
+            ["html-block", "html-block", "blank", "prose"],
+        ),
+        (
+            "> <div>\n    a\n \n    b\n",
+            ["html-block", "indented-code", "indented-code", "indented-code"],
+        ),
+        (
+            "> <div>\n```\ncode\n\nmore  code\n```\n",
+            ["html-block"] + ["fenced-code"] * 5,
+        ),
+        (
+            "- <div>\n```\ncode\n\nmore  code\n```\n",
+            ["html-block"] + ["fenced-code"] * 5,
+        ),
+        ("- <div>\n  a  b\n\n  c\n", ["html-block", "html-block", "blank", "prose"]),
+    ],
+)
+def test_an_html_block_ends_with_its_container(source: str, expected: list[str]) -> None:
+    assert classes(source) == expected
+
+
+def test_an_unclosed_raw_html_block_runs_to_the_end_of_the_file() -> None:
+    assert classes("<pre>\na  b\n\nc  d\n") == ["html-block"] * 4

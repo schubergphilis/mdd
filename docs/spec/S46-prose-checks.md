@@ -264,6 +264,10 @@ cannot promise.
   directly after a list item is divergent when an indented line follows it,
   so `blank-run` leaves it alone: in CommonMark, whether that line is still
   in the item can depend on the number of blank lines.
+- An HTML block, or a fence, opened in a block quote or a list item ends
+  where that container ends, as neither has a lazy continuation. An HTML
+  block that waits for a closing marker, such as `<pre>`, and never meets
+  one runs to the end of the file; that is not an error.
 - Front matter is recognised behind a leading byte order mark, as the sync
   commands recognise it, so the writers never touch it. markdown-it does not
   skip the mark and reads such a block as paragraph text or a heading.
