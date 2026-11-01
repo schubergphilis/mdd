@@ -275,6 +275,13 @@ class _State:
     #: The colon run and block-quote depth of every open fenced div, outermost first.
     divs: list[tuple[str, int]] = field(default_factory=list)
     dropped: ClassifyError | None = None
+    #: The block-quote depth and the container's content column of the open
+    #: table, whose rows must sit at both.
+    table: tuple[int, int] | None = None
+    #: The open list items' content columns before the line being scanned,
+    #: and before the one above it.
+    cols_before_line: list[int] = field(default_factory=list)
+    cols_before_previous: list[int] = field(default_factory=list)
 
 
 def _continuation_markers(markers: str, column: int) -> str:
@@ -903,6 +910,8 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
             continue
+        state.cols_before_previous = state.cols_before_line
+        state.cols_before_line = list(state.list_cols)
         quote, rest = _strip_open_quote(raw, *_strip_quote(raw), state)
         if not _in_literal_block(rest, state):
             quote, rest = _strip_quote_in_item(quote, rest, state)
@@ -914,12 +923,93 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             number, raw, quote, rest, state
         )
         line = _link_definition(line, rest, state)
+        line = _track_table(line, quote, rest, out, state)
         _track_list_div(line, rest, state)
         _track_nesting(number, quote, state)
         line = replace(line, quote=quote)
         _after_line(line, quote, rest, state)
         out.append(line)
     return out, _unclosed(state)
+
+
+#: What the scan may have called a line that is really a table row. A link
+#: definition or maths cannot interrupt a table, so a line shaped like one is
+#: just another row.
+_TABLE_ROW_CLASSES = (LineClass.PROSE, LineClass.LINK_DEF, LineClass.MATH)
+
+
+def _table_line(line: Line) -> Line:
+    return replace(line, cls=LineClass.TABLE, prefix="", cont_prefix="")
+
+
+def _is_table_row(line: Line, quote: str, rest: str, table: tuple[int, int]) -> bool:
+    """True when *line*, straight after a row of *table*, is one more row.
+
+    GFM ends a table at a blank line or at the start of another block, not at
+    the first line without a pipe, so a line directly under a table is a row,
+    and calling it prose let the fixers rewrite a table cell. A row is not a
+    paragraph, so it has no lazy continuation: a line indented less than the
+    table's list item is outside the item and ends the table.
+    """
+    depth, column = table
+    return (
+        line.cls in _TABLE_ROW_CLASSES
+        and _quote_depth(quote) == depth
+        and _LIST.match(rest) is None
+        and _indent_columns(rest) >= column
+    )
+
+
+def _opens_table(rest: str, out: Sequence[Line]) -> bool:
+    """True when *rest* is a delimiter row under a header row."""
+    if not out or not _DELIM_ROW.match(rest) or "|" not in rest:
+        return False
+    header = out[-1]
+    return header.cls is LineClass.PROSE and "|" in header.text
+
+
+def _open_table(quote: str, rest: str, out: list[Line], state: _State) -> None:
+    """Record the table *rest* opens, and close the list items it shows never opened.
+
+    markdown-it tries a table before a new list, so a header row that starts
+    a list is a table in the enclosing container, the marker one of its
+    cells, unless the delimiter row is too far indented for that. A header
+    row that is the next item of an open list is read by the list instead,
+    and its table is in the item.
+    """
+    header_rest = out[-1].text[len(out[-1].quote) :]
+    header_indent = _indent_columns(header_rest)
+    delimiter_indent = _indent_columns(rest)
+    outer = _container_column(header_indent, state)
+    starts_list = not any(column > header_indent for column in state.cols_before_previous)
+    if (
+        starts_list
+        and _split_markers(header_rest) is not None
+        and delimiter_indent - outer < _INDENTED_CODE_COLUMN
+    ):
+        while state.list_cols and state.list_cols[-1] > header_indent:
+            _ = state.list_cols.pop()
+    while state.list_cols and state.list_cols[-1] > delimiter_indent:
+        _ = state.list_cols.pop()
+    state.table = (_quote_depth(quote), _container_column(delimiter_indent, state))
+    out[-1] = _table_line(out[-1])
+
+
+def _track_table(line: Line, quote: str, rest: str, out: list[Line], state: _State) -> Line:
+    """Classify *line* as a table row when it is one, opening or continuing a table.
+
+    A row's content is never maths or a link definition, so whatever the
+    scan opened for one is dropped.
+    """
+    if state.table is not None and _is_table_row(line, quote, rest, state.table):
+        state.in_math = state.in_link_def = False
+        return _table_line(line)
+    state.table = None
+    if _opens_table(rest, out):
+        _open_table(quote, rest, out, state)
+        state.in_math = state.in_link_def = False
+        return _table_line(line)
+    return line
 
 
 def _track_nesting(number: int, quote: str, state: _State) -> None:
@@ -1050,42 +1140,6 @@ def _apply_setext(lines: list[Line]) -> None:
             lines[heading] = replace(
                 lines[heading], cls=LineClass.HEADING, cont_prefix="", block=-1
             )
-
-
-#: What the scan may have called a line that is really a table row. A link
-#: definition or maths cannot interrupt a table, so a line shaped like one is
-#: just another row.
-_TABLE_ROW_CLASSES = (LineClass.PROSE, LineClass.LINK_DEF, LineClass.MATH)
-
-
-def _is_table_row(line: Line, depth: int) -> bool:
-    """True when *line*, straight after a row of a table *depth* quotes deep, is a row.
-
-    GFM ends a table at a blank line or at the start of another block, not at
-    the first line without a pipe. A line directly under a table is one more
-    row, and calling it prose let the fixers rewrite a table cell.
-    """
-    if line.cls not in _TABLE_ROW_CLASSES:
-        return False
-    quote, rest = _split_quote(line)
-    return _quote_depth(quote) == depth and _LIST.match(rest) is None
-
-
-def _apply_tables(lines: list[Line]) -> None:
-    """Reclassify a header row, its delimiter row and the body rows as a table."""
-    for index, line in enumerate(lines):
-        quote, rest = _split_quote(line)
-        if index == 0 or not _DELIM_ROW.match(rest) or "|" not in rest:
-            continue
-        header = lines[index - 1]
-        if header.cls is not LineClass.PROSE or "|" not in header.text:
-            continue
-        lines[index - 1] = replace(header, cls=LineClass.TABLE, prefix="", cont_prefix="")
-        lines[index] = replace(line, cls=LineClass.TABLE, prefix="", cont_prefix="")
-        forward = index + 1
-        while forward < len(lines) and _is_table_row(lines[forward], _quote_depth(quote)):
-            lines[forward] = replace(lines[forward], cls=LineClass.TABLE, prefix="", cont_prefix="")
-            forward += 1
 
 
 def _mark_managed(lines: list[Line], index: int) -> None:
@@ -1256,9 +1310,6 @@ def classify(text: str) -> Classified | ClassifyError:
     if error is not None:
         return error
     _reclaim_code_blanks(lines)
-    # Tables first: a row is never paragraph text, so an `===` or `---` under
-    # one is a row or a rule, never a setext underline for the table.
-    _apply_tables(lines)
     # Blocks twice: the setext pass needs to know where each paragraph starts,
     # and the headings it makes are paragraphs no longer.
     _assign_blocks(lines)

@@ -613,3 +613,21 @@ def test_a_setext_underline_finds_its_paragraph_across_a_lazy_line() -> None:
     source = "> 1. a\nb\n> c\n=\n"
     assert classes(source) == ["prose"] * 4
     assert {line.block for line in ok(source).lines} == {1}
+
+
+def test_a_line_less_indented_than_a_list_item_table_ends_the_list() -> None:
+    source = "1. a\n2. b | c\n   --- | ---\nd | e\n3. f\n\n    code  x\n"
+    assert classes(source) == [
+        "prose",
+        "table",
+        "table",
+        "prose",
+        "prose",
+        "blank",
+        "indented-code",
+    ]
+
+
+def test_an_indented_row_of_a_list_item_table_is_a_row() -> None:
+    source = "- b | c\n  --- | ---\n  d | e\n\n      code  x\n"
+    assert classes(source) == ["table", "table", "table", "blank", "indented-code"]

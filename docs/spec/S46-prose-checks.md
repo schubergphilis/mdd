@@ -249,7 +249,11 @@ cannot promise.
   only loses its checks; a link definition mistaken for prose gets rewritten.
 - Tables follow GFM: a table runs from its header row to the next blank line
   or the start of another block. A line directly below a table is one more
-  row, not prose, whether or not it contains a pipe.
+  row, not prose, whether or not it contains a pipe. A row is not a
+  paragraph line, so it has no lazy continuation: a line indented less than
+  the list item a table is in ends the table and the item. markdown-it reads
+  a header row that starts a new list as a table whose first cell holds the
+  marker, so that list item never opens.
 - Mask fidelity is the correctness bar: a masked span is passed through
   byte-for-byte. A check may look at a masked span (`anchors` must read link
   targets; `lint`'s literal escape must recognise an `inline-code` span) but no
