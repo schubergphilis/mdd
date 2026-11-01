@@ -226,6 +226,11 @@ The load-bearing subcommand.
 - A list item's continuation lines are indented to the item's content column so
   the list still parses. A block quote's continuation lines keep the `> `
   prefix. Nested structure is preserved.
+- A paragraph is every prose line up to the next block start, as CommonMark
+  defines it: a continuation line belongs to the paragraph whatever its indent,
+  and so does a lazy one with no `>`. Only a list or footnote marker, a deeper
+  block quote, or a bare list marker starts a new block. Reflow re-emits such
+  a paragraph with the canonical continuation prefix.
 - Reflow never changes the number of blank lines, the order of blocks, or any
   character other than the whitespace it replaces with a newline (and the
   newline it replaces with a space when joining a paragraph that was

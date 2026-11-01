@@ -166,6 +166,16 @@ def test_reflow_with_wide_gaps_is_idempotent() -> None:
     assert reflow(once, width=60, min_line=1) == once
 
 
+def test_reflow_joins_lazy_and_indented_continuation_lines() -> None:
+    cases = {
+        "> quoted text\nlazy continuation.\n": "> quoted text lazy continuation.\n",
+        "- item one\n      continued here.\n": "- item one continued here.\n",
+    }
+    for source, expected in cases.items():
+        assert reflow(source) == expected
+        assert equivalent(source, expected)
+
+
 # --- clause units ----------------------------------------------------------
 
 

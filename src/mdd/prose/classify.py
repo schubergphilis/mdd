@@ -522,6 +522,27 @@ def _apply_managed(lines: list[Line]) -> None:
             forward += 1
 
 
+def _continues_paragraph(previous: Line, line: Line) -> bool:
+    """True when prose *line* continues the paragraph *previous* belongs to.
+
+    Paragraph continuation ignores indentation and tolerates a missing ``>``
+    (CommonMark's lazy continuation), so an indented or lazy line belongs to
+    the paragraph above it. Only a line that opens a block of its own starts a
+    new one: a list or footnote marker, or a deeper block quote.
+
+    A bare list marker is kept apart on both sides. It is an empty item, or one
+    whose content starts on the next line; joining either into a paragraph
+    turns text into list content or a list item into text.
+    """
+    quote, rest = _strip_quote(line.text)
+    previous_quote, previous_rest = _strip_quote(previous.text)
+    if _LIST.match(rest) or _FOOTNOTE_DEF.match(rest):
+        return False
+    if _LIST_BARE.match(rest) or _LIST_BARE.match(previous_rest):
+        return False
+    return _quote_depth(quote) <= _quote_depth(previous_quote)
+
+
 def _assign_blocks(lines: list[Line]) -> None:
     """Group contiguous prose lines that belong to the same logical paragraph."""
     previous: Line | None = None
@@ -530,7 +551,7 @@ def _assign_blocks(lines: list[Line]) -> None:
         if line.cls is not LineClass.PROSE:
             previous = None
             continue
-        if previous is not None and previous.cont_prefix == line.prefix:
+        if previous is not None and _continues_paragraph(previous, line):
             block = previous.block
         else:
             counter += 1

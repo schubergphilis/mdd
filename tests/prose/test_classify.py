@@ -206,3 +206,51 @@ def test_crlf_is_detected() -> None:
 
 def test_missing_final_newline_is_recorded() -> None:
     assert not ok("a").final_newline
+
+
+def blocks(text: str) -> list[int]:
+    return [line.block for line in ok(text).lines]
+
+
+def test_deeper_indented_list_continuation_joins_the_item() -> None:
+    assert blocks("- item one\n      continued here\n") == [1, 1]
+
+
+def test_lazy_list_continuation_joins_the_item() -> None:
+    assert blocks("- item one\ncontinued lazily\n") == [1, 1]
+
+
+def test_shallower_list_continuation_joins_the_item() -> None:
+    assert blocks("1. item one\n continued\n") == [1, 1]
+
+
+def test_indented_block_quote_continuation_joins_the_paragraph() -> None:
+    assert blocks("> quoted\n>    more\n") == [1, 1]
+
+
+def test_lazy_block_quote_continuation_joins_the_paragraph() -> None:
+    assert blocks("> quoted\nlazy line\n") == [1, 1]
+
+
+def test_lazy_continuation_of_a_nested_quote_joins_the_paragraph() -> None:
+    assert blocks("> > deep\n> shallower\n") == [1, 1]
+
+
+def test_a_deeper_block_quote_starts_a_new_block() -> None:
+    assert blocks("> a\n> > b\n") == [1, 2]
+
+
+def test_a_list_marker_starts_a_new_block() -> None:
+    assert blocks("- a\n- b\n  c\n") == [1, 2, 2]
+
+
+def test_code_span_straddling_an_indented_continuation_is_masked() -> None:
+    lines = ok("- run `a very\n      long command` now\n").lines
+    assert lines[0].text[lines[0].masks[0].start :] == "`a very"
+    assert lines[1].text[: lines[1].masks[0].end] == "      long command`"
+
+
+def test_a_bare_list_marker_is_a_block_of_its_own() -> None:
+    assert blocks("-\nfoo\n") == [1, 2]
+    assert blocks("> -\n> foo\n") == [1, 2]
+    assert blocks("- a\n-\n") == [1, 2]
