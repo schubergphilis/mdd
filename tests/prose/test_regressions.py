@@ -134,6 +134,22 @@ def test_a_quoted_fence_does_not_close_an_outer_fence() -> None:
     assert set(classes(text)[2:9]) == {"fenced-code"}
 
 
+def test_an_open_block_quote_continues_on_a_marker_at_any_indent() -> None:
+    """markdown-it continues an open block quote on a `>` however far it is indented.
+
+    A tab before the `>` made the line read as paragraph text, so the code
+    fence it opens was handed to the fixers.
+    """
+    assert classes("> a\n\t> ```\n\t> x  y\n\t> ```\n") == [
+        "prose",
+        "fenced-code",
+        "fenced-code",
+        "fenced-code",
+    ]
+    # A blank line closes the quote: the same line is then indented code.
+    assert classes("> a\n\n\t> b  c\n") == ["prose", "blank", "indented-code"]
+
+
 def test_html_block_cannot_interrupt_a_paragraph() -> None:
     """A mid-paragraph autolink line swallowed the rest of the paragraph."""
     assert classes("Some prose continues\n<https://example.com/x>.\nMore prose.\n")[1] == "prose"

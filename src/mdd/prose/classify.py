@@ -262,6 +262,8 @@ class _State:
     #: item's content column, and the first line the renderer would drop.
     list_div: str | None = None
     list_div_column: int = 0
+    #: How many block quotes the previous line left open.
+    open_quotes: int = 0
     #: The colon run and block-quote depth of every open fenced div, outermost first.
     divs: list[tuple[str, int]] = field(default_factory=list)
     dropped: ClassifyError | None = None
@@ -794,6 +796,44 @@ def _track_list_div(line: Line, rest: str, state: _State) -> None:
         state.list_div_column = column
 
 
+def _strip_open_quote(raw: str, quote: str, rest: str, state: _State) -> tuple[str, str]:
+    """Strip the markers of the block quotes the line before left open, at any indent.
+
+    markdown-it continues an open block quote on a ``>`` however far it is
+    indented, while a new one may sit at most three columns in. Read as
+    paragraph text, a tab-indented quote line handed the fence it opened to
+    the fixers.
+    """
+    if _quote_depth(quote) >= state.open_quotes:
+        return quote, rest
+    end = 0
+    for _ in range(state.open_quotes):
+        marker = _ONE_QUOTE.match(raw, end)
+        if marker is None:
+            break
+        end = marker.end()
+    nested = _BQ.match(raw, end)
+    if nested is not None:
+        end = nested.end()
+    return raw[:end], raw[end:]
+
+
+def _open_quotes_after(line: Line, quote: str, rest: str, state: _State) -> int:
+    """Return how many block quotes are open after *line*.
+
+    A line without a ``>`` ends every open quote, unless it continues the
+    paragraph inside one. A blank line never does, and a list item or footnote
+    starts a block of its own.
+    """
+    depth = _quote_depth(quote)
+    if depth:
+        return depth
+    lazy = line.cls is LineClass.PROSE and state.in_paragraph
+    if lazy and not (_LIST.match(rest) or _FOOTNOTE_DEF.match(rest)):
+        return state.open_quotes
+    return 0
+
+
 def _strip_quote_in_item(quote: str, rest: str, state: _State) -> tuple[str, str]:
     """Strip a block quote that opens inside a list item, at the item's indent.
 
@@ -833,7 +873,7 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
             continue
-        quote, rest = _strip_quote(raw)
+        quote, rest = _strip_open_quote(raw, *_strip_quote(raw), state)
         if not _in_literal_block(rest, state):
             quote, rest = _strip_quote_in_item(quote, rest, state)
         # A deeper block quote opens a new container, and no paragraph is open
@@ -858,6 +898,7 @@ def _after_line(line: Line, quote: str, rest: str, state: _State) -> None:
     if blank and state.after_empty_item and state.list_cols:
         _ = state.list_cols.pop()
     state.after_empty_item = line.cls is LineClass.LIST_MARKER
+    state.open_quotes = _open_quotes_after(line, quote, rest, state)
     # An incomplete link definition reads on like a paragraph: indented code
     # cannot interrupt it either.
     state.in_paragraph = state.in_link_def or (

@@ -291,6 +291,11 @@ WRITER_DAMAGE = [
         "-       1. the.\n\t    The the.",
         id="reflow-rewrites-code-after-wide-marker-gap",
     ),
+    pytest.param(
+        "lint",
+        "The\nthe.\n\n- > ```\ndef f(x):  \ndef f(x):  \ndef f(x):  \n> def f(x):  \n\t>  ```",
+        id="lint-rewrites-fence-in-indented-quote-line",
+    ),
 ]
 
 REFLOW_UNSTABLE = [
