@@ -115,11 +115,19 @@ def _space_before_punctuation(line: Line) -> Iterable[Edit]:
         )
 
 
-def _trailing_whitespace(line: Line, config: LintConfig) -> Iterable[Edit]:
+def _trailing_whitespace(line: Line, config: LintConfig, *, breaks: bool) -> Iterable[Edit]:
+    """Flag trailing whitespace; *breaks* says the paragraph continues on the next line.
+
+    Two or more trailing spaces before a continuation line are a hard line
+    break, and deleting them joins the two lines. So a longer run there is
+    trimmed to exactly two spaces, the one hard break the rule allows, and is
+    only deleted outright when hard breaks are not allowed at all.
+    """
     match = _TRAILING.search(line.text)
     if match is None:
         return
     run = match.group(0)
+    keep_break = config.allow_hard_break and breaks and run.endswith(_HARD_BREAK)
     if config.allow_hard_break and run == _HARD_BREAK:
         return
     # Masks are computed over the block's *rstripped* content, so they never
@@ -133,8 +141,9 @@ def _trailing_whitespace(line: Line, config: LintConfig) -> Iterable[Edit]:
         rule="trailing-whitespace",
         start=match.start(),
         end=match.end(),
-        replacement="",
-        message=f"{len(run)} trailing whitespace characters",
+        replacement=_HARD_BREAK if keep_break else "",
+        message=f"{len(run)} trailing whitespace characters"
+        + ("; a hard line break needs exactly two spaces" if keep_break else ""),
     )
 
 
@@ -233,15 +242,15 @@ def _blank_run(lines: Sequence[Line]) -> Iterable[tuple[Line, Edit]]:
             )
 
 
-def _line_edits(line: Line, config: LintConfig) -> list[Edit]:
+def _line_edits(line: Line, config: LintConfig, *, breaks: bool) -> list[Edit]:
     if line.cls is LineClass.BLANK:
-        return list(_trailing_whitespace(line, config))
+        return list(_trailing_whitespace(line, config, breaks=False))
     if line.cls is not LineClass.PROSE:
         return []
     return [
         *_multiple_spaces(line),
         *_space_before_punctuation(line),
-        *_trailing_whitespace(line, config),
+        *_trailing_whitespace(line, config, breaks=breaks),
         *_invisible_space(line),
         *_punctuation_outside_quote(line, config),
     ]
@@ -337,16 +346,30 @@ def _drop_blank_lines(lines: list[Line], drop: set[int]) -> list[Line]:
     return [line for line in lines if line.number not in drop]
 
 
+def _continues(line: Line, following: Line | None) -> bool:
+    """True when *following* carries on the paragraph *line* is in."""
+    return (
+        following is not None
+        and line.cls is LineClass.PROSE
+        and following.cls is LineClass.PROSE
+        and following.block == line.block
+    )
+
+
 def _lint_one_line(
     path: Path,
     line: Line,
     config: ProseConfig,
     suppressed: RuleFilter,
     findings: list[Finding],
+    *,
+    breaks: bool,
 ) -> Line | None:
     """Append *line*'s findings and return its fixed form, or ``None`` if unchanged."""
     edits = [
-        e for e in _line_edits(line, config.lint) if config.severity(e.rule) is not Severity.OFF
+        e
+        for e in _line_edits(line, config.lint, breaks=breaks)
+        if config.severity(e.rule) is not Severity.OFF
     ]
     findings.extend(_finding(path, line, edit, config) for edit in edits)
     fixes = _fixable_edits(edits, config, line.number, suppressed)
@@ -376,7 +399,9 @@ def run(
                 changed = True
 
     for index, line in enumerate(lines):
-        fixed = _lint_one_line(path, line, config, suppressed, findings)
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        breaks = _continues(line, following)
+        fixed = _lint_one_line(path, line, config, suppressed, findings, breaks=breaks)
         if fixed is not None:
             lines[index] = fixed
             changed = True

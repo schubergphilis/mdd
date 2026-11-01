@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
 
 from mdd.commands.prose import _iso_date, _positive_int  # pyright: ignore[reportPrivateUsage]
 from mdd.prose import gate, runner
-from mdd.prose.config import ProseConfig
+from mdd.prose.config import LintConfig, ProseConfig
 from mdd.prose.rules import RULES
 
 if TYPE_CHECKING:
@@ -24,6 +25,11 @@ LONG = (
 
 def config() -> ProseConfig:
     return ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
+
+
+def strict() -> ProseConfig:
+    """Hard breaks not allowed: deleting one is the lint fix the gate must refuse."""
+    return replace(config(), lint=LintConfig(allow_hard_break=False))
 
 
 def options(**kwargs: object) -> runner.RunOptions:
@@ -88,13 +94,13 @@ def test_a_refused_reflow_is_reported_as_unfixable_without_write(
 
 # A three-space hard break: deleting the run, as `trailing-whitespace` does,
 # joins the two lines into one.
-HARD_BREAK = "Intro.\n\nFirst line   \nsecond line.\n"
+HARD_BREAK = "Intro.\n\nFirst line  \nsecond line.\n"
 
 
 def test_lint_write_refuses_a_fix_that_drops_a_hard_break(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     _ = target.write_text(HARD_BREAK, encoding="utf-8")
-    result = runner.run([target], config(), options(checks=("lint",), write=True))
+    result = runner.run([target], strict(), options(checks=("lint",), write=True))
     assert target.read_text(encoding="utf-8") == HARD_BREAK
     assert result.written == 0
     assert [(f.rule, f.line, f.fixable) for f in result.findings] == [
@@ -107,9 +113,18 @@ def test_lint_write_refuses_a_fix_that_drops_a_hard_break(tmp_path: Path) -> Non
 def test_lint_check_and_write_agree_on_a_refusal(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     _ = target.write_text(HARD_BREAK, encoding="utf-8")
-    checked = runner.run([target], config(), options(checks=("lint",))).findings
-    written = runner.run([target], config(), options(checks=("lint",), write=True)).findings
+    checked = runner.run([target], strict(), options(checks=("lint",))).findings
+    written = runner.run([target], strict(), options(checks=("lint",), write=True)).findings
     assert checked == written
+
+
+def test_lint_write_keeps_a_long_hard_break(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text("Intro.\n\nFirst line   \nsecond line.\n", encoding="utf-8")
+    result = runner.run([target], config(), options(checks=("lint",), write=True))
+    assert result.findings == []
+    assert result.written == 1
+    assert target.read_text(encoding="utf-8") == HARD_BREAK
 
 
 def test_lint_write_applies_a_fix_that_passes_the_gate(tmp_path: Path) -> None:

@@ -81,9 +81,17 @@ def _lint_report(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[i
 def test_lint_refuses_a_fix_that_changes_the_text_in_both_modes(
     corpus: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Deleting a three-space hard break changes the document, so the gate refuses it."""
+    """Deleting a hard break changes the document, so the gate refuses it.
+
+    The fixer deletes one only when hard breaks are configured off.
+    """
+    configs = corpus.parent / "configs"
+    configs.mkdir()
+    _ = (configs / "prose.yaml").write_text(
+        "prose:\n  lint:\n    allow-hard-break: false\n", encoding="utf-8"
+    )
     target = corpus / "a.md"
-    source = "First line   \nsecond line.\n"
+    source = "First line  \nsecond line.\n"
     _ = target.write_text(source, encoding="utf-8")
     check_code, check_lines = _lint_report([], capsys)
     write_code, write_lines = _lint_report(["--write"], capsys)

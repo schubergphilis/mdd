@@ -78,6 +78,19 @@ def test_trailing_whitespace_allows_the_two_space_hard_break() -> None:
     assert rules_found("a   \nb\n") == ["trailing-whitespace"]
 
 
+def test_a_long_hard_break_is_trimmed_to_two_spaces() -> None:
+    # Deleting the run would join the lines; two spaces keep the break.
+    assert fixed_text("a   \nb\n") == "a  \nb\n"
+    assert fixed_text("> a \t  \n> b\n") == "> a  \n> b\n"
+
+
+def test_trailing_spaces_ending_a_paragraph_are_deleted() -> None:
+    # The last line of a paragraph has no break to keep.
+    assert fixed_text("a   \n\nb\n") == "a\n\nb\n"
+    assert fixed_text("a   \n# h\n") == "a\n# h\n"
+    assert fixed_text("a   \n") == "a\n"
+
+
 def test_strict_mode_rejects_the_hard_break() -> None:
     config = defaults(lint=LintConfig(allow_hard_break=False))
     assert rules_found("a  \nb\n", config) == ["trailing-whitespace"]

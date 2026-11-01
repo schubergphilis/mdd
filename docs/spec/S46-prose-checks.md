@@ -372,6 +372,12 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   Markdown's hard line break, unless `allow-hard-break: false` is configured.
   Three or more, or a tab, is always a finding. A project that has adopted
   `reflow` will find hard breaks near-useless and may want the strict setting.
+- The `trailing-whitespace` fix keeps a hard break. A run of three or more
+  spaces at the end of a line the paragraph continues after is trimmed to
+  exactly two, not deleted: deleting it would join the two lines. A run at the
+  end of a paragraph's last line is not a break and is deleted. Under
+  `allow-hard-break: false` the fix deletes a hard break too, and the write
+  gate refuses that change, so the finding stays for the author to resolve.
 - `punctuation-outside-quote` is off by default because it encodes a house
   style — the American convention — that not every corpus follows.
   `quote-punctuation: inside | outside | off` selects the convention;
@@ -393,8 +399,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - `mdd prose lint --write` fixes the rules marked fixable above and reports the
   rest. The fixable set is exactly the unambiguous whitespace rules:
   `multiple-spaces`, `blank-run` and `trailing-whitespace`. Each is a deletion
-  of whitespace with one correct outcome that leaves the rendered text alone,
-  and each is reversible by rerunning the check.
+  of whitespace with one correct outcome that leaves the rendered text alone
+  (trimming a hard break to two spaces counts), and each is reversible by
+  rerunning the check.
 - `space-before-punctuation` is **not** fixable: the space is sometimes part of
   the text a reader sees. `OSC 9 ; 4` names an escape sequence and
   `{=confluence} .` closes a raw attribute; deleting the space changes both. The
@@ -409,9 +416,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   the whitespace the rule matched. No other character in the file changes.
 - `lint --write` is a **strictly smaller** writer than `reflow --write`: it
   deletes whitespace within a line and never moves text between lines. That
-  does not make it safe by construction. Deleting a three-space run at a line
-  end removes a hard line break, and deleting the space in `OSC 9 ; 4` changes
-  the rendered text. So it passes the same
+  does not make it safe by construction. Deleting a run of trailing spaces
+  removes a hard line break when the classifier has the paragraph wrong, and
+  deleting the space in `OSC 9 ; 4` would change the rendered text. So it
+  passes the same
   [write gate](#mdd-prose-reflow--semantic-line-breaks) as reflow, in check-only
   mode as well as under `--write`, and it inherits every other `--write` rule in
   [Data protection](#data-protection-and-destructive-behaviour) without
