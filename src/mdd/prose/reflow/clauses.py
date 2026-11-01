@@ -185,6 +185,9 @@ def pack(
     mid-clause: breaking mid-clause to satisfy a column count would reintroduce
     exactly the hard-wrap diff churn this feature exists to remove.
 
+    A break is not taken when it would leave a fragment shorter than
+    *min_line* on either side: the line it ends, or the rest of the sentence.
+
     Every length is measured as though each gap were one space. A gap at a
     break point becomes a single space when the next run joins the lines again,
     so measuring the real gap would let a second run pack differently from the
@@ -199,8 +202,9 @@ def pack(
         unit = units[index]
         indent = first_indent if not lines else cont_indent
         fits = indent + measured + 1 + len(unit.text) <= width
-        keeps_tail = _tail_length(units, index) < min_line
-        if fits or keeps_tail:
+        short_head = measured < min_line
+        short_tail = _tail_length(units, index) < min_line
+        if fits or short_head or short_tail:
             text += unit.gap + unit.text
             measured += 1 + len(unit.text)
         else:

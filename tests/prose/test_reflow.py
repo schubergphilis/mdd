@@ -254,6 +254,25 @@ def test_min_line_keeps_a_short_tail_attached() -> None:
     assert lines == [f"{long}, too."]
 
 
+def test_min_line_keeps_a_short_head_attached() -> None:
+    long = "x" * 99
+    lines = packed(["Yes,", f"{long}."], width=100, min_line=32, first_indent=0, cont_indent=0)
+    assert lines == [f"Yes, {long}."]
+
+
+def test_min_line_protects_both_sides_of_every_break() -> None:
+    head = "a" * 40
+    lines = packed(
+        [f"{head},", "short,", "b" * 70 + ",", "c" * 40],
+        width=45,
+        min_line=10,
+        first_indent=0,
+        cont_indent=0,
+    )
+    assert lines == [f"{head},", "short, " + "b" * 70 + ",", "c" * 40]
+    assert all(len(line) >= 10 for line in lines)
+
+
 def test_packing_keeps_the_gap_between_units_on_one_line() -> None:
     given = [Unit(gap="", text="a,"), Unit(gap="\t ", text="b")]
     lines = pack(given, width=100, min_line=1, first_indent=0, cont_indent=0)

@@ -290,8 +290,10 @@ The load-bearing subcommand.
   reintroduce exactly the hard-wrap diff behaviour this feature exists to
   remove.
 - `--min-line N` (default 32) suppresses a break that would leave a fragment
-  shorter than `N` characters, so a trailing `, too.` does not become its own
-  line.
+  shorter than `N` characters on either side of it: neither the line the
+  break ends nor the rest of the sentence after it may be that short. So a
+  trailing `, too.` does not become its own line, and neither does a leading
+  `Yes,`. Breaks between sentences are not affected.
 
 **Sentence boundaries**
 
