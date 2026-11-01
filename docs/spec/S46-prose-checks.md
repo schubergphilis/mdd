@@ -361,7 +361,7 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 
 | Rule id | Finds | `--write` |
 |---|---|---|
-| `multiple-spaces` | two or more spaces between words on a prose line | fixable |
+| `multiple-spaces` | two or more spaces or tabs between words on a prose line | fixable |
 | `space-before-punctuation` | whitespace before `,` `;` `:` `.` `!` `?` | no |
 | `blank-run` | more than one consecutive blank line | fixable |
 | `trailing-whitespace` | trailing spaces or tabs at end of line | fixable |
@@ -413,6 +413,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   of whitespace with one correct outcome that leaves the rendered text alone
   (trimming a hard break to two spaces counts), and each is reversible by
   rerunning the check.
+- `space-before-punctuation` only counts a mark followed by whitespace, the
+  end of the line, or a closing bracket or quote. So `.md`, `:80`, `./configs`
+  and an ellipsis (`...` or `…`) after a space are not findings: there the mark
+  is part of a token, not punctuation.
 - `space-before-punctuation` is **not** fixable: the space is sometimes part of
   the text a reader sees. `OSC 9 ; 4` names an escape sequence and
   `{=confluence} .` closes a raw attribute; deleting the space changes both. The

@@ -252,3 +252,12 @@ def test_a_leading_byte_order_mark_is_not_an_invisible_space() -> None:
     assert rules_found("\ufeffTitle line.\n") == []
     assert rules_found("\ufeffTitle\ufeffline.\n") == ["invisible-space"]
     assert rules_found("Title.\n\n\ufeffline.\n") == ["invisible-space"]
+
+
+def test_multiple_spaces_message_names_tabs() -> None:
+    def message(text: str) -> str:
+        return run(PATH, ok(text), defaults()).findings[0].message
+
+    assert message("a  b\n") == "2 spaces between words"
+    assert message("a\t\tb\n") == "2 tabs between words"
+    assert message("a \tb\n") == "a run of 2 spaces and tabs between words"

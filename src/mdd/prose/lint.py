@@ -63,6 +63,15 @@ def _unmasked(line: Line) -> list[bool]:
     return [not flag for flag in flags]
 
 
+def _describe_run(run: str) -> str:
+    """Name a run of spaces and tabs the way a reader would count it."""
+    if "\t" not in run:
+        return f"{len(run)} spaces"
+    if " " not in run:
+        return f"{len(run)} tabs"
+    return f"a run of {len(run)} spaces and tabs"
+
+
 def _multiple_spaces(line: Line) -> Iterable[Edit]:
     open_at = len(line.prefix)
     body_end = len(line.text.rstrip())
@@ -77,7 +86,7 @@ def _multiple_spaces(line: Line) -> Iterable[Edit]:
             start=match.start(),
             end=match.end(),
             replacement=" ",
-            message=f"{match.end() - match.start()} spaces between words",
+            message=f"{_describe_run(match.group(0))} between words",
         )
 
 
