@@ -229,7 +229,10 @@ The load-bearing subcommand.
 **Behaviour**
 
 - Default mode is **check-only**: report every prose line that differs from its
-  reflowed form and exit non-zero. `--write` applies the reflow in place. There
+  reflowed form, one finding per line, and exit non-zero. A line differs when
+  it is not the same as the reflowed line in its position in the paragraph,
+  so a paragraph whose second line gains a break reports that line and every
+  one after it. `--write` applies the reflow in place. There
   is deliberately no `--dry-run` flag: check-only *is* the dry run, and offering
   both invites the combination `--write --dry-run`, whose meaning nobody can
   guess.

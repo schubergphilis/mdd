@@ -69,10 +69,27 @@ def reflow_block(lines: Sequence[Line], config: ReflowConfig) -> list[str] | Non
 
 @dataclass(frozen=True)
 class Rewrite:
-    """The reflowed file text, and the first line of every block that changed."""
+    """The reflowed file text, and which of the original lines it changed.
+
+    ``changed`` holds the first line of every block that changed, and
+    ``differing`` every original line that is not the same as the line in its
+    position in the reflowed block.
+    """
 
     text: str
     changed: tuple[int, ...]
+    differing: tuple[int, ...] = ()
+
+
+def _differing_lines(block: Sequence[Line], rewritten: Sequence[str]) -> list[int]:
+    """The original lines of *block* that differ from the reflowed line in their position."""
+    out = [
+        line.number
+        for index, line in enumerate(block)
+        if index >= len(rewritten) or rewritten[index] != line.text
+    ]
+    # A changed block always differs somewhere; the guard keeps it reported.
+    return out or [block[0].number]
 
 
 def _block_span(lines: Sequence[Line], start: int) -> int:
@@ -88,6 +105,7 @@ def reflow_text(classified: Classified, config: ReflowConfig) -> Rewrite:
     lines = classified.lines
     out: list[str] = []
     changed: list[int] = []
+    differing: list[int] = []
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -104,15 +122,16 @@ def reflow_text(classified: Classified, config: ReflowConfig) -> Rewrite:
         else:
             out.extend(rewritten)
             changed.append(block[0].number)
+            differing.extend(_differing_lines(block, rewritten))
         index = end
     text = join_lines(out, classified.newline, final_newline=classified.final_newline)
-    return Rewrite(text=text, changed=tuple(changed))
+    return Rewrite(text=text, changed=tuple(changed), differing=tuple(differing))
 
 
 def findings(
     path: Path, classified: Classified, config: ProseConfig, rewrite: Rewrite
 ) -> list[Finding]:
-    """Report one finding per prose block whose reflowed form differs."""
+    """Report one finding per prose line that differs from its reflowed form."""
     severity = config.severity("reflow")
     by_number = {line.number: line for line in classified.lines}
     return [
@@ -122,10 +141,10 @@ def findings(
             column=0,
             check="reflow",
             rule="reflow",
-            message="prose block is not in semantic-line-break form",
+            message="prose line is not in semantic-line-break form",
             severity=severity,
             excerpt=make_excerpt(by_number[number].text, 0),
             fixable=True,
         )
-        for number in rewrite.changed
+        for number in rewrite.differing
     ]

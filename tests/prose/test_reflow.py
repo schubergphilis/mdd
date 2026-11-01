@@ -337,6 +337,19 @@ def test_findings_name_the_block_start() -> None:
     assert [(f.rule, f.line, f.fixable) for f in found] == [("reflow", 1, True)]
 
 
+def reflow_findings(text: str) -> list[tuple[int, str]]:
+    doc = ok(text)
+    config = ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
+    found = findings(Path("a.md"), doc, config, reflow_text(doc, ReflowConfig()))
+    return [(f.line, f.excerpt) for f in found]
+
+
+def test_findings_name_every_line_that_differs() -> None:
+    assert reflow_findings("First.\nSecond. Third.\n") == [(2, "Second. Third.")]
+    text = "Alpha.\nBeta\ngamma.\n\nFine.\n\nXray. Yankee.\n"
+    assert reflow_findings(text) == [(2, "Beta"), (3, "gamma."), (7, "Xray. Yankee.")]
+
+
 def test_equivalence_holds_for_a_reflow() -> None:
     text = "One thing, with a clause. Two things.\n"
     assert verify(text, reflow(text)).passed
