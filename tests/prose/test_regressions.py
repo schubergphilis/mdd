@@ -277,7 +277,7 @@ def test_whitespace_inside_a_straddling_code_span_survives(tmp_path: Path) -> No
 
 
 def test_whitespace_inside_every_masked_construct_survives_a_write(tmp_path: Path) -> None:
-    """The spec asks for *every* masked construct, not just an inline-code span."""
+    """A write keeps the whitespace inside every masked construct, not just a code span."""
     constructs = [
         "`code  span`",
         "[link  text](a/b.md)",
@@ -394,7 +394,7 @@ def test_a_symlink_is_not_replaced_with_a_regular_file(tmp_path: Path) -> None:
 
 
 def test_reflow_write_refuses_a_mirrored_file(tmp_path: Path) -> None:
-    """The spec requires both writers to be tested against the shared refusals."""
+    """Reflow refuses a mirrored file just as lint does: both writers share the refusals."""
     target = tmp_path / "a.md"
     source = (
         "---\nconfluence:\n  page_id: '1'\n---\n\n"
