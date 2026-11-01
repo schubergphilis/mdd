@@ -284,11 +284,13 @@ The load-bearing subcommand.
 - A terminator inside brackets or a quotation is not a sentence end either:
   `He said "Stop. Now." and left.` stays one line. Sentence and clause
   splitting share one definition of nesting: the bracket pairs, curly double
-  quotes and guillemets nest, a straight double quote toggles, and single
-  quotes are not delimiters, because an apostrophe is the same character.
-  When a paragraph's pairs do not balance, the splitter prefers fewer breaks:
-  an unmatched opener suppresses every break after it, and an unmatched closer
-  or an odd straight quote every break before it.
+  quotes and guillemets nest, and single quotes are not delimiters, because
+  an apostrophe is the same character. A straight double quote opens a pair
+  after whitespace, an opening bracket or the start of the text, and closes
+  one before whitespace, punctuation or the end. Only a matched pair nests:
+  a delimiter without a partner is ignored. In technical prose an unmatched
+  `)` or `"` is usually an enumeration (`a)`) or an inch mark (`5"`), and
+  letting it suppress breaks would put the rest of the paragraph on one line.
 
 **Safety properties** — these are requirements on the implementation, and each
 is a test:

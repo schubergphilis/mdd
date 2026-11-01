@@ -11,12 +11,13 @@ quotes are not delimiters: ``it's`` and ``the tools’ output`` use the same
 characters as a single-quoted phrase, and treating them as quotes would
 suppress every break after the first apostrophe.
 
-The scan runs in both directions and a position is nested when either direction
-says so. For balanced text the two agree. For unbalanced text the union is
-deliberately conservative: an unmatched opener nests everything after it, and
-an unmatched closer, or an odd straight quote, nests everything before it. A
-missed break leaves two sentences on one line; a break in the wrong place splits
-a quotation in half.
+Only a matched pair nests. A delimiter without a partner is ignored, because
+in technical prose it is far more often an enumeration (``a)``), an inch mark
+(``5"``) or a smiley than a quotation that runs past the end of the paragraph,
+and treating it as one would put the rest of the paragraph on a single line.
+A straight double quote opens a pair when it follows whitespace, an opening
+bracket or the start of the text and precedes a non-space, and closes one when
+it follows a non-space and precedes whitespace, punctuation or the end.
 """
 
 from __future__ import annotations
@@ -24,31 +25,59 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Sequence
 
-_OPENERS = "([{“«"
-_CLOSERS = ")]}”»"
+_OPENERS = "([{\u201c\u00ab"
+_CLOSERS = ")]}\u201d\u00bb"
 _STRAIGHT_QUOTE = '"'
+_DELIMITERS = _OPENERS + _CLOSERS + _STRAIGHT_QUOTE
+_CLOSING_PUNCTUATION = ".,;:!?)]}\u201d\u00bb"
 
 
-def _nested_positions(
-    text: str, masked: Sequence[bool], order: Iterable[int], openers: str, closers: str
-) -> Iterator[int]:
-    """Scan *order* once, yielding every position that sits inside a pair."""
-    depth = 0
-    in_quote = False
-    for index in order:
+def _straight_quote_role(text: str, index: int, start: int, end: int) -> str:
+    """Say whether the straight quote at *index* opens, closes, or neither."""
+    before = text[index - 1] if index > start else " "
+    after = text[index + 1] if index + 1 < end else " "
+    opens = (before.isspace() or before in _OPENERS) and not after.isspace()
+    closes = not before.isspace() and (after.isspace() or after in _CLOSING_PUNCTUATION)
+    if opens and not closes:
+        return "open"
+    if closes and not opens:
+        return "close"
+    return ""
+
+
+def _matched_pairs(
+    text: str, masked: Sequence[bool], start: int, end: int
+) -> list[tuple[int, int]]:
+    """Return the (opener, closer) positions of every matched pair in ``text[start:end]``."""
+    pairs: list[tuple[int, int]] = []
+    stack: list[tuple[str, int]] = []
+    for index in range(start, end):
         if masked[index]:
             continue
         char = text[index]
-        if char in openers:
-            depth += 1
-        elif char in closers:
-            depth = max(0, depth - 1)
-        elif char == _STRAIGHT_QUOTE:
-            in_quote = not in_quote
-        elif depth or in_quote:
-            yield index
+        if char == _STRAIGHT_QUOTE:
+            role = _straight_quote_role(text, index, start, end)
+            if role == "open":
+                stack.append((char, index))
+                continue
+            if role == "":
+                continue
+            want = _STRAIGHT_QUOTE
+        elif char in _OPENERS:
+            stack.append((char, index))
+            continue
+        elif char in _CLOSERS:
+            want = _OPENERS[_CLOSERS.index(char)]
+        else:
+            continue
+        for depth in range(len(stack) - 1, -1, -1):
+            if stack[depth][0] == want:
+                pairs.append((stack[depth][1], index))
+                del stack[depth:]
+                break
+    return pairs
 
 
 def nested_flags(text: str, masked: Sequence[bool], start: int, end: int) -> list[bool]:
@@ -58,8 +87,8 @@ def nested_flags(text: str, masked: Sequence[bool], start: int, end: int) -> lis
     caller considers them as a break point.
     """
     nested = [False] * (end - start)
-    forward = _nested_positions(text, masked, range(start, end), _OPENERS, _CLOSERS)
-    backward = _nested_positions(text, masked, range(end - 1, start - 1, -1), _CLOSERS, _OPENERS)
-    for index in (*forward, *backward):
-        nested[index - start] = True
+    for opener, closer in _matched_pairs(text, masked, start, end):
+        for index in range(opener + 1, closer):
+            if not masked[index] and text[index] not in _DELIMITERS:
+                nested[index - start] = True
     return nested

@@ -116,21 +116,38 @@ def test_apostrophes_are_not_quote_delimiters() -> None:
     assert sentences(text) == ["It's done.", "The tools\u2019 output is fine.", "Next."]
 
 
-def test_unclosed_quote_suppresses_breaks_after_it() -> None:
-    assert sentences("One. He said \u201cStop. Now. Go.") == [
-        "One.",
-        "He said \u201cStop. Now. Go.",
+def test_an_unclosed_quote_does_not_suppress_breaks() -> None:
+    assert sentences("One. He said \u201cStop. Now.") == ["One.", "He said \u201cStop.", "Now."]
+
+
+def test_an_unopened_quote_does_not_suppress_breaks() -> None:
+    text = "Stop. Now.\u201d He left. Next."
+    assert sentences(text) == ["Stop.", "Now.\u201d He left.", "Next."]
+
+
+def test_a_stray_straight_quote_does_not_suppress_breaks() -> None:
+    text = 'Start. The screen is 5" wide. He said "Stop. Now." and left. Next.'
+    assert sentences(text) == [
+        "Start.",
+        'The screen is 5" wide.',
+        'He said "Stop. Now." and left.',
+        "Next.",
     ]
 
 
-def test_unopened_quote_suppresses_breaks_before_it() -> None:
-    text = "Stop. Now.\u201d He left. Next."
-    assert sentences(text) == ["Stop. Now.\u201d He left.", "Next."]
+def test_an_unclosed_straight_quote_does_not_suppress_breaks() -> None:
+    text = 'A "b. C" d. E "f. G.'
+    assert sentences(text) == ['A "b. C" d.', 'E "f.', "G."]
 
 
-def test_odd_straight_quotes_suppress_every_break() -> None:
-    text = 'A "b" c. D "e. F.'
-    assert sentences(text) == [text]
+def test_an_enumeration_closer_does_not_suppress_breaks() -> None:
+    text = "Pick a) the first. Or b) the second. Done."
+    assert sentences(text) == ["Pick a) the first.", "Or b) the second.", "Done."]
+
+
+def test_a_closer_of_another_kind_does_not_close_a_pair() -> None:
+    text = "It works (see a] here. It is short) as shown. Next."
+    assert sentences(text) == ["It works (see a] here. It is short) as shown.", "Next."]
 
 
 def test_quote_inside_a_masked_span_does_not_open_a_quotation() -> None:
@@ -200,8 +217,8 @@ def test_units_ignore_commas_inside_curly_quotes() -> None:
     assert units("a \u201cb, c\u201d, d") == ["a \u201cb, c\u201d,", "d"]
 
 
-def test_units_in_an_unbalanced_sentence_prefer_fewer_breaks() -> None:
-    assert units("a, b\u201d c, d") == ["a, b\u201d c,", "d"]
+def test_units_ignore_an_unmatched_quote() -> None:
+    assert units("a, b\u201d c, d") == ["a,", "b\u201d c,", "d"]
 
 
 def test_spaced_dash_is_a_boundary() -> None:
