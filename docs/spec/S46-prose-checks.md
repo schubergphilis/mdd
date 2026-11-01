@@ -391,6 +391,8 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   continues on: a run that contains a tab, which mdd's model keeps at a soft
   break, and a run after a backslash, whose deletion would turn the
   backslash into a hard line break. At the end of a paragraph both are fixed.
+- A U+FEFF that opens the file is a byte order mark, not an
+  `invisible-space` finding. Anywhere else it is a finding.
 - **The literal escape.** Moving a mark inside a quoted literal corrupts the
   literal: `the flag is "--dry-run", not "--check"` must not become
   `"--dry-run,"`. Three layers, applied in order:

@@ -170,11 +170,19 @@ def _trailing_whitespace(
     )
 
 
+_BYTE_ORDER_MARK = "\ufeff"
+
+
+def _is_byte_order_mark(line: Line, index: int) -> bool:
+    """True for a U+FEFF that opens the file, where it is a byte order mark."""
+    return line.number == 1 and index == 0 and line.text.startswith(_BYTE_ORDER_MARK)
+
+
 def _invisible_space(line: Line) -> Iterable[Edit]:
     free = _unmasked(line)
     for index, char in enumerate(line.text):
         name = INVISIBLE_SPACES.get(char)
-        if name is None or not free[index]:
+        if name is None or not free[index] or _is_byte_order_mark(line, index):
             continue
         yield Edit(
             rule="invisible-space",

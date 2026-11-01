@@ -246,3 +246,9 @@ def test_a_trailing_tab_before_a_continuation_line_is_reported_without_a_fix() -
 
 def test_a_trailing_tab_ending_a_paragraph_is_fixed() -> None:
     assert fixed_text("Code span\t\n") == "Code span\n"
+
+
+def test_a_leading_byte_order_mark_is_not_an_invisible_space() -> None:
+    assert rules_found("\ufeffTitle line.\n") == []
+    assert rules_found("\ufeffTitle\ufeffline.\n") == ["invisible-space"]
+    assert rules_found("Title.\n\n\ufeffline.\n") == ["invisible-space"]
