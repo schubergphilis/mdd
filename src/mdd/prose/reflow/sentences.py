@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from mdd.prose.reflow.nesting import nested_flags
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -86,12 +88,17 @@ def _is_boundary(text: str, index: int, end: int, config: ReflowConfig) -> bool:
 
 
 def segment(text: str, masked: Sequence[bool], config: ReflowConfig) -> list[Segment]:
-    """Split *text* into sentence ranges, ignoring terminators inside masked spans."""
+    """Split *text* into sentence ranges.
+
+    A terminator inside a masked span, a bracket pair or a quotation does not
+    end a sentence: breaking there splits the quotation across two lines.
+    """
+    nested = nested_flags(text, masked, 0, len(text))
     out: list[Segment] = []
     start = 0
     index = 0
     while index < len(text):
-        if text[index] not in _TERMINATORS or masked[index]:
+        if text[index] not in _TERMINATORS or masked[index] or nested[index]:
             index += 1
             continue
         end = _run_end(text, index)

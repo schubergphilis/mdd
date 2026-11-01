@@ -84,6 +84,57 @@ def test_empty_text_has_no_sentences() -> None:
     assert sentences("") == []
 
 
+def test_no_sentence_break_inside_straight_quotes() -> None:
+    text = 'He said "Stop. Now." and left. Next.'
+    assert sentences(text) == ['He said "Stop. Now." and left.', "Next."]
+
+
+def test_no_sentence_break_inside_curly_quotes() -> None:
+    text = "He said \u201cStop. Now.\u201d and left. Next."
+    assert sentences(text) == ["He said \u201cStop. Now.\u201d and left.", "Next."]
+
+
+def test_no_sentence_break_inside_guillemets() -> None:
+    text = "Il dit \u00abStop. Maintenant.\u00bb et part. Fin."
+    assert sentences(text) == ["Il dit \u00abStop. Maintenant.\u00bb et part.", "Fin."]
+
+
+def test_no_sentence_break_inside_parentheses() -> None:
+    text = "It works (see the guide. It is short) as shown. Next."
+    assert sentences(text) == ["It works (see the guide. It is short) as shown.", "Next."]
+
+
+def test_apostrophes_are_not_quote_delimiters() -> None:
+    text = "It's done. The tools\u2019 output is fine. Next."
+    assert sentences(text) == ["It's done.", "The tools\u2019 output is fine.", "Next."]
+
+
+def test_unclosed_quote_suppresses_breaks_after_it() -> None:
+    assert sentences("One. He said \u201cStop. Now. Go.") == [
+        "One.",
+        "He said \u201cStop. Now. Go.",
+    ]
+
+
+def test_unopened_quote_suppresses_breaks_before_it() -> None:
+    text = "Stop. Now.\u201d He left. Next."
+    assert sentences(text) == ["Stop. Now.\u201d He left.", "Next."]
+
+
+def test_odd_straight_quotes_suppress_every_break() -> None:
+    text = 'A "b" c. D "e. F.'
+    assert sentences(text) == [text]
+
+
+def test_quote_inside_a_masked_span_does_not_open_a_quotation() -> None:
+    assert sentences('Run `"` now. Done.') == ['Run `"` now.', "Done."]
+
+
+def test_reflow_keeps_a_quoted_passage_on_one_line() -> None:
+    text = 'Intro sentence here. He said "Stop. Now." and left.\n'
+    assert reflow(text) == 'Intro sentence here.\nHe said "Stop. Now." and left.\n'
+
+
 # --- clause units ----------------------------------------------------------
 
 
@@ -101,6 +152,14 @@ def test_units_ignore_commas_inside_quotes() -> None:
 
 def test_units_ignore_commas_inside_masked_spans() -> None:
     assert units("a `b, c` d") == ["a `b, c` d"]
+
+
+def test_units_ignore_commas_inside_curly_quotes() -> None:
+    assert units("a \u201cb, c\u201d, d") == ["a \u201cb, c\u201d,", "d"]
+
+
+def test_units_in_an_unbalanced_sentence_prefer_fewer_breaks() -> None:
+    assert units("a, b\u201d c, d") == ["a, b\u201d c,", "d"]
 
 
 def test_spaced_dash_is_a_boundary() -> None:

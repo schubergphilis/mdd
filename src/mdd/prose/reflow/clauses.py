@@ -12,15 +12,13 @@ import re
 from typing import TYPE_CHECKING
 
 from mdd.prose.classify import MD_SPACE
+from mdd.prose.reflow.nesting import nested_flags
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _BOUNDARY_MARKS = ",;:"
 _DASHES = "—–"
-_OPENERS = "([{"
-_CLOSERS = ")]}"
-_QUOTES = '"“”«»'
 
 
 def _followed_by_space(text: str, index: int, end: int) -> bool:
@@ -46,27 +44,17 @@ def split_units(text: str, masked: Sequence[bool], start: int, end: int) -> list
     quote depth zero and outside every masked span. The punctuation stays with
     the unit that precedes it.
     """
+    nested = nested_flags(text, masked, start, end)
     units: list[str] = []
-    depth = 0
-    in_quote = False
     cursor = start
     index = start
     while index < end:
         char = text[index]
-        if masked[index]:
+        if masked[index] or nested[index - start]:
             index += 1
             continue
-        if char in _OPENERS:
-            depth += 1
-        elif char in _CLOSERS:
-            depth = max(0, depth - 1)
-        elif char in _QUOTES:
-            in_quote = not in_quote
-        elif (
-            depth == 0
-            and not in_quote
-            and (char in _BOUNDARY_MARKS or _spaced_dash(text, index))
-            and _followed_by_space(text, index, end)
+        if (char in _BOUNDARY_MARKS or _spaced_dash(text, index)) and _followed_by_space(
+            text, index, end
         ):
             unit = text[cursor : index + 1].strip(MD_SPACE)
             if unit:

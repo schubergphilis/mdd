@@ -272,6 +272,14 @@ The load-bearing subcommand.
   `v1.2.3`), inside a masked span, or in an ellipsis. A sentence end is
   recognised for `.`, `!`, `?` and their combinations, followed by whitespace
   or end of block, with a following character that is not lowercase.
+- A terminator inside brackets or a quotation is not a sentence end either:
+  `He said "Stop. Now." and left.` stays one line. Sentence and clause
+  splitting share one definition of nesting: the bracket pairs, curly double
+  quotes and guillemets nest, a straight double quote toggles, and single
+  quotes are not delimiters, because an apostrophe is the same character.
+  When a paragraph's pairs do not balance, the splitter prefers fewer breaks:
+  an unmatched opener suppresses every break after it, and an unmatched closer
+  or an odd straight quote every break before it.
 
 **Safety properties** — these are requirements on the implementation, and each
 is a test:
