@@ -252,7 +252,8 @@ cannot promise.
   A link label follows CommonMark: it may hold `^` (other than as its first
   character, which makes a footnote label) and backslash-escaped brackets,
   and may not be blank. The 999-character cap is not applied, as markdown-it
-  does not apply it.
+  does not apply it. A link definition cannot interrupt a paragraph, so a
+  definition-shaped line straight under paragraph text is paragraph text.
 - The classifier imitates markdown-it, which departs from CommonMark in
   places, and GitHub renders with cmark-gfm. Where the two are known to
   disagree, the lines involved are `divergent`, not `prose`: a `>` four or

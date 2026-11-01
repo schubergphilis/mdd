@@ -783,3 +783,17 @@ def test_an_unclosed_raw_html_block_runs_to_the_end_of_the_file() -> None:
 @pytest.mark.parametrize("comment", ["<!-->", "<!--->", "  <!-- x -->"])
 def test_a_one_line_html_comment_is_closed(comment: str) -> None:
     assert classes(f"{comment}\n\nSome  text here.\n") == ["html-comment", "blank", "prose"]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("foo   \n[x]: /u\n", ["prose", "prose"]),
+        ("> foo\n[x]: /u\n", ["prose", "prose"]),
+        ("foo\n\n[x]: /u\n[y]: /v\n", ["prose", "blank", "link-target", "link-target"]),
+        ("[x]:\n/u\n[y]: /v\n", ["link-target"] * 3),
+    ],
+)
+def test_a_link_definition_cannot_interrupt_a_paragraph(source: str, expected: list[str]) -> None:
+    assert classes(source) == expected
+    assert len({line.block for line in ok(source).lines if line.cls.value == "prose"}) <= 1

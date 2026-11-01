@@ -829,6 +829,9 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     # or a rule; calling an indented paragraph line one only splits the
     # paragraph, and the writers leave the line alone.
     single = _single_line_class(rest.lstrip(MD_SPACE))
+    # A link definition cannot interrupt a paragraph: it is one more line of it.
+    if single is LineClass.LINK_DEF and state.in_paragraph:
+        single = None
     if single is not None:
         _close_items(rest, state)
         return Line(number, raw, single, prefix=quote)
