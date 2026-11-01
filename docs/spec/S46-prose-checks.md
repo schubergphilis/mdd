@@ -183,6 +183,12 @@ cannot promise.
   line, bare and file-wide forms alike; the suppression is applied before the
   fix is computed. Reflow rewrites whole paragraphs, so a paragraph is left
   exactly as it is when a `reflow` suppression covers any of its lines.
+- "On its own line" is decided by the [classifier](#the-shared-line-classifier):
+  a directive counts only when it is the whole of a line classified as an HTML
+  comment or a line of an HTML block, after any block-quote markers and
+  surrounding spaces. The same text in a code span, a fence, indented code,
+  front matter or the middle of a sentence is an example of the syntax and
+  suppresses nothing; this spec and the guide quote it that way.
 - HTML comments are used because they are invisible in every Markdown renderer
   and survive round-tripping through the [IR](S30-markdown-ir-conversion.md).
 - A suppression whose rule id does not exist is itself a finding

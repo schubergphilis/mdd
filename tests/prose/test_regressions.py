@@ -447,6 +447,15 @@ def test_lint_write_leaves_a_line_under_a_bare_suppression_alone(tmp_path: Path)
     assert read_file(target) == source
 
 
+
+def test_a_directive_quoted_in_a_code_span_does_not_stop_a_fix(tmp_path: Path) -> None:
+    """Showing the syntax in backticks switched every check off for the whole file."""
+    target = tmp_path / "a.md"
+    write_file(target, "Write `<!-- mdd-prose-ignore-file -->` to opt out.\n\nfoo   \n")
+    assert lint_write(target) == 0
+    assert read_file(target) == "Write `<!-- mdd-prose-ignore-file -->` to opt out.\n\nfoo\n"
+
+
 # --- second review round: block state that outlived its block ------------
 
 

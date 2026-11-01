@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from mdd.prose.classify import Classified, classify
 from mdd.prose.config import ProseConfig
 from mdd.prose.rules import RULES, Severity
@@ -91,3 +93,32 @@ def test_unknown_suppression_off_reports_nothing() -> None:
 def test_bare_form_is_never_an_unknown_rule() -> None:
     doc = ok("<!-- mdd-prose-ignore -->\na  b\n")
     assert audit(PATH, collect(doc.lines), config()) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("Write `<!-- mdd-prose-ignore-file -->` to opt out.\n", id="code-span"),
+        pytest.param("```\n<!-- mdd-prose-ignore-file -->\n```\n", id="fence"),
+        pytest.param("    <!-- mdd-prose-ignore-file -->\n", id="indented-code"),
+        pytest.param('---\ntitle: "<!-- mdd-prose-ignore-file -->"\n---\n', id="front-matter"),
+        pytest.param("Prose <!-- mdd-prose-ignore-file --> inline.\n", id="inline-html"),
+        pytest.param("<!-- mdd-prose-ignore-file --> and more text\n", id="not-alone"),
+    ],
+)
+def test_a_directive_that_is_not_a_comment_on_its_own_line_is_ignored(text: str) -> None:
+    assert collect(ok(text).lines).sites == ()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("<!-- mdd-prose-ignore-file -->\n", id="plain"),
+        pytest.param("  <!-- mdd-prose-ignore-file -->  \n", id="padded"),
+        pytest.param("> <!-- mdd-prose-ignore-file -->\n", id="block-quote"),
+        pytest.param("<div>\n<!-- mdd-prose-ignore-file -->\n</div>\n", id="html-block"),
+        pytest.param("Prose.\n<!-- mdd-prose-ignore-file -->\n", id="after-a-paragraph"),
+    ],
+)
+def test_a_directive_on_its_own_line_is_honoured(text: str) -> None:
+    assert [site.rule for site in collect(ok(text).lines).sites] == ["*"]

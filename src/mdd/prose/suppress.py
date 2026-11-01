@@ -6,6 +6,10 @@ survives round-tripping through the IR::
     <!-- mdd-prose-ignore: punctuation-outside-quote -->
     <!-- mdd-prose-ignore -->
     <!-- mdd-prose-ignore-file: reflow -->
+
+A directive counts only as an HTML comment alone on its own line. The same
+text in a code span, a fence, front matter or a sentence is an example of the
+syntax, not an instruction, so it suppresses nothing.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from mdd.prose.classify import MD_SPACE, LineClass
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING, RULES, Severity
 
@@ -30,6 +35,10 @@ ALL = "*"
 _DIRECTIVE = re.compile(
     r"<!--\s*mdd-prose-ignore(?P<file>-file)?\s*(?::\s*(?P<rules>[^>]*?))?\s*-->"
 )
+
+#: The line classes a directive may sit on: an HTML comment, or a line of an
+#: HTML block. Everything else is literal text or prose.
+_DIRECTIVE_CLASSES = frozenset({LineClass.HTML_COMMENT, LineClass.HTML_BLOCK})
 
 
 @dataclass(frozen=True)
@@ -85,16 +94,26 @@ def _rules_of(raw: str | None) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _directive_of(line: Line) -> re.Match[str] | None:
+    """Return the directive *line* holds, when it holds one and nothing else."""
+    if line.cls not in _DIRECTIVE_CLASSES:
+        return None
+    body = line.text.removeprefix(line.quote)
+    return _DIRECTIVE.fullmatch(body.strip(MD_SPACE))
+
+
 def collect(lines: Sequence[Line]) -> Suppressions:
     """Read every suppression directive out of *lines*."""
     sites: list[Site] = []
     for line in lines:
-        for match in _DIRECTIVE.finditer(line.text):
-            file_wide = match.group("file") is not None
-            sites.extend(
-                Site(line=line.number, rule=rule, file_wide=file_wide)
-                for rule in _rules_of(match.group("rules"))
-            )
+        match = _directive_of(line)
+        if match is None:
+            continue
+        file_wide = match.group("file") is not None
+        sites.extend(
+            Site(line=line.number, rule=rule, file_wide=file_wide)
+            for rule in _rules_of(match.group("rules"))
+        )
     return Suppressions(sites=tuple(sites))
 
 
