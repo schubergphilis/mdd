@@ -670,3 +670,10 @@ def test_writers_leave_divergent_lines_alone(tmp_path: Path, check: str, source:
     write_file(path, source)
     _ = cli_main(["prose", check, "--write", str(path)])
     assert read_file(path) == source
+
+
+def test_a_marker_that_cannot_interrupt_a_paragraph_is_its_text() -> None:
+    lines = ok("Para\n10. more\n5.\n").lines
+    assert [line.cls.value for line in lines] == ["prose"] * 3
+    assert [line.prefix for line in lines] == ["", "", ""]
+    assert {line.block for line in lines} == {1}

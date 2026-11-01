@@ -312,21 +312,22 @@ def _continuation_markers(markers: str, column: int) -> str:
     return out
 
 
-def _prose_line(number: int, raw: str, quote: str, rest: str) -> Line:
+def _prose_line(number: int, raw: str, quote: str, rest: str, *, markers: bool = True) -> Line:
     """Build a PROSE line, deriving the prefix and continuation prefix.
 
     Every container marker that opens the line is prefix, nested ones
-    included: in ``- > - a`` the paragraph starts at ``a``.
+    included: in ``- > - a`` the paragraph starts at ``a``. With *markers*
+    false the line continues a paragraph, and a marker on it is text.
     """
-    split = _split_markers(rest)
+    split = _split_markers(rest) if markers else None
     if split is not None:
-        markers = split[0]
+        found = split[0]
         return Line(
             number=number,
             text=raw,
             cls=LineClass.PROSE,
-            prefix=quote + markers,
-            cont_prefix=quote + _continuation_markers(markers, _columns(quote)),
+            prefix=quote + found,
+            cont_prefix=quote + _continuation_markers(found, _columns(quote)),
             hard_break=_hard_break(raw),
         )
     indent = _indent_bytes(rest)
@@ -806,9 +807,14 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     if single is not None:
         _close_items(rest, state)
         return Line(number, raw, single, prefix=quote)
+    # A marker that cannot interrupt the paragraph above it, such as `5.` or
+    # `10. a`, is paragraph text, and so is the rest of its line.
+    text_marker = state.in_paragraph and _continues_paragraph_text(rest, state)
     _track_list(rest, state)
     if not rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.BLOCK_QUOTE if quote else LineClass.BLANK)
+    if text_marker:
+        return _prose_line(number, raw, quote, rest, markers=False)
     return _marker_line(number, raw, quote, rest, state) or _prose_line(number, raw, quote, rest)
 
 
@@ -1254,8 +1260,12 @@ def _split_quote(line: Line) -> tuple[str, str]:
 
 
 def _line_depth(line: Line) -> int:
-    """Return how many block quotes deep *line* is."""
-    return _quote_depth(line.quote)
+    """Return how many block quotes deep *line* is.
+
+    A quote may open after a list marker, as in ``- > a``, where the scan
+    leaves the ``>`` in the line's prefix rather than in its quote.
+    """
+    return max(_quote_depth(line.quote), _quote_depth(line.prefix))
 
 
 def _continues_paragraph(depth: int, line: Line) -> bool:
@@ -1264,13 +1274,12 @@ def _continues_paragraph(depth: int, line: Line) -> bool:
     Paragraph continuation ignores indentation and tolerates a missing ``>``
     (CommonMark's lazy continuation), so an indented or lazy line belongs to
     the paragraph above it. Only a line that opens a block of its own starts a
-    new one: a list or footnote marker, or a block quote deeper than the
-    paragraph. The paragraph's depth is that of its first line, not of the line
+    new one: a list or footnote marker the scan took as one, or a block quote
+    deeper than the paragraph. The paragraph's depth is that of its first line, not of the line
     before: after a lazy line, a line with its ``>`` back still continues it.
     A bare list marker is never prose at all, so it cannot join one.
     """
-    rest = _split_quote(line)[1]
-    if _LIST.match(rest) or _FOOTNOTE_DEF.match(rest):
+    if _split_markers(line.prefix[len(line.quote) :]) is not None:
         return False
     return _line_depth(line) <= depth
 

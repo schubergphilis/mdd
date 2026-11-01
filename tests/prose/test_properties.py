@@ -210,6 +210,7 @@ CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param(
         "---\n---\n\n- 1. the. The the.\n\t    ---", id="setext-heading-in-nested-list-item"
     ),
+    pytest.param("The\nthe.\n\nThe\nNo.\n5.\n=", id="bare-marker-in-a-setext-heading"),
 ]
 
 
@@ -333,6 +334,10 @@ REFLOW_UNSTABLE = [
         id="reflow-unstable-footnote-with-lazy-quote-lines",
     ),
     pytest.param("> a\nb\n> c\n", id="reflow-unstable-quote-after-lazy-line"),
+    pytest.param(
+        "- >The the the. The\n\t>the the the.\n- - -",
+        id="reflow-unstable-quote-opened-in-a-list-item",
+    ),
     pytest.param(
         ">The the the the\n>1. the\nthe the the the the the the the the the the the the\nthe\n"
         "the\tthe\tthe.\n>The the the the the\tthe\tthe.\n=",
