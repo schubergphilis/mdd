@@ -256,6 +256,13 @@ The load-bearing subcommand.
   run at a chosen break point is replaced. At a joined line break, the
   newline, the next line's indent and any trailing whitespace before
   it that is not a hard break become one space.
+- A paragraph that contains a hard line break (two trailing spaces or a
+  trailing backslash on any of its lines) is left alone as a whole: reflow
+  neither reports nor rewrites any of its lines. Reflowing the parts between
+  the breaks would be possible, but the break is load-bearing, and a whole
+  paragraph untouched is the simpler guarantee. A project that wants such
+  paragraphs reflowed removes the breaks first, for which `lint` with
+  `allow-hard-break: false` reports them.
 - Reflow never starts a line with text that would open a block there. A
   break that would is not taken, and the two lines stay one. That covers a
   block quote `>`, an ATX `#`, a list marker (`-`, `+`, `*`, `1.`, `1)`), a
