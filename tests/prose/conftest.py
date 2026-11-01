@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import os
 
+import pytest
 from hypothesis import HealthCheck, settings
+
+# The oracle's asserts live outside a test module. Rewrite them anyway, so a
+# failing property shows the values that differed.
+pytest.register_assert_rewrite("tests.prose.oracle")
 
 PROFILE_ENV = "MDD_HYPOTHESIS_PROFILE"
 

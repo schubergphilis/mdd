@@ -5,131 +5,30 @@ real code path a user hits: the writers run through :func:`mdd.prose.runner.run`
 with ``write=True`` against a file on disk, so whatever gate the runner applies
 before writing is part of what is under test.
 
-The oracle below is deliberately independent of :mod:`mdd.prose`. It parses
-with markdown-it-py directly, in mdd's own flavour plus the front matter,
-footnote and dollar-math plugins, and never asks the production code what a
-line is. Two implementations that agree are evidence; one implementation
-checked against itself is not.
+The oracle in :mod:`tests.prose.oracle` is deliberately independent of
+:mod:`mdd.prose`. Two implementations that agree are evidence; one
+implementation checked against itself is not.
 """
 
 from __future__ import annotations
 
-import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 from hypothesis import Phase, event, given, settings
-from mdit_py_plugins.dollarmath import dollarmath_plugin
-from mdit_py_plugins.footnote import footnote_plugin
-from mdit_py_plugins.front_matter import front_matter_plugin
 
-from mdd.markdown.ir.flavour import build_md
 from mdd.prose import runner
 from mdd.prose.classify import Classified, LineClass, classify
 from mdd.prose.config import ProseConfig
-from tests.prose.strategies import Document, documents
-
-if TYPE_CHECKING:
-    from markdown_it import MarkdownIt
-    from markdown_it.token import Token
-
-# --- the oracle: markdown-it only, nothing from mdd.prose -------------------
-
-#: Block tokens whose content is literal. A writer must not change one byte.
-VERBATIM_TOKENS = frozenset(
-    {"fence", "code_block", "html_block", "math_block", "math_block_label", "front_matter"}
+from tests.prose.oracle import (
+    PARSER,
+    assert_same_document,
+    paragraph_line_indices,
+    verbatim_line_indices,
 )
-
-#: Markdown's own whitespace. Not `\s`: a no-break space is content.
-_MD_WHITESPACE = re.compile(r"[ \t\r\n]+")
-
-#: Elements whose whitespace is significant in the rendered output.
-_LITERAL_ELEMENT = re.compile(r"(<code[^>]*>.*?</code>|<pre[^>]*>.*?</pre>)", re.DOTALL)
-
-
-def oracle_parser() -> MarkdownIt:
-    """The mdd flavour, plus the syntax extensions a prose file may carry.
-
-    The footnote plugin normally moves definitions to the end of the document
-    and drops the ones nothing references, taking their source map with them.
-    Keeping them where they were written means an edit inside an unreferenced
-    footnote still shows up in the rendered output.
-    """
-    md = build_md().use(front_matter_plugin).use(footnote_plugin).use(dollarmath_plugin)
-    return md.disable("footnote_tail")
-
-
-_PARSER = oracle_parser()
-
-
-def oracle_lines(text: str) -> list[str]:
-    """Split *text* into source lines the way markdown-it numbers them."""
-    return re.split(r"\r\n|\r|\n", text)
-
-
-def rendered(text: str) -> str:
-    """Render *text* to HTML with insignificant whitespace runs collapsed.
-
-    A soft line break and a space render identically, which is what lets a
-    reflow move one. Inside ``<code>`` and ``<pre>`` whitespace is content, so
-    those elements are kept byte for byte.
-    """
-    html = _PARSER.render(text)
-    parts = _LITERAL_ELEMENT.split(html)
-    return "".join(
-        part if index % 2 else _MD_WHITESPACE.sub(" ", part) for index, part in enumerate(parts)
-    ).strip()
-
-
-@dataclass(frozen=True)
-class Verbatim:
-    """One literal block: its token type, markdown-it's content, and its source lines."""
-
-    kind: str
-    content: str
-    source: tuple[str, ...]
-
-
-def verbatim_blocks(text: str) -> list[Verbatim]:
-    """Every literal block in *text*, in document order."""
-    lines = oracle_lines(text)
-    out: list[Verbatim] = []
-    for token in _PARSER.parse(text):
-        if token.type not in VERBATIM_TOKENS or token.map is None:
-            continue
-        start, end = token.map
-        out.append(Verbatim(token.type, token.content, tuple(lines[start:end])))
-    return out
-
-
-def verbatim_line_indices(tokens: list[Token]) -> set[int]:
-    """Zero-based source lines that markdown-it puts inside a literal block."""
-    out: set[int] = set()
-    for token in tokens:
-        if token.type in VERBATIM_TOKENS and token.map is not None:
-            out.update(range(*token.map))
-    return out
-
-
-def paragraph_line_indices(tokens: list[Token]) -> set[int]:
-    """Zero-based source lines that markdown-it puts inside a paragraph."""
-    out: set[int] = set()
-    for token in tokens:
-        if token.type == "paragraph_open" and token.map is not None:
-            out.update(range(*token.map))
-    return out
-
-
-def assert_same_document(before: str, after: str) -> None:
-    """Fail unless *after* means exactly what *before* meant."""
-    if before == after:
-        return
-    assert verbatim_blocks(after) == verbatim_blocks(before), "a literal block changed"
-    assert rendered(after) == rendered(before), "the rendered document changed"
-
+from tests.prose.strategies import Document, documents
 
 # --- driving the writers ----------------------------------------------------
 
@@ -167,7 +66,7 @@ def misplaced_prose(text: str) -> list[str]:
     classified = classify(text)
     if not isinstance(classified, Classified):
         return []
-    tokens = _PARSER.parse(text)
+    tokens = PARSER.parse(text)
     literal = verbatim_line_indices(tokens)
     paragraph = paragraph_line_indices(tokens)
     out: list[str] = []
