@@ -24,6 +24,17 @@ def _is_markdown(path: Path) -> bool:
     return path.suffix.lower() in MARKDOWN_SUFFIXES
 
 
+def _wanted(candidate: Path, root: Path, ignore: MddIgnore) -> bool:
+    """Return whether the walk should yield *candidate*.
+
+    A named pipe or a device called ``*.md`` is not wanted: reading it blocks,
+    or never ends.
+    """
+    if not _is_markdown(candidate) or not candidate.is_file():
+        return False
+    return not ignore.is_ignored(candidate.relative_to(root), is_dir=False)
+
+
 def _walk_directory(root: Path, ignore: MddIgnore) -> Iterable[Path]:
     for current_dir, subdirs, files in os.walk(root, followlinks=False):
         current = Path(current_dir)
@@ -34,14 +45,8 @@ def _walk_directory(root: Path, ignore: MddIgnore) -> Iterable[Path]:
         )
         for name in sorted(files):
             candidate = current / name
-            if not _is_markdown(candidate):
-                continue
-            # A named pipe or device called *.md would block, or never end, on read.
-            if not candidate.is_file():
-                continue
-            if ignore.is_ignored(candidate.relative_to(root), is_dir=False):
-                continue
-            yield candidate
+            if _wanted(candidate, root, ignore):
+                yield candidate
 
 
 def discover(
