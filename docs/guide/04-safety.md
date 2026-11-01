@@ -22,11 +22,13 @@ back.
 | `mdd skills install`, `mdd skills uninstall` | your skills directory |
 | `mdd ai rewrite`, `mdd ai index` | local files, and only with `--apply` |
 | `mdd ai review` | a local report file |
+| `mdd prose check`, `mdd prose anchors`, `mdd prose freshness` | nothing |
+| `mdd prose reflow`, `mdd prose lint` | the local files you name, and only with `--write` |
 | `mdd confluence create-page`, `update-page`, `rename-page`, `move-page`, `archive-page`, `unarchive-page` | Confluence |
 | `mdd confluence sync-space` | local files, Confluence, git |
 | `mdd sharepoint sync-site`, `mdd sharepoint sync-folder` | local files, your OneDrive folder, git |
 
-Two entries deserve a second look.
+Three entries deserve a second look.
 
 `mdd sharepoint` writes into the locally OneDrive-synced folder, not to a
 SharePoint API. That is not a smaller blast radius. OneDrive uploads what
@@ -36,6 +38,14 @@ version in SharePoint moments later, for everyone.
 The `mdd ai` commands send file content to whichever AI gateway you
 configured. That is a third party receiving your documents. Whether that is
 acceptable is a decision about your data, not about `mdd`.
+
+`mdd prose reflow --write` and `mdd prose lint --write` rewrite Markdown
+files in place, the ones you name and those found in the directories you name.
+They refuse a file whose front matter marks it as a Confluence or SharePoint
+mirror, unless you pass `--allow-mirror`: rewriting a mirror breaks the sync's
+change detection. Every write is gated. The new text is parsed and compared
+with the old, and a file that would render differently is not written; you get
+a `not-equivalent` finding instead.
 
 ## What a Confluence push does
 
