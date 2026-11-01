@@ -94,7 +94,9 @@ has enabled in one pass over each file, prints one finding per line as
 above `--min-severity` (default `error`) turned up. `--json` switches to
 line-delimited JSON for a script or an agent.
 
-There are four checks behind it.
+There are four checks behind it. Enabling and disabling a check in
+`prose.yaml` decides what `mdd prose check` runs; naming a check's own
+subcommand runs it regardless, with the defaults if you have not configured it.
 
 `mdd prose lint` finds mechanical slips a spell checker cannot see: runs of two
 or more spaces, a space before terminal punctuation, more than one consecutive

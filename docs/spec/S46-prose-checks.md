@@ -108,6 +108,11 @@ cannot promise.
   each file, and is the intended CI entry point. Enablement is per project (see
   [Configuration](#configuration)); an unconfigured project gets the
   conservative default set, and `reflow` is **not** in it.
+- A named subcommand (`mdd prose lint`, `reflow`, `anchors`, `freshness`) is
+  an explicit request, and runs its check whatever `checks.<name>` says. Its
+  rules still take their configured severities, so a rule set to `off` stays
+  silent. `mdd prose reflow` in a project that has not configured reflow runs
+  with the defaults. Enablement shapes only what `mdd prose check` runs.
 - Every subcommand accepts zero or more `PATH` positionals — files or
   directories, default `.` — walks directories for `*.md` and `*.qmd`, and
   honours [`.mddignore`](S39-mddignore.md) rooted at the walk root, including
@@ -585,10 +590,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - **Severity precedence, because two keys can set it.** `checks: {lint: …}`
   sets a whole check's severity; `lint: {rules: {invisible-space: …}}` sets one
   rule's. The resolution order is:
-  1. `checks.<name>: off` means the check **does not run at all**. Nothing under
-     `<name>.rules` can re-enable it. `off` is a hard stop, so that disabling a
-     check is one edit a reviewer can see rather than one edit plus a search for
-     contradicting overrides.
+  1. `checks.<name>: off` means the check **does not run at all** under
+     `mdd prose check`. Nothing under `<name>.rules` can re-enable it. `off` is
+     a hard stop, so that disabling a check is one edit a reviewer can see
+     rather than one edit plus a search for contradicting overrides.
   2. Otherwise `checks.<name>` sets the default severity for every rule in that
      check, replacing the built-in default. A rule that is `off` by default,
      such as `punctuation-outside-quote` or `missing-review-date`, stays off:

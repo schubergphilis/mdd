@@ -274,6 +274,30 @@ def test_check_with_every_check_off_exits_zero(
     assert "no enabled checks" in capsys.readouterr().err
 
 
+
+def test_a_named_subcommand_runs_its_check_even_when_the_config_turns_it_off(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Naming the subcommand is the request; `checks.<name>: off` only shapes `check`."""
+    config = corpus.parent / "prose.yaml"
+    _ = config.write_text("prose:\n  checks:\n    lint: off\n", encoding="utf-8")
+    _ = (corpus / "a.md").write_text(MESSY, encoding="utf-8")
+    assert prose(["check", "--config", str(config), "docs"]) == 0
+    assert "multiple-spaces" not in capsys.readouterr().out
+    assert prose(["lint", "--config", str(config), "docs"]) == 1
+    assert "multiple-spaces" in capsys.readouterr().out
+
+
+def test_reflow_runs_with_its_defaults_when_it_is_not_configured(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _ = (corpus / "a.md").write_text(LONG, encoding="utf-8")
+    assert prose(["check", "docs"]) == 0
+    assert "reflow" not in capsys.readouterr().out
+    assert prose(["reflow", "docs"]) == 1
+    assert "reflow" in capsys.readouterr().out
+
+
 def test_missing_config_is_an_operational_failure(corpus: Path) -> None:
     assert prose(["lint", "--config", "absent.yaml", "docs"]) == 1
 
