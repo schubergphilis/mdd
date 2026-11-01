@@ -585,6 +585,7 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
      list. Deliberately conservative — a false skip loses a finding, a false
      flag corrupts text.
   3. The per-line suppression comment, for whatever the first two miss.
+
 **`--write` — the whitespace autofixes**
 
 - `mdd prose lint --write` fixes the rules marked fixable above and reports the
@@ -984,9 +985,15 @@ targets:
 src/mdd/commands/prose.py     # register(), typed Namespace subclasses, handlers
 src/mdd/prose/
     config.py                 # prose.yaml discovery + resolved frozen config
+    rules.py                  # the rule registry: ids, owning check, defaults
+    walk.py                   # path-based file discovery, .mddignore
+    runner.py                 # read, classify once, run the checks, write
     classify.py               # the shared line/span classifier
-    report.py                 # Finding, severity resolution, human + JSON emit
+    inline.py                 # inline span masking within a prose block
+    suppress.py               # suppression directives and their audit
+    report.py                 # Finding, human + JSON emit, run summary
     reflow/
+        nesting.py            # bracket and quotation nesting both splitters share
         sentences.py          # sentence segmentation, abbreviations, initials
         clauses.py            # clause-boundary detection, greedy packing
         apply.py              # per-block rewriting and the reflow findings
