@@ -246,6 +246,27 @@ class _InlineFlattener:
         return [item for item in items if item.type != "text" or item.literal]
 
 
+class _TooDeep(Exception):
+    """The parser reached its nesting limit, past which it drops content unseen."""
+
+    def __init__(self, line: int) -> None:
+        super().__init__(line)
+        self.line = line
+
+
+def _check_nesting(token: Token, line: int) -> None:
+    """Raise :class:`_TooDeep` when *token* sits where the parser stops looking.
+
+    markdown-it stops tokenizing blocks once its nesting level reaches
+    ``maxNesting`` and silently drops everything below that point, so two
+    documents that differ only down there compare equal. It does not report
+    that it gave up; a block that opens one level short of the limit is the
+    sign, since its content is parsed at the limit.
+    """
+    if token.nesting == 1 and token.level >= _parser().options["maxNesting"] - 1:
+        raise _TooDeep(line)
+
+
 def _items(text: str) -> list[_Item]:
     """Flatten *text*'s token stream into comparable items."""
     items: list[_Item] = []
@@ -254,6 +275,7 @@ def _items(text: str) -> list[_Item]:
     for token in _parser().parse(text):
         if token.map is not None:
             line = token.map[0] + 1
+        _check_nesting(token, line)
         if token.type == "inline":
             flattener = _InlineFlattener(line, literal_depth)
             flattener.feed(token.children or [])
@@ -347,6 +369,10 @@ def compare(before: str, after: str) -> Verdict:
     try:
         left = _items(before)
         right = _items(after)
+    except _TooDeep as deep:
+        return Verdict(
+            passed=False, line=deep.line, reason="the document nests too deeply to compare"
+        )
     except Exception:  # any parse failure means "cannot prove equivalence"
         log.debug("write gate: markdown did not parse", exc_info=True)
         return Verdict(passed=False, reason="the document could not be parsed")

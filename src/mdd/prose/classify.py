@@ -71,6 +71,12 @@ _INDENT = re.compile(r"^[ \t]*")
 
 _INDENTED_CODE_COLUMN = 4
 
+#: How deep a line's containers may nest, counting a block quote as one level
+#: and a list item as two, as markdown-it does. markdown-it stops parsing at
+#: twenty and drops what lies below unseen, so neither it nor the write gate
+#: can vouch for an edit there. Two short of that, as the list model guesses.
+_MAX_NESTING = 18
+
 
 class LineClass(StrEnum):
     """What one source line is."""
@@ -887,10 +893,18 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
         )
         line = _link_definition(line, rest, state)
         _track_list_div(line, rest, state)
+        _track_nesting(number, quote, state)
         line = replace(line, quote=quote)
         _after_line(line, quote, rest, state)
         out.append(line)
     return out, _unclosed(state)
+
+
+def _track_nesting(number: int, quote: str, state: _State) -> None:
+    """Fail closed on a line nested deeper than markdown-it parses."""
+    depth = _quote_depth(quote) + 2 * len(state.list_cols)
+    if depth >= _MAX_NESTING and state.dropped is None:
+        state.dropped = ClassifyError(number, "the document nests too deeply to check")
 
 
 def _after_line(line: Line, quote: str, rest: str, state: _State) -> None:

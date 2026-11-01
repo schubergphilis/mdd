@@ -393,3 +393,28 @@ def test_canonical_returns_none_when_the_model_raises(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(gate, "parse_markdown", explode)
     assert gate.canonical("ok\n") is None
+
+
+# --- nesting limit ---------------------------------------------------------
+
+#: Ten nested list items: markdown-it stops parsing the content of the tenth.
+TEN_DEEP = "".join(f"{'  ' * depth}- level {depth}\n" for depth in range(10))
+
+
+def test_a_change_past_the_parser_nesting_limit_is_refused() -> None:
+    inner = " " * 20
+    before = f"{TEN_DEEP}{inner}foo   \n{inner}[x]: /u\n"
+    after = f"{TEN_DEEP}{inner}foo\n{inner}[x]: /u\n"
+    verdict = refused(before, after)
+    assert verdict.reason == "the document nests too deeply to compare"
+    assert verdict.line == 10
+
+
+def test_a_lost_hard_break_in_a_quote_past_the_nesting_limit_is_refused() -> None:
+    deep = "> " * 20
+    refused(f"{deep}a   \n{deep}b\n", f"{deep}a\n{deep}b\n")
+
+
+def test_a_deep_but_comparable_document_passes() -> None:
+    before = "> " * 15 + "a\n" + "> " * 15 + "b\n"
+    assert verify(before, "> " * 15 + "a b\n") == PASSED

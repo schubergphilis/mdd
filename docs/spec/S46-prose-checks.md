@@ -239,7 +239,9 @@ cannot promise.
   comment, or frontmatter that does not close is a `parse-error` finding and
   the file is skipped by every check — and, critically, never written to. A
   file that is not valid UTF-8 is the same `parse-error`, at the line of the
-  first bad byte, rather than an unnamed operational failure.
+  first bad byte, rather than an unnamed operational failure. So is a line
+  nested eighteen levels deep (a block quote counting one, a list item two),
+  close to the depth where markdown-it stops parsing.
 - It also fails closed line by line. Where placing a construct exactly would
   need substantial parsing, such as a link definition whose title runs over
   several lines, a doubtful line is called something other than `prose` and
@@ -399,7 +401,10 @@ is a test:
      counts for nothing. `code`, `kbd` and `samp` collapse whitespace in a
      browser, and are counted anyway as the conservative choice. Footnote
      definitions are compared where they are written, including those
-     nothing references.
+     nothing references. markdown-it stops parsing blocks at its nesting
+     limit of twenty levels and drops what lies below without saying so, so
+     a document in which a container opens one level short of that limit is
+     refused rather than compared.
    - **Model comparison.** Parse both with
      [`parse_markdown`](S30-markdown-ir-conversion.md), run the
      [normalising pipeline](S31-ir-normalization-and-whitespace.md), and

@@ -313,3 +313,18 @@ def test_five_spaces_after_a_marker_put_the_content_one_column_in() -> None:
 def test_a_tab_run_after_the_marker_wider_than_four_columns() -> None:
     text = "-\t\tx\n\n      code  here\n"
     assert classes(text)[2] is LineClass.INDENTED_CODE
+
+
+def test_a_document_nested_too_deeply_to_check_fails_closed() -> None:
+    deep = "".join(f"{'  ' * depth}- level {depth}\n" for depth in range(10))
+    result = classify(deep + " " * 20 + "foo   \n")
+    assert result == ClassifyError(9, "the document nests too deeply to check")
+
+
+def test_a_deep_quote_fails_closed() -> None:
+    result = classify("> " * 20 + "a  \n")
+    assert isinstance(result, ClassifyError)
+
+
+def test_a_moderately_nested_document_is_classified() -> None:
+    assert classes("> " * 8 + "- a\n") == [LineClass.PROSE]
