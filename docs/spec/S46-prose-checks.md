@@ -498,7 +498,8 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   A rule is accepted only under the check that owns it; naming it under
   another check's `rules` is a config error that says where it belongs. The
   cross-cutting rules (`parse-error`, `unknown-suppression`,
-  `unused-suppression`, `mirrored-file`, `write-failed`) belong to no check and
+  `unused-suppression`, `mirrored-file`, `not-equivalent`, `write-failed`)
+  belong to no check and
   always run, so they have no `checks:` entry and are configured in a top-level
   `prose.rules` section. The set of cross-cutting rules is whatever the rule
   registry says it is, not a list in the config loader.

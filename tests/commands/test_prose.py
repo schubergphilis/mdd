@@ -81,18 +81,19 @@ def _lint_report(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[i
 def test_lint_refuses_a_fix_that_changes_the_text_in_both_modes(
     corpus: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Deleting the space in `comma ,` changes the rendered text, so the gate refuses it."""
+    """Deleting a three-space hard break changes the document, so the gate refuses it."""
     target = corpus / "a.md"
-    _ = target.write_text(MESSY, encoding="utf-8")
+    source = "First line   \nsecond line.\n"
+    _ = target.write_text(source, encoding="utf-8")
     check_code, check_lines = _lint_report([], capsys)
     write_code, write_lines = _lint_report(["--write"], capsys)
-    assert target.read_text(encoding="utf-8") == MESSY
+    assert target.read_text(encoding="utf-8") == source
     assert check_code == write_code == 1
     assert check_lines == write_lines
     refusal = [line for line in check_lines if "not-equivalent" in line]
     assert len(refusal) == 1
     assert "lint fix would change the document" in refusal[0]
-    assert "the text changed by more than whitespace" in refusal[0]
+    assert "a hard line break was lost" in refusal[0]
 
 
 def test_lint_write_refuses_a_mirrored_file(

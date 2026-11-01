@@ -9,18 +9,19 @@ against that are worth reading together.
 from __future__ import annotations
 
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from mdd.cli import main as cli_main
-from mdd.prose import lint
-from mdd.prose.classify import Classified, ClassifyError, LineClass, classify, join_lines
-from mdd.prose.config import ProseConfig, ReflowConfig
+from mdd.prose.classify import Classified, ClassifyError, LineClass, classify
+from mdd.prose.config import ReflowConfig
 from mdd.prose.gate import verify
 from mdd.prose.inline import scan
 from mdd.prose.reflow.apply import reflow_text
-from mdd.prose.rules import RULES
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 NBSP = "\xa0"
 
@@ -51,16 +52,6 @@ def read_file(path: Path) -> str:
 
 def lint_write(path: Path) -> int:
     return cli_main(["prose", "lint", "--write", str(path)])
-
-
-def lint_fix(text: str) -> str | None:
-    """The text the lint fixer proposes, before the write gate has a say."""
-    config = ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
-    fixed = lint.run(Path("a.md"), ok(text), config).fixed
-    if fixed is None:
-        return None
-    lines = [line.text for line in fixed.lines]
-    return join_lines(lines, fixed.newline, final_newline=fixed.final_newline)
 
 
 # --- byte fidelity -------------------------------------------------------

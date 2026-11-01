@@ -163,9 +163,9 @@ a rule named under `<name>.rules` overrides that. Specific beats general.
 
 A rule goes under the check that owns it; `mdd` rejects one filed under another
 check and tells you where it belongs. The rules that belong to no check
-(`parse-error`, `unknown-suppression`, `unused-suppression`, `mirrored-file`
-and `write-failed`) always run, and their severities go under the top-level
-`rules:` key.
+(`parse-error`, `unknown-suppression`, `unused-suppression`, `mirrored-file`,
+`not-equivalent` and `write-failed`) always run, and their severities go under
+the top-level `rules:` key.
 
 Severity and gating are separate decisions: everything at `warning` or above is
 always printed, and `--min-severity` (default `error`) decides what makes the
