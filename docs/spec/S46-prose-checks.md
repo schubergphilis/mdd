@@ -420,8 +420,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   spaces at the end of a line the paragraph continues after is trimmed to
   exactly two, not deleted: deleting it would join the two lines. A run at the
   end of a paragraph's last line is not a break and is deleted. Under
-  `allow-hard-break: false` the fix deletes a hard break too, and the write
-  gate refuses that change, so the finding stays for the author to resolve.
+  `allow-hard-break: false` a hard break is reported, with `fixable: false`,
+  and the fix leaves it alone: removing it joins two lines, which changes the
+  document, so it is the author's call. Lint's other fixes in the same file
+  still apply.
 - `punctuation-outside-quote` is off by default because it encodes a house
   style — the American convention — that not every corpus follows.
   `quote-punctuation: inside | outside | off` selects the convention;

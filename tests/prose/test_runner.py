@@ -10,11 +10,14 @@ from typing import TYPE_CHECKING
 import pytest
 
 from mdd.commands.prose import _iso_date, _positive_int  # pyright: ignore[reportPrivateUsage]
-from mdd.prose import gate, runner
+from mdd.prose import gate, lint, runner
+from mdd.prose.classify import Line
 from mdd.prose.config import LintConfig, ProseConfig
+from mdd.prose.lint import Edit
 from mdd.prose.rules import RULES
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 LONG = (
@@ -28,8 +31,21 @@ def config() -> ProseConfig:
 
 
 def strict() -> ProseConfig:
-    """Hard breaks not allowed: deleting one is the lint fix the gate must refuse."""
+    """Hard breaks not allowed: they are reported, and the fix leaves them alone."""
     return replace(config(), lint=LintConfig(allow_hard_break=False))
+
+
+def damaging_fixer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the lint fix delete the trailing run, hard break and all, so the gate refuses."""
+
+    def delete_every_run(
+        line: Line, _config: LintConfig, *, breaks: bool, continued_construct: bool
+    ) -> Iterable[Edit]:
+        stripped = line.text.rstrip(" ")
+        if stripped != line.text:
+            yield Edit("trailing-whitespace", len(stripped), len(line.text), "", "damaged")
+
+    monkeypatch.setattr(lint, "_trailing_whitespace", delete_every_run)
 
 
 def options(**kwargs: object) -> runner.RunOptions:
@@ -97,10 +113,13 @@ def test_a_refused_reflow_is_reported_as_unfixable_without_write(
 HARD_BREAK = "Intro.\n\nFirst line  \nsecond line.\n"
 
 
-def test_lint_write_refuses_a_fix_that_drops_a_hard_break(tmp_path: Path) -> None:
+def test_lint_write_refuses_a_fix_that_drops_a_hard_break(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    damaging_fixer(monkeypatch)
     target = tmp_path / "a.md"
     _ = target.write_text(HARD_BREAK, encoding="utf-8")
-    result = runner.run([target], strict(), options(checks=("lint",), write=True))
+    result = runner.run([target], config(), options(checks=("lint",), write=True))
     assert target.read_text(encoding="utf-8") == HARD_BREAK
     assert result.written == 0
     assert [(f.rule, f.line, f.fixable) for f in result.findings] == [
@@ -110,12 +129,26 @@ def test_lint_write_refuses_a_fix_that_drops_a_hard_break(tmp_path: Path) -> Non
     assert "a hard line break was lost" in result.findings[1].message
 
 
-def test_lint_check_and_write_agree_on_a_refusal(tmp_path: Path) -> None:
+def test_lint_check_and_write_agree_on_a_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    damaging_fixer(monkeypatch)
     target = tmp_path / "a.md"
     _ = target.write_text(HARD_BREAK, encoding="utf-8")
-    checked = runner.run([target], strict(), options(checks=("lint",))).findings
-    written = runner.run([target], strict(), options(checks=("lint",), write=True)).findings
+    checked = runner.run([target], config(), options(checks=("lint",))).findings
+    written = runner.run([target], config(), options(checks=("lint",), write=True)).findings
     assert checked == written
+
+
+def test_strict_lint_write_keeps_a_hard_break_and_fixes_the_rest(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text("Intro.\n\nTwo  spaces  \nsecond line.\n", encoding="utf-8")
+    result = runner.run([target], strict(), options(checks=("lint",), write=True))
+    assert result.written == 1
+    assert target.read_text(encoding="utf-8") == "Intro.\n\nTwo spaces  \nsecond line.\n"
+    assert [(f.rule, f.line, f.fixable) for f in result.findings] == [
+        ("trailing-whitespace", 3, False)
+    ]
 
 
 def test_lint_write_keeps_a_long_hard_break(tmp_path: Path) -> None:

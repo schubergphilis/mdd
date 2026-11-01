@@ -149,14 +149,15 @@ def _trailing_whitespace(
 
     Two or more trailing spaces before a continuation line are a hard line
     break, and deleting them joins the two lines. So a longer run there is
-    trimmed to exactly two spaces, the one hard break the rule allows, and is
-    only deleted outright when hard breaks are not allowed at all.
+    trimmed to exactly two spaces, the one hard break the rule allows. When
+    hard breaks are not allowed at all the break is reported but not fixed:
+    removing it changes the document, which is the author's call.
     """
     match = _TRAILING.search(line.text)
     if match is None:
         return
     run = match.group(0)
-    keep_break = config.allow_hard_break and breaks and run.endswith(_HARD_BREAK)
+    hard_break = breaks and run.endswith(_HARD_BREAK)
     if config.allow_hard_break and run == _HARD_BREAK:
         return
     # Masks are computed over the block's *rstripped* content, so a span that
@@ -166,14 +167,24 @@ def _trailing_whitespace(
     # the acceptable direction; rewriting a code span is not.
     if continued_construct and any(span.end >= match.start() for span in line.masks):
         return
-    reason = _unfixable_reason(line, match.start(), run, breaks=breaks, keep_break=keep_break)
+    if hard_break and not config.allow_hard_break:
+        yield Edit(
+            rule="trailing-whitespace",
+            start=match.start(),
+            end=match.end(),
+            replacement=run,
+            message=f"{len(run)} trailing spaces make a hard line break, and hard breaks are off",
+            fixable=False,
+        )
+        return
+    reason = _unfixable_reason(line, match.start(), run, breaks=breaks, keep_break=hard_break)
     yield Edit(
         rule="trailing-whitespace",
         start=match.start(),
         end=match.end(),
-        replacement=_HARD_BREAK if keep_break else "",
+        replacement=_HARD_BREAK if hard_break else "",
         message=f"{len(run)} trailing whitespace characters"
-        + ("; a hard line break needs exactly two spaces" if keep_break else "")
+        + ("; a hard line break needs exactly two spaces" if hard_break else "")
         + reason,
         fixable=not reason,
     )

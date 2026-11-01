@@ -378,7 +378,6 @@ def test_reflow_does_not_write_an_ignored_file(tmp_path: Path) -> None:
     assert read_file(target) == source
 
 
-
 # --- third review round: the write guards ---------------------------------
 
 MIRROR_SOURCE = "---\nconfluence:\n  page_id: 123\n---\n\nfoo   \n"
@@ -402,7 +401,6 @@ def test_lint_write_refuses_a_mirror_whatever_its_line_endings(
     assert lint_write(target) == 1
     assert read_file(target) == source
     assert "mirrored-file" in capsys.readouterr().out
-
 
 
 LONG_PARAGRAPH = (
@@ -445,7 +443,6 @@ def test_lint_write_leaves_a_line_under_a_bare_suppression_alone(tmp_path: Path)
     write_file(target, source)
     assert lint_write(target) == 0
     assert read_file(target) == source
-
 
 
 def test_a_directive_quoted_in_a_code_span_does_not_stop_a_fix(tmp_path: Path) -> None:

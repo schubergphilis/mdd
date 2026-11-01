@@ -91,10 +91,30 @@ def test_trailing_spaces_ending_a_paragraph_are_deleted() -> None:
     assert fixed_text("a   \n") == "a\n"
 
 
-def test_strict_mode_rejects_the_hard_break() -> None:
+def test_strict_mode_reports_the_hard_break_without_fixing_it() -> None:
     config = defaults(lint=LintConfig(allow_hard_break=False))
-    assert rules_found("a  \nb\n", config) == ["trailing-whitespace"]
-    assert fixed_text("a  \nb\n", config) == "a\nb\n"
+    for source in ("a  \nb\n", "a    \nb\n"):
+        outcome = run(PATH, ok(source), config)
+        assert [(f.rule, f.fixable) for f in outcome.findings] == [("trailing-whitespace", False)]
+        assert "hard line break" in outcome.findings[0].message
+        assert outcome.fixed is None
+
+
+def test_strict_mode_still_applies_the_other_fixes() -> None:
+    config = defaults(lint=LintConfig(allow_hard_break=False))
+    source = "Two  spaces and a break  \nnext line.   \n"
+    outcome = run(PATH, ok(source), config)
+    assert [(f.rule, f.fixable) for f in outcome.findings] == [
+        ("multiple-spaces", True),
+        ("trailing-whitespace", False),
+        ("trailing-whitespace", True),
+    ]
+    assert fixed_text(source, config) == "Two spaces and a break  \nnext line.\n"
+
+
+def test_strict_mode_deletes_trailing_spaces_that_are_not_a_break() -> None:
+    config = defaults(lint=LintConfig(allow_hard_break=False))
+    assert fixed_text("a  \n\nb\n", config) == "a\n\nb\n"
 
 
 def test_trailing_tab_is_always_a_finding() -> None:

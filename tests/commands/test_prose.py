@@ -10,11 +10,15 @@ import pytest
 
 from mdd.cli import main as cli_main
 from mdd.prose import config as prose_config
-from mdd.prose import runner
-from mdd.prose.config import AnchorsConfig, ProseConfig
+from mdd.prose import lint, runner
+from mdd.prose.config import AnchorsConfig, LintConfig, ProseConfig
+from mdd.prose.lint import Edit
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
+
+    from mdd.prose.classify import Line
 
 MESSY = "A sentence.  With two spaces and a space before a comma , and trailing space.   \n"
 MIRRORED = "---\nconfluence:\n  page_id: '1'\n---\n\nA sentence.  Two spaces.\n"
@@ -79,17 +83,18 @@ def _lint_report(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[i
 
 
 def test_lint_refuses_a_fix_that_changes_the_text_in_both_modes(
-    corpus: Path, capsys: pytest.CaptureFixture[str]
+    corpus: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Deleting a hard break changes the document, so the gate refuses it.
+    """A fix that deletes a hard break changes the document, so the gate refuses it."""
 
-    The fixer deletes one only when hard breaks are configured off.
-    """
-    configs = corpus.parent / "configs"
-    configs.mkdir()
-    _ = (configs / "prose.yaml").write_text(
-        "prose:\n  lint:\n    allow-hard-break: false\n", encoding="utf-8"
-    )
+    def delete_every_run(
+        line: Line, _config: LintConfig, *, breaks: bool, continued_construct: bool
+    ) -> Iterable[Edit]:
+        stripped = line.text.rstrip(" ")
+        if stripped != line.text:
+            yield Edit("trailing-whitespace", len(stripped), len(line.text), "", "damaged")
+
+    monkeypatch.setattr(lint, "_trailing_whitespace", delete_every_run)
     target = corpus / "a.md"
     source = "First line  \nsecond line.\n"
     _ = target.write_text(source, encoding="utf-8")
