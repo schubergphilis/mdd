@@ -241,7 +241,9 @@ cannot promise.
   file that is not valid UTF-8 is the same `parse-error`, at the line of the
   first bad byte, rather than an unnamed operational failure. So is a line
   nested eighteen levels deep (a block quote counting one, a list item two),
-  close to the depth where markdown-it stops parsing.
+  close to the depth where markdown-it stops parsing, and so is a fenced div
+  opened on a footnote line, or in a list item with a line indented less
+  than the item: the div renderer drops lines in both.
 - It also fails closed line by line. Where placing a construct exactly would
   need substantial parsing, such as a link definition whose title runs over
   several lines, a doubtful line is called something other than `prose` and

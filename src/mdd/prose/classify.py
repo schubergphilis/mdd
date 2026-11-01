@@ -851,6 +851,13 @@ def _track_list_div(line: Line, rest: str, state: _State) -> None:
         indent, opener = _indent_columns(rest), div_opener(rest.lstrip(MD_SPACE))
     else:
         indent, opener = _columns(split[0]), div_opener(split[2].lstrip(MD_SPACE))
+        if opener is not None and "[^" in split[0] and state.dropped is None:
+            # The footnote rule and the fenced-div rule disagree on where the
+            # div ends, and the renderer drops the lines in between.
+            state.dropped = ClassifyError(
+                line.number, "a fenced div opened on a footnote line may drop lines"
+            )
+            return
     column = _container_column(indent, state)
     if opener is not None and column:
         state.list_div = opener

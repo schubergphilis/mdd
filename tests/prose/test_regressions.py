@@ -736,3 +736,15 @@ def test_blank_lines_after_a_list_before_an_unindented_line_are_collapsed(
 )
 def test_link_definition_labels_follow_commonmark(source: str, expected: list[str]) -> None:
     assert classes(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Text[^n].\n\n[^n]: :::callout-tip\n    inside text\n\ndropped  line  here\n\n:::\n",
+        "Text[^n].\n\n[^n]: ::: callout-tip\n    inside  text\n    :::\n",
+    ],
+)
+def test_a_fenced_div_opened_on_a_footnote_line_fails_closed(source: str) -> None:
+    result = classify(source)
+    assert result == ClassifyError(3, "a fenced div opened on a footnote line may drop lines")
