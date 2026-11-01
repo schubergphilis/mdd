@@ -326,6 +326,16 @@ CLASSIFIER_GAPS = [
         "indented-code-after-list-marker",
     ),
     _gap(
+        "- <div>\n",
+        "an HTML block on a list marker line is called prose",
+        "html-block-after-list-marker",
+    ),
+    _gap(
+        "[^1]: ``` a\n    c\n",
+        "a fence on a footnote definition line is called prose",
+        "fence-after-footnote-label",
+    ),
+    _gap(
         "10.\nfoo\n",
         "a bare list marker, an empty list item, is called prose",
         "empty-list-item",
@@ -374,6 +384,31 @@ WRITER_DAMAGE = [
         id="reflow-joins-html-into-footnote",
         marks=pytest.mark.xfail(
             strict=True, reason="reflow joins an HTML block into a footnote's paragraph"
+        ),
+    ),
+    pytest.param(
+        "reflow",
+        "[^1]: ``` a. B\n    c\n",
+        id="reflow-splits-footnote-fence-info",
+        marks=pytest.mark.xfail(
+            strict=True, reason="reflow moves part of a fence's info string into the code"
+        ),
+    ),
+    pytest.param(
+        "reflow",
+        "- 1. $$\n    a\n    b\n    $$\n",
+        id="reflow-joins-math-in-nested-list",
+        marks=pytest.mark.xfail(
+            strict=True, reason="reflow joins the lines of a math block inside a nested list"
+        ),
+    ),
+    pytest.param(
+        "reflow",
+        "- <pre>\nOne.\nTwo.\n</pre>\n",
+        id="reflow-rewrites-raw-pre",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="reflow rewrites text a raw <pre> opened on a list marker line keeps literal",
         ),
     ),
     pytest.param(
