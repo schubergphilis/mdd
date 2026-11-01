@@ -58,3 +58,13 @@ def test_whitespace_after_a_closed_xmp_element_is_not_content() -> None:
 def test_a_change_only_commonmark_sees_is_a_difference() -> None:
     before = "> alpha\n    > beta gamma\n"
     assert difference(before, "> alpha beta gamma\n") == "the CommonMark rendering changed"
+
+
+def test_a_document_with_a_fenced_div_skips_the_commonmark_comparison() -> None:
+    before = "The end.   \n::: callout-tip\nInside.\n:::\n"
+    assert difference(before, "The end.\n::: callout-tip\nInside.\n:::\n") is None
+
+
+def test_an_unknown_div_name_keeps_the_commonmark_comparison() -> None:
+    before = "The end.   \n::: nonsense\nInside.\n:::\n"
+    assert difference(before, "The end.\n::: nonsense\nInside.\n:::\n") is not None

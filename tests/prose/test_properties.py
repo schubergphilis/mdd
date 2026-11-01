@@ -220,6 +220,18 @@ def test_classifier_counterexample(text: str) -> None:
 
 
 WRITER_DAMAGE = [
+    pytest.param(
+        "lint",
+        "---\n---\n\n\xa0The\nthe.\n\n::: callout-tip\n3. \xa0The\nthe\nthe the.   \n\t#\n"
+        "the\nthe\nthe\nthe the the the. The the the the.\n:::",
+        id="lint-trims-hard-break-in-a-list-item-in-a-fenced-div",
+    ),
+    pytest.param(
+        "lint",
+        "The\n" + "the\n" * 23 + "the the the the the the the the the.   \n"
+        "::: callout-tip\n\xa0The\nthe.\n:::",
+        id="lint-trims-hard-break-before-a-fenced-div",
+    ),
     pytest.param("lint", "\ufeff```\nthe\nthe. ", id="lint-trims-fence-behind-a-byte-order-mark"),
     pytest.param("reflow", ">\xa0The\n<br>\nthe.", id="reflow-joins-lazy-html-line-in-quote"),
     pytest.param(

@@ -7,7 +7,9 @@ implementation checked against itself is not.
 
 A rewrite must also leave cmark-gfm's rendering alone. That is the renderer
 GitHub uses, and markdown-it departs from CommonMark in places, so a rewrite
-markdown-it cannot tell apart may still change a page on GitHub.
+markdown-it cannot tell apart may still change a page on GitHub. The one
+exception is a document with a fenced div: GitHub does not render those as
+divs at all, so only the mdd-flavour rendering is held to account there.
 """
 
 from __future__ import annotations
@@ -149,15 +151,32 @@ def paragraph_line_indices(tokens: list[Token]) -> set[int]:
     return out
 
 
+def has_fenced_div(text: str) -> bool:
+    """True when the mdd flavour opens a fenced div anywhere in *text*.
+
+    cmark-gfm reads a fenced-div marker as paragraph text, so the paragraphs
+    around one differ between the two renderers by design.
+    """
+    return any(
+        token.type.startswith("container_") and token.type.endswith("_open")
+        for token in PARSER.parse(text)
+    )
+
+
+def _commonmark_applies(before: str, after: str) -> bool:
+    return not (has_fenced_div(before) or has_fenced_div(after))
+
+
 def assert_same_document(before: str, after: str) -> None:
     """Fail unless *after* means exactly what *before* meant."""
     if before == after:
         return
     assert verbatim_blocks(after) == verbatim_blocks(before), "a literal block changed"
     assert rendered(after) == rendered(before), "the rendered document changed"
-    assert commonmark_rendered(after) == commonmark_rendered(before), (
-        "the CommonMark rendering changed"
-    )
+    if _commonmark_applies(before, after):
+        assert commonmark_rendered(after) == commonmark_rendered(before), (
+            "the CommonMark rendering changed"
+        )
 
 
 # --- reasons that are safe to print -------------------------------------------
@@ -180,7 +199,9 @@ def difference(before: str, after: str) -> str | None:
     if rendered(before) != rendered(after):
         line = _changed_block_line(before, after)
         return f"the rendered document changed, first in the block at line {line}"
-    if commonmark_rendered(before) != commonmark_rendered(after):
+    if _commonmark_applies(before, after) and commonmark_rendered(before) != commonmark_rendered(
+        after
+    ):
         return "the CommonMark rendering changed"
     return None
 

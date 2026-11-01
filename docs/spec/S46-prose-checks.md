@@ -269,6 +269,13 @@ cannot promise.
   directly after a list item is divergent when an indented line follows it,
   so `blank-run` leaves it alone: in CommonMark, whether that line is still
   in the item can depend on the number of blank lines.
+- Fenced divs (`::: callout-tip`) are mdd-flavour syntax that GitHub does not
+  render as divs: cmark-gfm reads a marker as paragraph text, so the
+  paragraphs around it differ between the two renderers. In a file with a
+  fenced div, `--write` preserves the mdd-flavour rendering, not GitHub's.
+  The page does not look like the mdd rendering on GitHub anyway, and
+  marking every line near a marker `divergent` would take the checks away
+  from the callouts the IR depends on.
 - An HTML block, or a fence, opened in a block quote or a list item ends
   where that container ends, as neither has a lazy continuation. An HTML
   block that waits for a closing marker, such as `<pre>`, and never meets
@@ -1095,8 +1102,10 @@ with them.
   the right adversary for a reflow. Generated documents drive both writers
   through the runner, and a test-side oracle, independent of `mdd.prose`,
   requires that what was written renders the same through markdown-it and
-  through cmark-gfm, the renderer GitHub uses. cmark-gfm is a development
-  dependency only; the write gate stays markdown-it.
+  through cmark-gfm, the renderer GitHub uses. A document in which the mdd
+  flavour opens a fenced div is compared through markdown-it only, as above.
+  cmark-gfm is a development dependency only; the write gate stays
+  markdown-it.
 - The write gate has a passing and a failing pair for each thing it compares:
   a change inside a fence, a list turning loose, a lost hard break, a code
   span's internal spaces, a collapsed no-break space, a line that becomes a
