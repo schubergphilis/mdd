@@ -177,7 +177,52 @@ def test_colon_line_the_div_renderer_ignores_is_paragraph_text() -> None:
     """
     assert classes("The\n:::.\n=\n") == ["heading", "heading", "heading"]
     assert classes("The\n:::\n=\n") == ["heading", "heading", "heading"]
-    assert classes("::: unknown-name\nA.\n:::\n") == ["prose", "prose", "prose"]
+    # A colon run the renderer reads as text still leaves the fixers alone: it
+    # is a Pandoc or Quarto div to another tool, and joining it into the
+    # paragraph would break that div.
+    assert classes("::: unknown-name\nA.\n:::\n") == ["divergent"] * 3
+
+
+QUARTO_CALLOUT = (
+    "---\ntitle: Report\n---\n\n::: {.callout-note}\n"
+    "Note that there are five types of callouts. They are note, warning, important, "
+    "tip, and caution.\n:::\n"
+)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        QUARTO_CALLOUT,
+        "::: note\nA first sentence here. And a second sentence here.\n:::\n",
+        "Intro text here. More intro.\n::: note\nBody text. More body.\n:::\n",
+        "- ::: note\n  Body text. More body.\n  :::\n",
+        "> ::: note\n> Body text. More body.\n> :::\n",
+    ],
+)
+def test_a_colon_run_the_renderer_does_not_know_is_never_prose(source: str) -> None:
+    """A Quarto or Pandoc div marker was joined into the paragraph by reflow."""
+    lines = ok(source).lines
+    colon_lines = [line for line in lines if line.text.lstrip(" >-").startswith(":::")]
+    assert colon_lines
+    assert all(line.cls is not LineClass.PROSE for line in colon_lines)
+
+
+@pytest.mark.parametrize("check", ["reflow", "lint"])
+@pytest.mark.parametrize(
+    ("name", "source"),
+    [
+        ("report.qmd", QUARTO_CALLOUT),
+        ("div.md", "::: note\nA first sentence here.  And a second sentence here.\n:::\n"),
+    ],
+)
+def test_writers_leave_an_unknown_div_alone(
+    tmp_path: Path, check: str, name: str, source: str
+) -> None:
+    path = tmp_path / name
+    write_file(path, source)
+    _ = cli_main(["prose", check, "--write", str(path)])
+    assert read_file(path) == source
 
 
 def test_closer_of_an_open_div_is_a_marker() -> None:
@@ -189,10 +234,12 @@ def test_closer_of_an_open_div_is_a_marker() -> None:
         "div-marker",
         "div-marker",
     ]
+    # A longer run does not close it. It is paragraph text to the renderer, and
+    # like any colon run in a paragraph it keeps the fixers off that paragraph.
     assert classes(":::callout-tip\nA.\n::::\n:::\n") == [
         "div-marker",
-        "prose",
-        "prose",
+        "divergent",
+        "divergent",
         "div-marker",
     ]
     # A lazy line may close a div opened in a block quote. Such a line stays a

@@ -296,6 +296,13 @@ cannot promise.
   The page does not look like the mdd rendering on GitHub anyway, and
   marking every line near a marker `divergent` would take the checks away
   from the callouts the IR depends on.
+- A colon run of three or more that is not an mdd fenced-div marker, such as
+  Quarto's `::: {.callout-note}` or Pandoc's `::: note`, is paragraph text to
+  the renderer but a div marker to those tools, and the walker reads `*.qmd`
+  files. Any paragraph with a line whose content opens on `:::` is
+  `divergent`, so neither writer joins the marker into the text around it.
+  This is deliberately coarse: the whole paragraph loses its checks rather
+  than the classifier guessing which colon runs another tool would read.
 - An HTML block, or a fence, opened in a block quote or a list item ends
   where that container ends, as neither has a lazy continuation. An HTML
   block that waits for a closing marker, such as `<pre>`, and never meets

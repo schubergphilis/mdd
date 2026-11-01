@@ -1106,14 +1106,25 @@ def _deep_lazy_line(quote: str, rest: str, state: _State) -> bool:
     return indent - _container_column(indent, state) >= _INDENTED_CODE_COLUMN
 
 
+def _opens_on_colons(line: Line) -> bool:
+    """True when the content of prose *line* starts with a run of three or more colons."""
+    return line.text[len(line.prefix) :].lstrip(MD_SPACE).startswith(":::")
+
+
 def _apply_divergent(
     lines: list[Line], divergent_paragraphs: set[int], lines_only: set[int]
 ) -> None:
-    """Make the prose lines renderers disagree on, and their paragraphs, divergent."""
+    """Make the prose lines renderers disagree on, and their paragraphs, divergent.
+
+    So is every paragraph with a line that opens on a colon run. mdd's renderer
+    reads one with a name it does not know as text, but to Pandoc and Quarto it
+    is a div marker, and joining it into the paragraph breaks the div.
+    """
     blocks = {
         line.block
         for line in lines
-        if line.number in divergent_paragraphs and line.cls is LineClass.PROSE
+        if line.cls is LineClass.PROSE
+        and (line.number in divergent_paragraphs or _opens_on_colons(line))
     }
     for index, line in enumerate(lines):
         if line.cls is not LineClass.PROSE:
