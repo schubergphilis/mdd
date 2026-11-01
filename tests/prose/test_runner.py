@@ -193,3 +193,15 @@ def test_positive_int_type_rejects_junk() -> None:
         _ = _positive_int("nope")
     with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
         _ = _positive_int("0")
+
+
+def test_a_failed_write_is_a_cross_cutting_finding(tmp_path: Path) -> None:
+    real = tmp_path / "real.md"
+    _ = real.write_text("Intro.\n\nTwo  spaces.\n", encoding="utf-8")
+    link = tmp_path / "link.md"
+    link.symlink_to(real)
+    result = runner.run([link], config(), options(checks=("lint",), write=True))
+    failures = [f for f in result.findings if f.rule == "write-failed"]
+    assert [(f.check, f.line) for f in failures] == [("prose", 0)]
+    assert "symlink" in failures[0].message
+    assert result.failed

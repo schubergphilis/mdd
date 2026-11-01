@@ -93,9 +93,9 @@ def write_failure(path: Path, check: str, reason: str, config: ProseConfig) -> F
         path=path,
         line=0,
         column=0,
-        check=check,
+        check=CROSS_CUTTING,
         rule="write-failed",
-        message=f"could not write the file: {reason}",
+        message=f"could not write the {check} fix: {reason}",
         severity=config.severity("write-failed"),
     )
 

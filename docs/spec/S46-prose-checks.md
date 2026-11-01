@@ -118,6 +118,10 @@ cannot promise.
   honours [`.mddignore`](S39-mddignore.md) rooted at the walk root, including
   its `prune_dir` fast path. `--ignore <path>` is accepted with the same union
   semantics as the sync commands.
+- A file named explicitly as a `PATH` is checked, and under `--write`
+  rewritten, even when `.mddignore` or an `--ignore` file matches it: the
+  ignore files filter what a directory walk finds, and naming a file is a
+  request for that file.
 - Scoping is **path-based, not mirror-based.** The registered-root-source
   registry [`mdd search`](S19-search-command.md) uses answers "where are all my
   mirrors" — the wrong question for a gate, which runs inside one repository's
@@ -146,6 +150,11 @@ cannot promise.
    "message": "space before ';'", "excerpt": "… the plan ; then …",
    "fixable": false}
   ```
+
+  `check` is the name of the check that produced the finding (`reflow`,
+  `lint`, `anchors`, `freshness`), or `prose` for a cross-cutting rule
+  (`parse-error`, `unknown-suppression`, `unused-suppression`, `mirrored-file`,
+  `not-equivalent`, `write-failed`), which belongs to no check.
 
   `--json` implies no colour and no progress output on stdout, for the reason
   [S19](S19-search-command.md) already records: ANSI codes corrupt machine
@@ -186,6 +195,9 @@ cannot promise.
   `<!-- mdd-prose-ignore -->` suppresses every rule on the next line. A
   file-wide form, `<!-- mdd-prose-ignore-file: reflow -->`, may appear anywhere
   in the file and disables the named rules (or all of them) for the whole file.
+- `blank-run` can only be suppressed with the file-wide form. Its findings sit
+  on the second and later blank lines of a run, and a comment line placed
+  among them splits the run rather than suppressing it.
 - A suppression stops the fix as well as the report. `lint --write` and
   `reflow --write` never edit a line whose finding is suppressed, in the
   line, bare and file-wide forms alike; the suppression is applied before the
@@ -575,6 +587,8 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   `missing-review-date` to `error` would make the check useless out of the box.
 - `--only-missing` and `--only-stale` narrow the run, for the "add the field
   everywhere first" adoption step.
+- `mdd prose check` accepts `--as-of DATE` too, and passes it to the freshness
+  check it runs, so a CI job can pin the clock without a second command.
 
 ### Configuration
 
