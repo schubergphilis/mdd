@@ -170,11 +170,9 @@ def _gap(text: str, reason: str, name: str) -> object:
 CLASSIFIER_GAPS = [
     pytest.param("<pre>\na\n\nb\n</pre>\n", id="html-block-survives-blank-line"),
     pytest.param("Intro.\n<div>\nb\n</div>\n", id="html-block-interrupts-paragraph"),
-    _gap(
-        "# h\n    code\n",
-        "indented code straight after a heading is called prose",
-        "indented-code-after-heading",
-    ),
+    pytest.param("# h\n    code\n", id="indented-code-after-heading"),
+    pytest.param("a\n===\n    code\n", id="indented-code-after-setext-heading"),
+    pytest.param("# h\n<span>\nb\n", id="html-block-after-heading"),
     _gap(
         "[x]:\n/u\n",
         "a link reference definition spread over several lines is called prose",

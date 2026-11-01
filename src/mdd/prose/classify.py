@@ -226,7 +226,10 @@ class _State:
     html_end: re.Pattern[str] | None = None
     in_indented_code: bool = False
     list_content_col: int | None = None
-    after_blank: bool = True
+    #: The previous line was paragraph text, which an indented code block or a
+    #: bare-tag HTML block cannot interrupt. A blank line is not the only thing
+    #: that ends a paragraph: a heading, a fence or a rule does too.
+    in_paragraph: bool = False
     open_at: int = 0
 
 
@@ -338,7 +341,7 @@ def _open_html_block(rest: str, state: _State) -> bool:
             state.in_html_block = end.search(rest, opened.end()) is None
             state.html_end = end
             return True
-    if _HTML_BLOCK_TAG.match(rest) or (state.after_blank and _HTML_BLOCK.match(rest)):
+    if _HTML_BLOCK_TAG.match(rest) or (not state.in_paragraph and _HTML_BLOCK.match(rest)):
         state.in_html_block = True
         state.html_end = None
         return True
@@ -424,12 +427,13 @@ def _track_list(rest: str, state: _State) -> None:
 def _is_indented_code(rest: str, state: _State) -> bool:
     """True when *rest* belongs to an indented code block.
 
-    An indented code block *opens* only after a blank line, but it *continues*
-    for as long as the indent holds. Requiring a preceding blank on every line
-    classified only the block's first line as code and handed the rest to the
-    rewriters as prose.
+    An indented code block *opens* anywhere except inside a paragraph, but it
+    *continues* for as long as the indent holds. Requiring a preceding blank on
+    every line classified only the block's first line as code and handed the
+    rest to the rewriters as prose; requiring one before the first line did the
+    same to a code block straight after a heading.
     """
-    if not state.after_blank and not state.in_indented_code:
+    if state.in_paragraph and not state.in_indented_code:
         return False
     floor = _INDENTED_CODE_COLUMN + (state.list_content_col or 0)
     return _indent_columns(rest) >= floor
@@ -482,7 +486,9 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             number, raw, quote, rest, state
         )
         blank = line.cls in (LineClass.BLANK, LineClass.BLOCK_QUOTE)
-        state.after_blank = blank
+        state.in_paragraph = line.cls is LineClass.PROSE and not (
+            state.in_paragraph and _SETEXT.match(rest)
+        )
         # A blank line does not end an indented code block — it is content
         # inside one — so the flag survives a blank and only a shallower
         # non-blank line clears it.
