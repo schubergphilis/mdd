@@ -406,3 +406,13 @@ def test_repository_docs_reflow_idempotently_and_equivalently() -> None:
         assert isinstance(again, Classified), doc
         assert reflow_text(again, ReflowConfig()).text == once, doc
         assert verify(source, once).passed, doc
+
+
+def test_reflow_does_not_break_inside_preformatted_inline_html() -> None:
+    text = (
+        "To log out of the locked workstation quickly, press <kbd>Ctrl, Alt, Delete</kbd> "
+        "and then choose the sign out option from the menu that appears.\n"
+    )
+    once = reflow(text, width=60, min_line=1)
+    assert "<kbd>Ctrl, Alt, Delete</kbd>" in once
+    assert verify(text, once).passed

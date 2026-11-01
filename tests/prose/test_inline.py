@@ -94,3 +94,38 @@ def test_mask_flags_and_span_at() -> None:
     assert flags == [False, False, True, True, True, False, False]
     assert span_at(result.masks, 3) is not None
     assert span_at(result.masks, 0) is None
+
+
+LITERAL_ELEMENTS = ("pre", "code", "kbd", "samp", "textarea", "listing", "xmp")
+
+
+def test_whitespace_preserving_html_is_masked_with_its_text() -> None:
+    for name in LITERAL_ELEMENTS:
+        text = f"Press <{name}>Ctrl, Alt, Delete</{name}> now."
+        assert spans(text) == [("raw-html", f"<{name}>Ctrl, Alt, Delete</{name}>")], name
+
+
+def test_whitespace_preserving_html_matches_case_and_attributes() -> None:
+    text = 'a <KBD class="k">x  y</Kbd> b'
+    assert spans(text) == [("raw-html", '<KBD class="k">x  y</Kbd>')]
+
+
+def test_nested_whitespace_preserving_html_masks_to_the_outer_close() -> None:
+    text = "a <kbd><kbd>x</kbd>  y</kbd> b"
+    assert spans(text) == [("raw-html", "<kbd><kbd>x</kbd>  y</kbd>")]
+
+
+def test_unclosed_whitespace_preserving_html_masks_to_the_end() -> None:
+    assert spans("a <code>x  y, z") == [("raw-html", "<code>x  y, z")]
+
+
+def test_other_html_masks_only_the_tag() -> None:
+    assert spans("a <span>x  y</span> b") == [("raw-html", "<span>"), ("raw-html", "</span>")]
+    assert spans("a <code/> x  y") == [("raw-html", "<code/>")]
+
+
+def test_the_masked_elements_are_the_ones_the_gate_compares_literally() -> None:
+    from mdd.prose import gate
+
+    pattern = gate._LITERAL_ELEMENT_OPEN.pattern  # pyright: ignore[reportPrivateUsage]
+    assert f"({'|'.join(LITERAL_ELEMENTS)})" in pattern

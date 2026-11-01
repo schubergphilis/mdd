@@ -18,6 +18,15 @@ from enum import StrEnum
 _PUNCTUATION = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 
 _HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(\s[^<>]*)?/?>")
+#: Inline HTML elements whose text keeps its whitespace when a browser renders
+#: it. The write gate compares the text inside one byte for byte, so the whole
+#: element, from its opening tag to the matching closing tag, is masked. The
+#: list is the gate's; it is repeated here so the gate imports nothing from
+#: the writers.
+_LITERAL_ELEMENTS = "pre|code|kbd|samp|textarea|listing|xmp"
+_LITERAL_OPEN = re.compile(rf"<({_LITERAL_ELEMENTS})(?=[\s>/])[^>]*(?<!/)>", re.IGNORECASE)
+_LITERAL_CLOSE = re.compile(rf"</({_LITERAL_ELEMENTS})\s*>", re.IGNORECASE)
+_LITERAL_TAG = re.compile(rf"{_LITERAL_OPEN.pattern}|{_LITERAL_CLOSE.pattern}", re.IGNORECASE)
 _AUTOLINK = re.compile(r"<[A-Za-z][A-Za-z0-9+.-]*:[^<>\s]*>|<[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>")
 
 
@@ -157,6 +166,21 @@ def _scan_bracketed(text: str, i: int, out: list[Span], links: list[LinkRef]) ->
     return i + 1
 
 
+def _literal_element_end(text: str, after: int) -> int:
+    """Return the end of the closing tag that balances an opening one, or the text's end.
+
+    Any literal element's closing tag closes one level, as the gate counts
+    them. An element left open runs to the end of the text, because the gate
+    then compares the rest of the paragraph byte for byte.
+    """
+    depth = 1
+    for tag in _LITERAL_TAG.finditer(text, after):
+        depth += -1 if tag.group(0).startswith("</") else 1
+        if depth == 0:
+            return tag.end()
+    return len(text)
+
+
 def _scan_angle(text: str, i: int, out: list[Span]) -> int:
     """Handle a construct starting at ``<``; return the next offset."""
     autolink = _AUTOLINK.match(text, i)
@@ -164,10 +188,13 @@ def _scan_angle(text: str, i: int, out: list[Span]) -> int:
         out.append(Span(i, autolink.end(), SpanClass.AUTOLINK))
         return autolink.end()
     tag = _HTML_TAG.match(text, i)
-    if tag is not None:
-        out.append(Span(i, tag.end(), SpanClass.RAW_HTML))
-        return tag.end()
-    return i + 1
+    if tag is None:
+        return i + 1
+    end = tag.end()
+    if _LITERAL_OPEN.fullmatch(tag.group(0)):
+        end = _literal_element_end(text, end)
+    out.append(Span(i, end, SpanClass.RAW_HTML))
+    return end
 
 
 def _scan_math(text: str, i: int, out: list[Span]) -> int:

@@ -215,6 +215,12 @@ cannot promise.
   byte-for-byte. A check may look at a masked span (`anchors` must read link
   targets; `lint`'s literal escape must recognise an `inline-code` span) but no
   check may rewrite one.
+- Inline HTML for an element a browser renders with its whitespace intact
+  (`pre`, `code`, `kbd`, `samp`, `textarea`, `listing`, `xmp`, the write
+  gate's list) is masked from its opening tag to the closing tag that
+  balances it, text included, so `lint` reports and fixes nothing inside it
+  and `reflow` never breaks inside it. An element left open masks the rest of
+  the paragraph, which is what the gate then compares byte for byte.
 
 ### `mdd prose reflow` — semantic line breaks
 

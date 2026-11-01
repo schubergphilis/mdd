@@ -261,3 +261,9 @@ def test_multiple_spaces_message_names_tabs() -> None:
     assert message("a  b\n") == "2 spaces between words"
     assert message("a\t\tb\n") == "2 tabs between words"
     assert message("a \tb\n") == "a run of 2 spaces and tabs between words"
+
+
+def test_whitespace_inside_preformatted_inline_html_is_left_alone() -> None:
+    assert rules_found("Use <code>a  b</code> here.\n") == []
+    assert rules_found("Use <kbd>a  b\nc  d</kbd> here.\n") == []
+    assert fixed_text("Use <code>a  b</code> here.   \n") == "Use <code>a  b</code> here.\n"
