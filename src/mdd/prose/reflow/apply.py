@@ -1,17 +1,15 @@
-"""Per-block rewriting, the equivalence gate, and the reflow findings."""
+"""Per-block rewriting and the reflow findings."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from mdd.markdown.ir import parse_markdown, render_markdown
-from mdd.prose.classify import ClassifyError, LineClass, block_text, classify, join_lines
+from mdd.prose.classify import LineClass, block_text, join_lines
 from mdd.prose.inline import mask_flags, scan
 from mdd.prose.reflow.clauses import PackedLine, Unit, merge_block_starters, pack, split_units
 from mdd.prose.reflow.sentences import segment
 from mdd.prose.report import Finding, make_excerpt
-from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -19,8 +17,6 @@ if TYPE_CHECKING:
 
     from mdd.prose.classify import Classified, Line
     from mdd.prose.config import ProseConfig, ReflowConfig
-
-log = get_logger(__name__)
 
 
 def _join_block(lines: Sequence[Line]) -> tuple[str, list[bool]]:
@@ -105,53 +101,6 @@ def reflow_text(classified: Classified, config: ReflowConfig) -> Rewrite:
         index = end
     text = join_lines(out, classified.newline, final_newline=classified.final_newline)
     return Rewrite(text=text, changed=tuple(changed))
-
-
-def canonical(text: str) -> str | None:
-    """Return *text* parsed, normalised and re-rendered, or ``None`` if it will not parse."""
-    try:
-        return render_markdown(parse_markdown(text))
-    except Exception:  # any parse failure means "cannot prove equivalence"
-        log.debug("reflow equivalence: markdown did not parse", exc_info=True)
-        return None
-
-
-def _block_shape(text: str) -> list[str] | None:
-    """The sequence of non-prose line classes, or ``None`` if *text* will not classify."""
-    result = classify(text)
-    if isinstance(result, ClassifyError):
-        return None
-    return [line.cls.value for line in result.lines if line.cls is not LineClass.PROSE]
-
-
-def structurally_stable(before: str, after: str) -> bool:
-    """True when reflow changed only prose lines.
-
-    Reflow copies every non-prose line verbatim, so the sequence of non-prose
-    classes must come out identical. If it did not, a *generated* line now reads
-    as a block — a fence, a heading, a managed region — and the document means
-    something different even when it happens to render the same.
-
-    This catches what the render comparison cannot. A leading no-break space is
-    invisible to the IR parser, so `\xa0``` ` reflowed into a real fence compared
-    equal while leaving a file that no longer classifies at all.
-    """
-    left = _block_shape(before)
-    right = _block_shape(after)
-    return left is not None and right is not None and left == right
-
-
-def equivalent(before: str, after: str) -> bool:
-    """True when reflowing did not change what the document means.
-
-    Two independent gates, because each is blind to what the other sees: the
-    rendered form must match, and the block structure must be unchanged.
-    """
-    if not structurally_stable(before, after):
-        return False
-    left = canonical(before)
-    right = canonical(after)
-    return left is not None and right is not None and left == right
 
 
 def findings(

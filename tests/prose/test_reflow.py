@@ -6,8 +6,9 @@ from pathlib import Path
 
 from mdd.prose.classify import Classified, classify
 from mdd.prose.config import ProseConfig, ReflowConfig
+from mdd.prose.gate import verify
 from mdd.prose.inline import mask_flags, scan
-from mdd.prose.reflow.apply import canonical, equivalent, findings, reflow_text
+from mdd.prose.reflow.apply import findings, reflow_text
 from mdd.prose.reflow.clauses import Unit, pack, split_units
 from mdd.prose.reflow.sentences import segment
 from mdd.prose.rules import RULES
@@ -173,7 +174,7 @@ def test_reflow_joins_lazy_and_indented_continuation_lines() -> None:
     }
     for source, expected in cases.items():
         assert reflow(source) == expected
-        assert equivalent(source, expected)
+        assert verify(source, expected).passed
 
 
 # --- clause units ----------------------------------------------------------
@@ -300,17 +301,13 @@ def test_findings_name_the_block_start() -> None:
     assert [(f.rule, f.line, f.fixable) for f in found] == [("reflow", 1, True)]
 
 
-def test_canonical_returns_none_for_unparseable_input() -> None:
-    assert canonical("ok") is not None
-
-
 def test_equivalence_holds_for_a_reflow() -> None:
     text = "One thing, with a clause. Two things.\n"
-    assert equivalent(text, reflow(text))
+    assert verify(text, reflow(text)).passed
 
 
 def test_equivalence_fails_when_meaning_changes() -> None:
-    assert not equivalent("# heading\n", "heading\n")
+    assert not verify("# heading\n", "heading\n").passed
 
 
 # --- the golden corpus -----------------------------------------------------
@@ -332,7 +329,7 @@ def test_golden_corpus_is_idempotent_and_equivalent() -> None:
         source = (case / "input.md").read_text(encoding="utf-8")
         once = reflow(source)
         assert reflow(once) == once, case.name
-        assert equivalent(source, once), case.name
+        assert verify(source, once).passed, case.name
 
 
 def _sweep(paths: list[Path], label: str) -> int:
@@ -348,7 +345,7 @@ def _sweep(paths: list[Path], label: str) -> int:
         again = classify(once)
         assert isinstance(again, Classified), f"{label}: {doc} did not re-classify"
         assert reflow_text(again, ReflowConfig()).text == once, f"{label}: {doc} not idempotent"
-        assert equivalent(source, once), f"{label}: {doc} not equivalent"
+        assert verify(source, once).passed, f"{label}: {doc} not equivalent"
     return seen
 
 
@@ -377,4 +374,4 @@ def test_repository_docs_reflow_idempotently_and_equivalently() -> None:
         again = classify(once)
         assert isinstance(again, Classified), doc
         assert reflow_text(again, ReflowConfig()).text == once, doc
-        assert equivalent(source, once), doc
+        assert verify(source, once).passed, doc

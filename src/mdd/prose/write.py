@@ -1,7 +1,8 @@
 """The shared write path for both writers.
 
-The mirror refusal, the atomic replace and the per-file ``info`` log live here
-once and both ``reflow --write`` and ``lint --write`` call them. Two copies of
+The mirror refusal, the write-gate refusal, the atomic replace and the
+per-file ``info`` log live here once and both ``reflow --write`` and
+``lint --write`` call them. Two copies of
 this logic is how one of them quietly loses the mirror check.
 """
 
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from mdd.prose.config import ProseConfig
+    from mdd.prose.gate import Verdict
 
 log = get_logger(__name__)
 
@@ -59,6 +61,23 @@ def mirror_finding(path: Path, check: str, reason: str, config: ProseConfig) -> 
             f"sync's change detection. Pass --allow-mirror to {check} anyway."
         ),
         severity=config.severity("mirrored-file"),
+    )
+
+
+def refusal_finding(path: Path, check: str, verdict: Verdict, config: ProseConfig) -> Finding:
+    """The finding a fix that failed the write gate reports, with or without ``--write``."""
+    where = f"at line {verdict.line}: " if verdict.line > 0 else ""
+    return Finding(
+        path=path,
+        line=verdict.line,
+        column=0,
+        check=CROSS_CUTTING,
+        rule="not-equivalent",
+        message=(
+            f"the {check} fix would change the document ({where}{verdict.reason}); "
+            f"--write leaves this file unchanged"
+        ),
+        severity=config.severity("not-equivalent"),
     )
 
 

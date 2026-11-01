@@ -44,8 +44,8 @@ _RULES: tuple[Rule, ...] = (
     Rule(CROSS_CUTTING, "unused-suppression", Severity.OFF),
     Rule(CROSS_CUTTING, "mirrored-file", Severity.ERROR),
     Rule(CROSS_CUTTING, "write-failed", Severity.ERROR),
+    Rule(CROSS_CUTTING, "not-equivalent", Severity.ERROR),
     Rule("reflow", "reflow", Severity.ERROR, fixable=True),
-    Rule("reflow", "not-equivalent", Severity.ERROR),
     Rule("lint", "multiple-spaces", Severity.ERROR, fixable=True),
     # Reported but never fixed: the space can be part of the rendered text,
     # as in `OSC 9 ; 4` or `{=confluence} .`, and deleting it changes that text.

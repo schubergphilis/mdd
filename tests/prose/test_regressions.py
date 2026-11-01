@@ -9,18 +9,18 @@ against that are worth reading together.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from mdd.cli import main as cli_main
-from mdd.prose.classify import Classified, ClassifyError, LineClass, classify
-from mdd.prose.config import ReflowConfig
+from mdd.prose import lint
+from mdd.prose.classify import Classified, ClassifyError, LineClass, classify, join_lines
+from mdd.prose.config import ProseConfig, ReflowConfig
+from mdd.prose.gate import verify
 from mdd.prose.inline import scan
-from mdd.prose.reflow.apply import equivalent, reflow_text, structurally_stable
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from mdd.prose.reflow.apply import reflow_text
+from mdd.prose.rules import RULES
 
 NBSP = "\xa0"
 
@@ -51,6 +51,16 @@ def read_file(path: Path) -> str:
 
 def lint_write(path: Path) -> int:
     return cli_main(["prose", "lint", "--write", str(path)])
+
+
+def lint_fix(text: str) -> str | None:
+    """The text the lint fixer proposes, before the write gate has a say."""
+    config = ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
+    fixed = lint.run(Path("a.md"), ok(text), config).fixed
+    if fixed is None:
+        return None
+    lines = [line.text for line in fixed.lines]
+    return join_lines(lines, fixed.newline, final_newline=fixed.final_newline)
 
 
 # --- byte fidelity -------------------------------------------------------
@@ -238,12 +248,11 @@ def test_gate_rejects_a_reflow_that_manufactures_a_block() -> None:
     """The render comparison was blind to a generated line becoming a fence."""
     before = "Some prose.\n"
     after = "Some prose.\n\n```\nnot code\n```\n"
-    assert not structurally_stable(before, after)
-    assert not equivalent(before, after)
+    assert not verify(before, after).passed
 
 
 def test_gate_rejects_output_that_no_longer_classifies() -> None:
-    assert not equivalent("Some prose.\n", "```\nunclosed\n")
+    assert not verify("Some prose.\n", "```\nunclosed\n").passed
 
 
 # --- anchors -------------------------------------------------------------

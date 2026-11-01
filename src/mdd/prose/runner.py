@@ -9,18 +9,24 @@ what prose is.
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from mdd.prose import anchors as anchors_check
 from mdd.prose import freshness as freshness_check
+from mdd.prose import gate, suppress
 from mdd.prose import lint as lint_check
-from mdd.prose import suppress
 from mdd.prose.classify import ClassifyError, classify, join_lines
 from mdd.prose.reflow import apply as reflow_apply
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING, Severity
-from mdd.prose.write import atomic_write, mirror_finding, mirror_reason, write_failure
+from mdd.prose.write import (
+    atomic_write,
+    mirror_finding,
+    mirror_reason,
+    refusal_finding,
+    write_failure,
+)
 from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -32,6 +38,9 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: The checks that can rewrite a file.
+WRITERS: tuple[str, ...] = ("reflow", "lint")
+
 
 @dataclass(frozen=True)
 class RunOptions:
@@ -42,6 +51,15 @@ class RunOptions:
     allow_mirror: bool = False
     as_of: dt.date = field(default_factory=dt.date.today)
     freshness_only: str | None = None
+
+    def __post_init__(self) -> None:
+        # Each writer computes its fix from, and gates it against, the file as
+        # it was read. A second writer in the same pass would compute from
+        # stale text and overwrite the first one's output.
+        writers = [name for name in WRITERS if name in self.checks]
+        if self.write and len(writers) > 1:
+            msg = f"--write runs one writer at a time, got {', '.join(writers)}"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -116,39 +134,53 @@ def _write(
     return None
 
 
-def _run_reflow(
-    unit: _Unit,
-    config: ProseConfig,
-    options: RunOptions,
-    result: RunResult,
+def _unfixable(findings: Sequence[Finding]) -> list[Finding]:
+    return [replace(f, fixable=False) if f.fixable else f for f in findings]
+
+
+@dataclass(frozen=True)
+class _Fix:
+    """One writer's proposal for one file: the rewritten text and what it reports."""
+
+    check: str
+    text: str
+    findings: tuple[Finding, ...]
+
+
+def _gated_fix(
+    unit: _Unit, fix: _Fix, config: ProseConfig, options: RunOptions, result: RunResult
 ) -> list[Finding]:
-    path, text, classified = unit.path, unit.text, unit.classified
-    rewrite = reflow_apply.reflow_text(classified, config.reflow)
+    """Gate a writer's fix, then write it if ``--write`` asked for that.
+
+    The gate runs with and without ``--write``, so the check-only report and
+    the write agree on what is fixable: a fix the gate refuses is reported as
+    not fixable, with the refusal, in both modes.
+    """
+    verdict = gate.verify(unit.text, fix.text)
+    if not verdict.passed:
+        return [*_unfixable(fix.findings), refusal_finding(unit.path, fix.check, verdict, config)]
+    if not options.write:
+        return list(fix.findings)
+    refusal = _refuse_mirror(unit.path, unit.text, fix.check, config, options)
+    if refusal is not None:
+        return [*fix.findings, refusal]
+    failure = _write(unit.path, fix.text, fix.check, config, result)
+    if failure is not None:
+        return [*fix.findings, failure]
+    return [f for f in fix.findings if not f.fixable]
+
+
+def _run_reflow(
+    unit: _Unit, config: ProseConfig, options: RunOptions, result: RunResult
+) -> list[Finding]:
+    rewrite = reflow_apply.reflow_text(unit.classified, config.reflow)
     if not rewrite.changed:
         return []
-    findings = reflow_apply.findings(path, classified, config, rewrite)
-    if not options.write or config.severity("reflow") is Severity.OFF:
+    findings = reflow_apply.findings(unit.path, unit.classified, config, rewrite)
+    if config.severity("reflow") is Severity.OFF:
         return findings
-    refusal = _refuse_mirror(path, text, "reflow", config, options)
-    if refusal is not None:
-        return [*findings, refusal]
-    if not reflow_apply.equivalent(text, rewrite.text):
-        return [
-            *findings,
-            Finding(
-                path=path,
-                line=0,
-                column=0,
-                check="reflow",
-                rule="not-equivalent",
-                message="reflow changed the rendered document; the file was left unchanged",
-                severity=config.severity("not-equivalent"),
-            ),
-        ]
-    failure = _write(path, rewrite.text, "reflow", config, result)
-    if failure is not None:
-        return [*findings, failure]
-    return [f for f in findings if not f.fixable]
+    fix = _Fix(check="reflow", text=rewrite.text, findings=tuple(findings))
+    return _gated_fix(unit, fix, config, options, result)
 
 
 def _run_lint(
@@ -158,23 +190,16 @@ def _run_lint(
     result: RunResult,
     suppressions: suppress.Suppressions,
 ) -> list[Finding]:
-    path, text, classified = unit.path, unit.text, unit.classified
-    outcome = lint_check.run(path, classified, config, suppressions.suppresses)
-    findings = list(outcome.findings)
-    if not options.write or outcome.fixed is None:
-        return findings
-    refusal = _refuse_mirror(path, text, "lint", config, options)
-    if refusal is not None:
-        return [*findings, refusal]
+    outcome = lint_check.run(unit.path, unit.classified, config, suppressions.suppresses)
+    if outcome.fixed is None:
+        return list(outcome.findings)
     fixed_text = join_lines(
         [line.text for line in outcome.fixed.lines],
         outcome.fixed.newline,
         final_newline=outcome.fixed.final_newline,
     )
-    failure = _write(path, fixed_text, "lint", config, result)
-    if failure is not None:
-        return [*findings, failure]
-    return [f for f in findings if not f.fixable]
+    fix = _Fix(check="lint", text=fixed_text, findings=outcome.findings)
+    return _gated_fix(unit, fix, config, options, result)
 
 
 def _check_file(
