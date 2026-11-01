@@ -963,38 +963,48 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
             continue
-        state.cols_before_previous = state.cols_before_line
-        state.cols_before_line = list(state.list_cols)
-        plain_quote, plain_rest = _strip_quote(raw)
-        quote, rest = _strip_open_quote(raw, plain_quote, plain_rest, state)
-        deep_marker = len(quote) > len(plain_quote) and _deep_quote_marker(quote, state)
-        if not _in_literal_block(rest, state):
-            quote, rest = _strip_quote_in_item(quote, rest, state)
-        deep_lazy = _deep_lazy_line(quote, rest, state)
-        # A deeper block quote opens a new container, and no paragraph is open
-        # inside it yet. A shallower one is a lazy continuation.
-        if _quote_depth(quote) > state.paragraph_depth:
-            state.in_paragraph = False
-        line = _continuation(number, raw, quote, rest, state) or _classify_fresh(
-            number, raw, quote, rest, state
-        )
-        line = _link_definition(line, rest, state)
-        line = _track_table(line, quote, rest, out, state)
-        if line.cls is LineClass.PROSE and deep_marker:
-            state.divergent_paragraphs.add(number)
-        if line.cls is LineClass.PROSE and deep_lazy:
-            state.divergent_lines.update((number - 1, number))
-        _track_list_div(line, rest, state)
-        _track_nesting(number, quote, state)
-        line = replace(line, quote=quote)
-        if line.cls is LineClass.BLANK and state.list_cols:
-            state.list_blanks.add(number)
-        if not state.open_quotes and quote:
-            column = _indent_columns(quote)
-            state.quote_base = max((c for c in state.cols_before_line if c <= column), default=0)
-        _after_line(line, quote, rest, state)
-        out.append(line)
+        out.append(_scan_line(number, raw, out, state))
     return out, _unclosed(state), state
+
+
+def _scan_line(number: int, raw: str, out: list[Line], state: _State) -> Line:
+    """Classify one line, given the lines before it and the scan state they left."""
+    state.cols_before_previous = state.cols_before_line
+    state.cols_before_line = list(state.list_cols)
+    plain_quote, plain_rest = _strip_quote(raw)
+    quote, rest = _strip_open_quote(raw, plain_quote, plain_rest, state)
+    deep_marker = len(quote) > len(plain_quote) and _deep_quote_marker(quote, state)
+    if not _in_literal_block(rest, state):
+        quote, rest = _strip_quote_in_item(quote, rest, state)
+    deep_lazy = _deep_lazy_line(quote, rest, state)
+    # A deeper block quote opens a new container, and no paragraph is open
+    # inside it yet. A shallower one is a lazy continuation.
+    if _quote_depth(quote) > state.paragraph_depth:
+        state.in_paragraph = False
+    line = _continuation(number, raw, quote, rest, state) or _classify_fresh(
+        number, raw, quote, rest, state
+    )
+    line = _link_definition(line, rest, state)
+    line = _track_table(line, quote, rest, out, state)
+    if line.cls is LineClass.PROSE and deep_marker:
+        state.divergent_paragraphs.add(number)
+    if line.cls is LineClass.PROSE and deep_lazy:
+        state.divergent_lines.update((number - 1, number))
+    _track_list_div(line, rest, state)
+    _track_nesting(number, quote, state)
+    line = replace(line, quote=quote)
+    _track_containers(line, quote, state)
+    _after_line(line, quote, rest, state)
+    return line
+
+
+def _track_containers(line: Line, quote: str, state: _State) -> None:
+    """Note the blank lines in list items, and the item a new block quote opens in."""
+    if line.cls is LineClass.BLANK and state.list_cols:
+        state.list_blanks.add(line.number)
+    if not state.open_quotes and quote:
+        column = _indent_columns(quote)
+        state.quote_base = max((c for c in state.cols_before_line if c <= column), default=0)
 
 
 def _deep_quote_marker(quote: str, state: _State) -> bool:
