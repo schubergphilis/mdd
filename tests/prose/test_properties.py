@@ -286,6 +286,11 @@ WRITER_DAMAGE = [
         "\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
         id="lint-trims-blank-line-inside-list-item-code",
     ),
+    pytest.param(
+        "reflow",
+        "-       1. the.\n\t    The the.",
+        id="reflow-rewrites-code-after-wide-marker-gap",
+    ),
 ]
 
 REFLOW_UNSTABLE = [

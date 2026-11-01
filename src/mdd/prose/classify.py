@@ -478,6 +478,16 @@ def _container_column(indent: int, state: _State) -> int:
 _MAX_MARKER_GAP = 4
 
 
+def _gap_is_code(markers: str, gap: str) -> bool:
+    """True when *gap*, the whitespace that ends *markers*, starts indented code.
+
+    The content of the last marker then starts one column after it, and a
+    marker further along the line is code, not the start of a nested item.
+    """
+    marker_end = _columns(markers[: len(markers) - len(gap)])
+    return _columns(gap, marker_end) - marker_end > _MAX_MARKER_GAP
+
+
 def _list_content_column(indent: str, marker: str, gap: str) -> int:
     """Return the column a list item's content starts at, per CommonMark.
 
@@ -525,7 +535,8 @@ def _open_items(rest: str, state: _State) -> bool:
 
     Markers nest, as in ``- 1. a``, and each opens an item one level deeper. A
     run like ``* * *`` after the first marker is a thematic break, not more
-    items.
+    items. A marker after a gap wide enough to start indented code is code,
+    not another item.
     """
     consumed = 0
     while (item := _LIST.match(rest[consumed:]) or _LIST_BARE.match(rest[consumed:])) is not None:
@@ -537,6 +548,8 @@ def _open_items(rest: str, state: _State) -> bool:
         column = _list_content_column(item.group(1), item.group(2), gap)
         state.list_cols.append(_columns(rest[:consumed]) + column)
         consumed += item.end()
+        if _gap_is_code(rest[:consumed], gap):
+            break
     return consumed > 0
 
 
@@ -663,6 +676,8 @@ def _split_markers(rest: str) -> tuple[str, str, str] | None:
         markers += match.group(0)
         gap = match.group("gap")
         content = content[match.end() :]
+        if _gap_is_code(markers, gap):
+            break
     return markers, gap, content
 
 
@@ -683,8 +698,7 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
     if not content.strip(MD_SPACE):
         return Line(number, raw, LineClass.LIST_MARKER, prefix=prefix)
     # Tabs in the gap expand from the column the marker ends at.
-    marker_end = _columns(markers[: len(markers) - len(gap)])
-    if _columns(gap, marker_end) - marker_end > _MAX_MARKER_GAP:
+    if _gap_is_code(markers, gap):
         return Line(number, raw, LineClass.INDENTED_CODE, prefix=prefix)
     # Nothing the content opens is interrupting a paragraph: it is the first
     # line of the item. The scan loop recomputes this flag after every line.

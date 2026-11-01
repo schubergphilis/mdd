@@ -381,6 +381,15 @@ def test_a_list_stops_raising_the_indented_code_floor(closer: str) -> None:
     assert "indented-code" in classes(source)
 
 
+def test_a_marker_after_a_wide_gap_is_code_not_a_nested_item() -> None:
+    """Five columns after a marker start indented code, so a marker there opens nothing.
+
+    `-       1. a` was read as an item nested in an item. That put the
+    content column at the `1.` item's, so the code line below read as prose.
+    """
+    assert classes("-       1. a\n\t    b\n") == ["indented-code", "indented-code"]
+
+
 def test_a_four_space_block_after_a_list_keeps_its_double_spaces(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     source = "- item\n\n# H\n\n    def f():\n        return  1\n\ntail\n"
