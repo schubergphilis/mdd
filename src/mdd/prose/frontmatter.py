@@ -9,6 +9,12 @@ endings, and drop a leading byte order mark, before splitting.
 Front matter that is there but cannot be read is reported as such, not as
 "no front matter": the mirror guard has to refuse such a file rather than
 assume it is authored content.
+
+The block is cut where the sync readers cut it, even when the second line is
+already a closing fence. Those readers look for the closing fence after that
+line, and YAML takes the second ``---`` as a document start, so an empty block
+followed by YAML and a later fence reads as a full mapping to the sync. An
+empty block counts as empty only when the sync readers find no block at all.
 """
 
 from __future__ import annotations
@@ -54,10 +60,10 @@ def read(text: str) -> FrontMatter:
     lines = normal.split("\n", 2)
     if lines[0].rstrip(" \t") != _FENCE:
         return FrontMatter(present=False, mapping=None)
-    if len(lines) > 1 and lines[1].rstrip(" \t") == _FENCE:
-        return FrontMatter(present=True, mapping={})
     split = split_frontmatter(normal)
     if split is None:
+        if len(lines) > 1 and lines[1].rstrip(" \t") == _FENCE:
+            return FrontMatter(present=True, mapping={})
         return FrontMatter(present=True, mapping=None)
     block = split[0]
     if not block.strip():

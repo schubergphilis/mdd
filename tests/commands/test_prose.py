@@ -145,6 +145,32 @@ def test_lint_write_refuses_a_mirrored_file(
     assert target.read_text(encoding="utf-8") == MIRRORED
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param(
+            b"---\n---\nconfluence:\n  page_id: '12345'\n  space_key: ABC\n"
+            b"  exported_at: '2026-01-01T00:00:00+00:00'\n---\n\n"
+            b"Hello world. This is a sentence. And another one here.\n",
+            id="empty-block-then-confluence",
+        ),
+        pytest.param(
+            b"---\n--- \nsharepoint:\n  sync:\n    md_sha256_at_sync: abc\n---\n\n"
+            b"Hello world. This is a sentence. And another one here.\n",
+            id="empty-block-then-sharepoint",
+        ),
+    ],
+)
+def test_reflow_write_refuses_a_mirror_behind_an_empty_front_matter_block(
+    corpus: Path, capsys: pytest.CaptureFixture[str], data: bytes
+) -> None:
+    target = corpus / "a.md"
+    _ = target.write_bytes(data)
+    assert prose(["reflow", "--write", "docs"]) == 1
+    assert "mirrored-file" in capsys.readouterr().out
+    assert target.read_bytes() == data
+
+
 def test_allow_mirror_overrides_the_refusal(corpus: Path) -> None:
     target = corpus / "a.md"
     _ = target.write_text(MIRRORED, encoding="utf-8")

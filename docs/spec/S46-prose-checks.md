@@ -661,7 +661,8 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - Three rules: `stale` (older than the threshold), `missing-review-date` (field
   absent), `malformed-review-date` (a value that is not a date, or front matter
   that is there but cannot be parsed). Front matter is found whatever the file's
-  line endings and after a byte order mark, as the mirror refusal finds it. Defaults are `warning`, `off`, `error`
+  line endings and after a byte order mark, and cut where the sync cuts it, as
+the mirror refusal finds it. Defaults are `warning`, `off`, `error`
   respectively — reporting by default, gating when the project asks. A corpus
   mirrored from Confluence has no `last-verified` field at all, so defaulting
   `missing-review-date` to `error` would make the check useless out of the box.
@@ -817,7 +818,13 @@ if its frontmatter carries `confluence.page_id` or a `sharepoint.sync` block.
 Such a file is reported under a `mirrored-file` rule (default `error`) and left
 untouched. The front matter is read the way the sync commands read it: CRLF
 and CR-only line endings count as line breaks and a leading byte order mark is
-skipped. Front matter that is there but cannot be split or parsed as a YAML
+skipped. The block is cut where the sync commands cut it: they look for the
+closing fence after the second line, and YAML reads a second `---` as a
+document start, so `---`, `---`, a YAML mapping and a closing `---` is a full
+mapping to the sync, and to the refusal. A `---` line straight after the
+opening fence is an empty block only when the sync finds no closing fence
+after it; when it does, that later fence closes the block, and a block that is
+not a mapping is refused. Front matter that is there but cannot be split or parsed as a YAML
 mapping could hide either key, so the refusal fails closed and reports such a
 file as `mirrored-file` too. `--allow-mirror` overrides the refusal for a user
 who has read this section and accepts what follows. This is enforced in the code, not documented

@@ -7,8 +7,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from mdd.confluence.frontmatter import read as confluence_read
+from mdd.confluence.paths import (
+    _read_page_id_from_frontmatter,  # pyright: ignore[reportPrivateUsage]
+)
+from mdd.confluence.state import _read_frontmatter  # pyright: ignore[reportPrivateUsage]
 from mdd.prose.config import ProseConfig
 from mdd.prose.write import atomic_write, mirror_finding, mirror_reason
+from mdd.sharepoint.diff import _load_sharepoint_sync  # pyright: ignore[reportPrivateUsage]
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -69,6 +75,56 @@ def test_unreadable_frontmatter_is_refused_as_a_possible_mirror(text: str) -> No
 def test_empty_frontmatter_is_not_a_mirror() -> None:
     assert mirror_reason("---\n---\n\nBody.\n") is None
     assert mirror_reason("---\n\n---\n\nBody.\n") is None
+
+
+def test_empty_frontmatter_with_a_later_fence_is_cut_where_the_sync_cuts_it() -> None:
+    """The sync reads up to the later fence; that block is not a mapping, so the guard refuses."""
+    reason = mirror_reason("---\n---\n\nBody.\n\n---\n\nMore body.\n")
+    assert reason is not None
+    assert "cannot be parsed" in reason
+
+
+_BODY = b"\n\nHello world. This is a sentence. And another one here.\n"
+_PAGE = b"confluence:\n  page_id: '12345'\n  space_key: ABC\n"
+_SYNC = b"sharepoint:\n  sync:\n    md_sha256_at_sync: abc\n"
+
+#: Front matter shapes, each written to disk and read back by every sync reader.
+_VARIANTS: dict[str, bytes] = {
+    "plain": b"---\n" + _PAGE + b"---" + _BODY,
+    "sharepoint": b"---\n" + _SYNC + b"---" + _BODY,
+    "crlf": (b"---\n" + _PAGE + b"---" + _BODY).replace(b"\n", b"\r\n"),
+    "cr-only": (b"---\n" + _PAGE + b"---" + _BODY).replace(b"\n", b"\r"),
+    "close-at-eof": b"---\n" + _PAGE + b"---",
+    "flow": b"---\n{confluence: {page_id: '1'}}\n---" + _BODY,
+    "anchor": b"---\nbase: &b\n  page_id: '1'\nconfluence: *b\n---" + _BODY,
+    "duplicate-last": b"---\nconfluence: {}\n" + _PAGE + b"---" + _BODY,
+    "document-start-inside": b"---\n--- !!map\n" + _PAGE + b"---" + _BODY,
+    "empty-then-page": b"---\n---\n" + _PAGE + b"---" + _BODY,
+    "empty-then-sync": b"---\n---\n" + _SYNC + b"---" + _BODY,
+    "empty-space-then-sync": b"---\n--- \n" + _SYNC + b"---" + _BODY,
+    "empty-then-page-crlf": (b"---\n---\n" + _PAGE + b"---" + _BODY).replace(b"\n", b"\r\n"),
+    "empty-then-page-cr-only": (b"---\n---\n" + _PAGE + b"---" + _BODY).replace(b"\n", b"\r"),
+    "empty-then-page-at-eof": b"---\n---\n" + _PAGE + b"---",
+}
+
+
+def _a_sync_reader_sees_a_mirror(path: Path) -> bool:
+    page = confluence_read(path)[0].get("confluence")
+    state = _read_frontmatter(path)
+    return (
+        (isinstance(page, dict) and "page_id" in page)
+        or bool(state and state[0].confluence and state[0].confluence.page_id)
+        or _read_page_id_from_frontmatter(path) is not None
+        or _load_sharepoint_sync(path) is not None
+    )
+
+
+@pytest.mark.parametrize("name", list(_VARIANTS))
+def test_guard_refuses_whatever_a_sync_reader_sees_as_a_mirror(tmp_path: Path, name: str) -> None:
+    path = tmp_path / f"{name}.md"
+    _ = path.write_bytes(_VARIANTS[name])
+    assert _a_sync_reader_sees_a_mirror(path), "the variant should be a mirror to the sync"
+    assert mirror_reason(_VARIANTS[name].decode("utf-8")) is not None
 
 
 def test_mirror_finding_names_the_override(tmp_path: Path) -> None:
