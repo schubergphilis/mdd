@@ -177,51 +177,24 @@ CLASSIFIER_GAPS = [
     pytest.param("[x]: /u\n'title'\n", id="link-definition-title-on-next-line"),
     pytest.param("[x]: /u 'a\nb'\n", id="link-definition-title-over-two-lines"),
     pytest.param("[x]: /u\n[y]:\n/v\n", id="link-definition-after-link-definition"),
-    _gap(
-        "- [x]: /u\n",
-        "a link reference definition inside a list item is called prose",
-        "link-definition-in-list-item",
-    ),
+    pytest.param("- [x]: /u\n", id="link-definition-in-list-item"),
     _gap(
         "| a |\n| --- |\n",
         "a single-column table is called prose",
         "single-column-table",
     ),
-    _gap(
-        "- ***\n",
-        "a thematic break on a list marker line is called prose",
-        "thematic-break-after-list-marker",
-    ),
-    _gap(
-        "- # h\n",
-        "an ATX heading on a list marker line is called prose",
-        "heading-after-list-marker",
-    ),
-    _gap(
-        "1. $$ x $$\n",
-        "a math block on a list marker line is called prose",
-        "math-after-list-marker",
-    ),
-    _gap(
-        "-     code  x\n",
-        "indented code opened by five spaces after a list marker is called prose",
-        "indented-code-after-list-marker",
-    ),
-    _gap(
-        "- <div>\n",
-        "an HTML block on a list marker line is called prose",
-        "html-block-after-list-marker",
-    ),
-    _gap(
-        "[^1]: ``` a\n    c\n",
-        "a fence on a footnote definition line is called prose",
-        "fence-after-footnote-label",
-    ),
-    _gap(
-        "10.\nfoo\n",
-        "a bare list marker, an empty list item, is called prose",
-        "empty-list-item",
-    ),
+    pytest.param("- ***\n", id="thematic-break-after-list-marker"),
+    pytest.param("- # h\n", id="heading-after-list-marker"),
+    pytest.param("1. $$ x $$\n", id="math-after-list-marker"),
+    pytest.param("-     code  x\n", id="indented-code-after-list-marker"),
+    pytest.param("- <div>\n", id="html-block-after-list-marker"),
+    pytest.param("[^1]: ``` a\n    c\n", id="fence-after-footnote-label"),
+    pytest.param("10.\nfoo\n", id="empty-list-item"),
+    pytest.param("[^1]:\nfoo\n", id="empty-footnote-label"),
+    pytest.param("- a\n  -\n", id="setext-heading-in-list-item"),
+    pytest.param("para\n- <span>\n", id="bare-tag-html-block-opens-list-item"),
+    pytest.param("- > # h\n", id="heading-in-quote-in-list-item"),
+    pytest.param("1.   ```\n     a  b\n     ```\nc\n", id="fence-after-wide-list-marker"),
     _gap(
         "-    a\n\n     $$\n     x\n     $$\n",
         "a math block indented to a list item's content column is called prose",
@@ -232,11 +205,7 @@ CLASSIFIER_GAPS = [
         "a math block with content on its opening line is closed after one line",
         "math-block-content-on-opener",
     ),
-    _gap(
-        "[^1]:# A sentence. B.\n",
-        "a footnote definition with no space after the colon is called prose",
-        "footnote-without-space",
-    ),
+    pytest.param("[^1]:# A sentence. B.\n", id="footnote-without-space"),
 ]
 
 

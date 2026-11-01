@@ -250,10 +250,31 @@ def test_code_span_straddling_an_indented_continuation_is_masked() -> None:
     assert lines[1].text[: lines[1].masks[0].end] == "      long command`"
 
 
-def test_a_bare_list_marker_is_a_block_of_its_own() -> None:
-    assert blocks("-\nfoo\n") == [1, 2]
-    assert blocks("> -\n> foo\n") == [1, 2]
-    assert blocks("- a\n-\n") == [1, 2]
+def test_a_bare_list_marker_is_not_prose() -> None:
+    # An empty item, or one whose content starts on the next line. Joining it
+    # into a paragraph turns a list item into text.
+    marker, prose = LineClass.LIST_MARKER, LineClass.PROSE
+    assert classes("1.\nfoo\n") == [marker, prose]
+    assert classes("> -\n> foo\n") == [marker, prose]
+    assert classes("- a\n*\n") == [prose, marker]
+
+
+def test_a_dash_under_a_paragraph_is_a_setext_underline() -> None:
+    assert classes("foo\n-\n") == [LineClass.HEADING, LineClass.HEADING]
+
+
+def test_a_setext_underline_inside_a_list_item_makes_a_heading() -> None:
+    assert classes("- a\n  ---\n") == [LineClass.HEADING, LineClass.HEADING]
+    assert classes("- a\n---\n") == [LineClass.PROSE, LineClass.THEMATIC_BREAK]
+
+
+def test_list_item_content_is_classified_by_the_block_it_opens() -> None:
+    assert classes("- # h\n") == [LineClass.HEADING]
+    assert classes("- ***\n") == [LineClass.THEMATIC_BREAK]
+    assert classes("1. [x]: /u\n") == [LineClass.LINK_DEF]
+    assert classes("-     code\n") == [LineClass.INDENTED_CODE]
+    assert classes("- ```\n  a  b\n  ```\n") == [LineClass.FENCED_CODE] * 3
+    assert classes("[^1]:# h\n") == [LineClass.HEADING]
 
 
 def test_list_content_column_counts_a_tab_after_the_marker_as_columns() -> None:

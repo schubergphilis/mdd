@@ -142,3 +142,12 @@ def test_index_caches_by_resolved_path(tmp_path: Path) -> None:
 
 def test_index_returns_none_for_an_unreadable_file(tmp_path: Path) -> None:
     assert AnchorIndex().anchors(tmp_path / "absent.md") is None
+
+
+def test_a_heading_in_a_container_is_slugged_without_its_markers() -> None:
+    def slugs(text: str) -> list[str]:
+        return [anchor.slug for anchor in anchors_of(ok(text))]
+
+    assert slugs("- # Step one\n") == ["step-one"]
+    assert slugs("> # Quoted\n") == ["quoted"]
+    assert slugs("> Title\n> ===\n") == ["title"]

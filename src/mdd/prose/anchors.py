@@ -50,8 +50,12 @@ def slug(heading_text: str) -> str:
 
 
 def heading_text(line: Line) -> str:
-    """Return the visible text of a heading line, with any ``{#id}`` removed."""
-    body = _ATX_MARKERS.sub("", line.text.strip())
+    """Return the visible text of a heading line, with any ``{#id}`` removed.
+
+    Read after the line's prefix, so a heading in a block quote or a list item
+    is not slugged with the ``>`` or the list marker in front of it.
+    """
+    body = _ATX_MARKERS.sub("", line.content.strip())
     body = re.sub(r"[ \t]+#*$", "", body)
     return _EXPLICIT_ID.sub("", body).strip()
 
@@ -75,7 +79,7 @@ def _heading_lines(lines: Sequence[Line]) -> Iterable[Line]:
     for line in lines:
         if line.cls is not LineClass.HEADING:
             continue
-        if _SETEXT_RULE.match(line.text) and not line.text.lstrip().startswith("#"):
+        if _SETEXT_RULE.match(line.content) and not line.content.lstrip().startswith("#"):
             continue
         yield line
 

@@ -35,7 +35,12 @@ _LINK_DEF = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+")
 _LINK_LABEL_ONLY = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*$")
 _LINK_DEF_TAIL = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+[ \t]*(.*)$")
 _LINK_TITLE_START = re.compile(r"^[ \t]*[\"'(]")
-_FOOTNOTE_DEF = re.compile(r"^([ \t]*\[\^[^\]]+\]:[ \t]+)(?=\S)")
+_FOOTNOTE_DEF = re.compile(r"^([ \t]*\[\^[^\]\s]+\]:[ \t]*)(?=\S)")
+#: One container marker at the start of a line: a list marker, a footnote label
+#: or a block-quote marker, and the whitespace after it.
+_CONTAINER_MARKER = re.compile(
+    r"^(?:[ \t]*(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$)|[ \t]*\[\^[^\]\s]+\]:| {0,3}>)(?P<gap>[ \t]*)"
+)
 _HTML_BLOCK = re.compile(r"^ {0,3}</?[A-Za-z!?]")
 #: HTML blocks that end at a closing marker rather than at a blank line, with
 #: that marker. Each may contain blank lines, and each may interrupt a paragraph.
@@ -85,6 +90,9 @@ class LineClass(StrEnum):
     #: export callout, or a callout marker line such as ``> [!NOTE]``. Joining
     #: one into the paragraph below it changes what the file renders as.
     MANAGED = "managed-region"
+    #: A list item or footnote marker line whose content is not paragraph text:
+    #: an empty item, whose content, if any, starts on a later line.
+    LIST_MARKER = "list-marker"
     PROSE = "prose"
 
 
@@ -495,6 +503,56 @@ def _link_definition(line: Line, rest: str, state: _State) -> Line:
     return line
 
 
+def _split_markers(rest: str) -> tuple[str, str, str] | None:
+    """Split *rest* into its container markers, the gap after the last one, and the rest.
+
+    ``None`` when *rest* does not start with a list marker or footnote label.
+    *rest* has had its block-quote markers removed already, so a match here is
+    one of those two. The markers may nest: ``- 1. > # h`` is a heading three
+    containers deep.
+    """
+    if _CONTAINER_MARKER.match(rest) is None:
+        return None
+    markers = ""
+    gap = ""
+    content = rest
+    while (match := _CONTAINER_MARKER.match(content)) is not None and match.end() > 0:
+        markers += match.group(0)
+        gap = match.group("gap")
+        content = content[match.end() :]
+    return markers, gap, content
+
+
+def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
+    """Classify a list item or footnote line by the block its content opens.
+
+    The content after a marker is the first block of a new item, so it may be
+    anything a line on its own may be: a heading, a rule, a fence, maths, an
+    HTML block, a link definition, indented code, or nothing at all. Calling
+    those prose handed them to the fixers. ``None`` when the content is
+    paragraph text, or *rest* carries no marker.
+    """
+    split = _split_markers(rest)
+    if split is None:
+        return None
+    markers, gap, content = split
+    prefix = quote + markers
+    if not content.strip(MD_SPACE):
+        return Line(number, raw, LineClass.LIST_MARKER, prefix=prefix)
+    if _columns(gap) > _MAX_MARKER_GAP:
+        return Line(number, raw, LineClass.INDENTED_CODE, prefix=prefix)
+    # Nothing the content opens is interrupting a paragraph: it is the first
+    # line of the item. The scan loop recomputes this flag after every line.
+    state.in_paragraph = False
+    opened = _open_block(number, raw, prefix, content, state)
+    if opened is not None:
+        if opened.cls is LineClass.FENCED_CODE:
+            state.fence_indent = _columns(markers)
+        return replace(opened, prefix=prefix)
+    single = _single_line_class(content, state)
+    return Line(number, raw, single, prefix=prefix) if single is not None else None
+
+
 def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State) -> Line:
     """Classify a line that is not inside any open multi-line construct."""
     # Indented code is tested first: its contents are literal, so a line inside
@@ -508,11 +566,11 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     single = _single_line_class(rest, state)
     if single is not None:
         _close_list(rest, state)
-        return Line(number, raw, single)
+        return Line(number, raw, single, prefix=quote)
     _track_list(rest, state)
     if not rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.BLOCK_QUOTE if quote else LineClass.BLANK)
-    return _prose_line(number, raw, quote, rest)
+    return _marker_line(number, raw, quote, rest, state) or _prose_line(number, raw, quote, rest)
 
 
 def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None]:
@@ -574,26 +632,55 @@ def _reclaim_code_blanks(lines: list[Line]) -> None:
         in_code = line.cls is LineClass.INDENTED_CODE
 
 
+def _paragraph_start(lines: Sequence[Line], index: int) -> int:
+    """Return the index of the first line of the paragraph *index* belongs to."""
+    while index > 0 and lines[index - 1].cls is LineClass.PROSE:
+        if not _continues_paragraph(lines[index - 1], lines[index]):
+            break
+        index -= 1
+    return index
+
+
+def _underlines(underline: str, first: str) -> bool:
+    """True when *underline* is a setext underline for a paragraph starting *first*.
+
+    Both are block-quote-stripped. An underline must sit inside the container
+    the paragraph is in, at most three columns in. For a list item that is its
+    content column, so `- a` over `---` is a list and a rule, while `- a` over
+    `  ---` is a heading in the list item. A paragraph that does not open on a
+    marker line gets the benefit of the doubt: calling a paragraph a heading
+    keeps it from the fixers, the other mistake hands one to them.
+    """
+    if not _SETEXT.match(underline.lstrip(MD_SPACE)):
+        return False
+    indent = _indent_columns(underline)
+    item = _LIST.match(first) or _FOOTNOTE_DEF.match(first)
+    if item is None:
+        return indent <= max(_INDENTED_CODE_COLUMN - 1, _indent_columns(first) + 3)
+    column = _columns(item.group(0))
+    return column <= indent <= column + _INDENTED_CODE_COLUMN - 1
+
+
+_UNDERLINE_CLASSES = (LineClass.PROSE, LineClass.THEMATIC_BREAK, LineClass.LIST_MARKER)
+
+
 def _apply_setext(lines: list[Line]) -> None:
-    """Reclassify a paragraph followed by an ``===``/``---`` rule as a heading."""
+    """Reclassify a paragraph followed by an ``===``/``---`` rule as a heading.
+
+    A setext underline closes a paragraph, not a list. Without the container
+    check `- a\n- b\n---` turned the whole list into a heading, inventing
+    anchors and an `ambiguous-anchor` finding for text that is not a heading.
+    """
     for index, line in enumerate(lines):
-        if index == 0 or line.cls not in (LineClass.PROSE, LineClass.THEMATIC_BREAK):
+        if index == 0 or line.cls not in _UNDERLINE_CLASSES:
             continue
-        _, rest = _strip_quote(line.text)
-        previous = lines[index - 1]
-        if not _SETEXT.match(rest) or previous.cls is not LineClass.PROSE:
+        if lines[index - 1].cls is not LineClass.PROSE:
             continue
-        # A setext underline closes a paragraph, not a list item. Without this
-        # `- a\n- b\n---` turned the whole list into a heading, inventing
-        # anchors and an `ambiguous-anchor` finding for text that is not a
-        # heading at all.
-        if _LIST.match(_strip_quote(previous.text)[1]):
+        start = _paragraph_start(lines, index - 1)
+        if not _underlines(_strip_quote(line.text)[1], _strip_quote(lines[start].text)[1]):
             continue
-        lines[index] = replace(line, cls=LineClass.HEADING, prefix="", cont_prefix="")
-        back = index - 1
-        while back >= 0 and lines[back].cls is LineClass.PROSE:
-            lines[back] = replace(lines[back], cls=LineClass.HEADING, prefix="", cont_prefix="")
-            back -= 1
+        for heading in range(start, index + 1):
+            lines[heading] = replace(lines[heading], cls=LineClass.HEADING, cont_prefix="")
 
 
 def _apply_tables(lines: list[Line]) -> None:
@@ -651,17 +738,12 @@ def _continues_paragraph(previous: Line, line: Line) -> bool:
     Paragraph continuation ignores indentation and tolerates a missing ``>``
     (CommonMark's lazy continuation), so an indented or lazy line belongs to
     the paragraph above it. Only a line that opens a block of its own starts a
-    new one: a list or footnote marker, or a deeper block quote.
-
-    A bare list marker is kept apart on both sides. It is an empty item, or one
-    whose content starts on the next line; joining either into a paragraph
-    turns text into list content or a list item into text.
+    new one: a list or footnote marker, or a deeper block quote. A bare list
+    marker is never prose at all, so it cannot join one.
     """
     quote, rest = _strip_quote(line.text)
-    previous_quote, previous_rest = _strip_quote(previous.text)
+    previous_quote, _ = _strip_quote(previous.text)
     if _LIST.match(rest) or _FOOTNOTE_DEF.match(rest):
-        return False
-    if _LIST_BARE.match(rest) or _LIST_BARE.match(previous_rest):
         return False
     return _quote_depth(quote) <= _quote_depth(previous_quote)
 
