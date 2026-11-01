@@ -11,9 +11,9 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
+from mdd.prose import frontmatter
 from mdd.prose.report import Finding
 from mdd.prose.rules import Severity
-from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,10 +53,8 @@ def _report(path: Path, rule: str, message: str, config: ProseConfig) -> list[Fi
     return [_finding(path, rule, message, config)]
 
 
-def _review_value(text: str, field: str) -> object | None:
-    split = split_frontmatter(text)
-    mapping = parse_yaml_mapping(split[0]) if split is not None else None
-    return mapping.get(field) if mapping is not None else None
+def _review_value(front: frontmatter.FrontMatter, field: str) -> object | None:
+    return front.mapping.get(field) if front.mapping is not None else None
 
 
 def run(
@@ -69,7 +67,13 @@ def run(
 ) -> list[Finding]:
     """Check *path*'s review date. *only* narrows the run to ``missing`` or ``stale``."""
     field = config.freshness.review_field
-    raw = _review_value(text, field)
+    front = frontmatter.read(text)
+    if front.malformed:
+        if only == "missing":
+            return []
+        message = f"{field}: the front matter cannot be parsed"
+        return _report(path, "malformed-review-date", message, config)
+    raw = _review_value(front, field)
 
     if raw is None:
         if only == "stale":

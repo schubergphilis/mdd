@@ -89,3 +89,21 @@ def test_finding_is_whole_file() -> None:
     findings = run(PATH, "---\nlast-verified: 2020-01-01\n---\n", config(), as_of=TODAY)
     assert (findings[0].line, findings[0].column) == (0, 0)
     assert findings[0].check == "freshness"
+
+
+STALE = "---\nlast-verified: 2020-01-01\n---\n\nBody.\n"
+
+
+def test_crlf_cr_and_bom_front_matter_is_read() -> None:
+    for text in (STALE.replace("\n", "\r\n"), STALE.replace("\n", "\r"), "\ufeff" + STALE):
+        assert rules(text) == ["stale"], repr(text)
+
+
+def test_unparseable_front_matter_is_a_malformed_review_date() -> None:
+    findings = run(PATH, "---\n: : :\n---\n\nBody.\n", config(), as_of=TODAY)
+    assert [f.rule for f in findings] == ["malformed-review-date"]
+    assert "front matter cannot be parsed" in findings[0].message
+
+
+def test_unparseable_front_matter_is_not_reported_as_missing() -> None:
+    assert rules("---\n: : :\n---\n", only="missing") == []

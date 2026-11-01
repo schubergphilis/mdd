@@ -544,7 +544,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   the corpus *and the clock*, which is as deterministic as a freshness check
   can be, and the flag is how a test pins the clock.
 - Three rules: `stale` (older than the threshold), `missing-review-date` (field
-  absent), `malformed-review-date`. Defaults are `warning`, `off`, `error`
+  absent), `malformed-review-date` (a value that is not a date, or front matter
+  that is there but cannot be parsed). Front matter is found whatever the file's
+  line endings and after a byte order mark, as the mirror refusal finds it. Defaults are `warning`, `off`, `error`
   respectively — reporting by default, gating when the project asks. A corpus
   mirrored from Confluence has no `last-verified` field at all, so defaulting
   `missing-review-date` to `error` would make the check useless out of the box.
@@ -683,8 +685,12 @@ and a deleted trailing space.
 **A `--write` run must refuse to rewrite a mirrored file.** A file is mirrored
 if its frontmatter carries `confluence.page_id` or a `sharepoint.sync` block.
 Such a file is reported under a `mirrored-file` rule (default `error`) and left
-untouched. `--allow-mirror` overrides the refusal for a user who has read this
-section and accepts what follows. This is enforced in the code, not documented
+untouched. The front matter is read the way the sync commands read it: CRLF
+and CR-only line endings count as line breaks and a leading byte order mark is
+skipped. Front matter that is there but cannot be split or parsed as a YAML
+mapping could hide either key, so the refusal fails closed and reports such a
+file as `mirrored-file` too. `--allow-mirror` overrides the refusal for a user
+who has read this section and accepts what follows. This is enforced in the code, not documented
 as advice, because the failure modes are silent and none of them look like a
 prose problem when they surface:
 

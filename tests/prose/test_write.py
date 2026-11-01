@@ -33,8 +33,41 @@ def test_confluence_section_without_a_page_id_is_not_a_mirror() -> None:
     assert mirror_reason("---\nconfluence:\n  space: DOCS\n---\n") is None
 
 
-def test_malformed_frontmatter_is_not_a_mirror() -> None:
-    assert mirror_reason("---\n: : :\n---\n") is None
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param(CONFLUENCE.replace("\n", "\r\n"), id="crlf"),
+        pytest.param(CONFLUENCE.replace("\n", "\r"), id="cr-only"),
+        pytest.param("\ufeff" + CONFLUENCE, id="bom"),
+        pytest.param("\ufeff" + CONFLUENCE.replace("\n", "\r\n"), id="bom-crlf"),
+    ],
+)
+def test_mirror_is_recognised_whatever_the_line_endings(text: str) -> None:
+    assert mirror_reason(text) == "confluence.page_id"
+
+
+def test_sharepoint_mirror_with_cr_only_line_endings() -> None:
+    assert mirror_reason(SHAREPOINT.replace("\n", "\r")) == "sharepoint.sync"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("---\n: : :\n---\n", id="bad-yaml"),
+        pytest.param("---\n- a list\n---\n\nBody.\n", id="not-a-mapping"),
+        pytest.param("---\nconfluence:\n  page_id: 1\n", id="never-closes"),
+        pytest.param("---\r\n: : :\r\n---\r\n", id="bad-yaml-crlf"),
+    ],
+)
+def test_unreadable_frontmatter_is_refused_as_a_possible_mirror(text: str) -> None:
+    reason = mirror_reason(text)
+    assert reason is not None
+    assert "cannot be parsed" in reason
+
+
+def test_empty_frontmatter_is_not_a_mirror() -> None:
+    assert mirror_reason("---\n---\n\nBody.\n") is None
+    assert mirror_reason("---\n\n---\n\nBody.\n") is None
 
 
 def test_mirror_finding_names_the_override(tmp_path: Path) -> None:

@@ -378,6 +378,32 @@ def test_reflow_does_not_write_an_ignored_file(tmp_path: Path) -> None:
     assert read_file(target) == source
 
 
+
+# --- third review round: the write guards ---------------------------------
+
+MIRROR_SOURCE = "---\nconfluence:\n  page_id: 123\n---\n\nfoo   \n"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(MIRROR_SOURCE.replace("\n", "\r\n"), id="crlf"),
+        pytest.param(MIRROR_SOURCE.replace("\n", "\r"), id="cr-only"),
+        pytest.param("\ufeff" + MIRROR_SOURCE, id="bom"),
+        pytest.param("---\n: : :\n---\n\nfoo   \n", id="unparseable"),
+    ],
+)
+def test_lint_write_refuses_a_mirror_whatever_its_line_endings(
+    tmp_path: Path, source: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The guard read CRLF, CR-only and BOM front matter as no front matter at all."""
+    target = tmp_path / "a.md"
+    write_file(target, source)
+    assert lint_write(target) == 1
+    assert read_file(target) == source
+    assert "mirrored-file" in capsys.readouterr().out
+
+
 # --- second review round: block state that outlived its block ------------
 
 

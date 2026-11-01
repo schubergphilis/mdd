@@ -11,9 +11,9 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from mdd.prose import frontmatter
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING
-from mdd.utils.frontmatter import parse_yaml_mapping, split_frontmatter
 from mdd.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -24,25 +24,30 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: The mirror reason for front matter that is there but cannot be read.
+UNREADABLE_FRONTMATTER = "front matter that cannot be parsed"
+
 
 def mirror_reason(text: str) -> str | None:
-    """Return why *text* is a mirrored file, or ``None`` when it is authored content.
+    """Return why *text* may be a mirrored file, or ``None`` when it is authored content.
 
-    A file is mirrored if its frontmatter carries ``confluence.page_id`` or a
+    A file is mirrored if its front matter carries ``confluence.page_id`` or a
     ``sharepoint.sync`` block. Rewriting one invalidates SharePoint's content
     hash and bumps Confluence's mtime, both of which fail silently and neither
     of which looks like a prose problem when it surfaces.
+
+    Front matter that is there but cannot be read could hide either key, so it
+    is treated as a mirror too: the guard fails closed.
     """
-    split = split_frontmatter(text)
-    if split is None:
+    front = frontmatter.read(text)
+    if not front.present:
         return None
-    mapping = parse_yaml_mapping(split[0])
-    if mapping is None:
-        return None
-    confluence = mapping.get("confluence")
+    if front.mapping is None:
+        return UNREADABLE_FRONTMATTER
+    confluence = front.mapping.get("confluence")
     if isinstance(confluence, dict) and "page_id" in confluence:
         return "confluence.page_id"
-    sharepoint = mapping.get("sharepoint")
+    sharepoint = front.mapping.get("sharepoint")
     if isinstance(sharepoint, dict) and "sync" in sharepoint:
         return "sharepoint.sync"
     return None
@@ -57,8 +62,8 @@ def mirror_finding(path: Path, check: str, reason: str, config: ProseConfig) -> 
         check=CROSS_CUTTING,
         rule="mirrored-file",
         message=(
-            f"{reason} marks this file as a mirror; rewriting it invalidates the "
-            f"sync's change detection. Pass --allow-mirror to {check} anyway."
+            f"this file may be a mirror (found {reason}); rewriting a mirror invalidates "
+            f"the sync's change detection. Pass --allow-mirror to {check} anyway."
         ),
         severity=config.severity("mirrored-file"),
     )
