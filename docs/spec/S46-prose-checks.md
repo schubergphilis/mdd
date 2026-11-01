@@ -775,7 +775,13 @@ prose:
   - Writes are atomic — temp file, `fsync`, rename — through the shared
     atomic writer in `mdd.utils.safe_write` rather than a second
     implementation, so a symlink planted at the temp path is refused rather
-    than followed. The rewritten file keeps the original's permission bits.
+    than followed. The rewritten file keeps the original's permission bits,
+    setuid and setgid included: they are set after the data is written,
+    because the kernel clears both on a write.
+  - The temp file is `PATH.tmp`. A file already there is the user's, not a
+    leftover to clean up: the shared writer's default of removing it is turned
+    off for the prose writers, and the write fails as `write-failed` with that
+    file and the target left as they were.
   - A target that is a symlink is refused, and so is a file with more than one
     hard link: replacing either would detach the other names from the new
     text. Both are reported as `write-failed` and the file is left as it was.

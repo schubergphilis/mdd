@@ -107,7 +107,8 @@ def atomic_write(path: Path, text: str) -> None:
     what they should be. A symlink is refused, because replacing it would turn
     it into a regular file detached from its target. A file with more than one
     hard link is refused for the same reason: the replacement gets a new inode
-    and the other names would keep the old text.
+    and the other names would keep the old text. A file already at the temp
+    path is the user's, so the write fails rather than delete it.
     """
     info = path.lstat()
     if stat.S_ISLNK(info.st_mode):
@@ -118,4 +119,4 @@ def atomic_write(path: Path, text: str) -> None:
             "and replacing it would detach the others"
         )
         raise OSError(msg)
-    atomic_write_text(path, text, mode=stat.S_IMODE(info.st_mode))
+    atomic_write_text(path, text, mode=stat.S_IMODE(info.st_mode), keep_existing_tmp=True)

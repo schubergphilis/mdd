@@ -7,6 +7,7 @@ between the mirror root and the destination is refused instead of followed.
 
 from __future__ import annotations
 
+import errno
 import os
 from typing import TYPE_CHECKING
 
@@ -95,16 +96,30 @@ def _open_exclusive(path: Path, mode: int = 0o666) -> int:
     return os.open(path, flags, mode)
 
 
-def _write_fd(fd: int, data: bytes) -> None:
-    """Write *data* to *fd* fully, fsync it and close the descriptor."""
+def _write_all(fd: int, data: bytes) -> None:
+    """Write *data* to *fd* fully, without closing it."""
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        view = view[written:]
+
+
+def _sync_and_close(fd: int) -> None:
+    """Fsync *fd* and close it, closing it even when the fsync fails."""
     try:
-        view = memoryview(data)
-        while view:
-            written = os.write(fd, view)
-            view = view[written:]
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def _write_fd(fd: int, data: bytes) -> None:
+    """Write *data* to *fd* fully, fsync it and close the descriptor."""
+    try:
+        _write_all(fd, data)
+    except BaseException:
+        os.close(fd)
+        raise
+    _sync_and_close(fd)
 
 
 def write_new_bytes(path: Path, data: bytes, *, mode: int | None = None) -> None:
@@ -141,23 +156,48 @@ def _clear_stale_tmp(tmp: Path) -> None:
         tmp.unlink()
 
 
+def _refuse_existing_tmp(tmp: Path) -> None:
+    """Refuse when anything sits at *tmp*, leaving it where it is."""
+    refuse_symlink(tmp)
+    if tmp.exists():
+        msg = f"refusing to overwrite an existing file at the temp path {tmp}"
+        raise FileExistsError(errno.EEXIST, msg, str(tmp))
+
+
 def atomic_write_bytes(
-    dest: Path, data: bytes, *, root: Path | None = None, mode: int | None = None
+    dest: Path,
+    data: bytes,
+    *,
+    root: Path | None = None,
+    mode: int | None = None,
+    keep_existing_tmp: bool = False,
 ) -> None:
     """Write *data* to *dest* atomically via a ``<dest>.tmp`` sibling.
 
     Refuses to write through a symlink at *dest*, at the ``.tmp`` sibling, or
     at any directory between *root* and *dest*. The temp file is created
     exclusively so a link planted between the check and the open still fails.
-    The temp file is removed on any failure. When *mode* is given the
-    permission bits are set on the temp file before it replaces *dest*, so a
-    rewrite can keep the mode of the file it replaces.
+    The temp file is removed on any failure.
+
+    A regular file already at the ``.tmp`` sibling is taken for a leftover of
+    an earlier write and removed. With *keep_existing_tmp* it is left alone
+    and the write fails with :class:`FileExistsError` instead, for a caller
+    that must never delete a file it was not asked to write.
+
+    When *mode* is given the permission bits are set on the temp file after
+    the data is written and before it replaces *dest*, so a rewrite can keep
+    the mode of the file it replaces. Setting them after the write matters for
+    the setuid and setgid bits, which the kernel clears on a write.
     """
     refuse_symlink_below(dest, root)
     tmp = dest.with_suffix(dest.suffix + ".tmp")
-    _clear_stale_tmp(tmp)
+    if keep_existing_tmp:
+        _refuse_existing_tmp(tmp)
+    else:
+        _clear_stale_tmp(tmp)
     fd = _open_exclusive(tmp)
     try:
+        _write_all(fd, data)
         if mode is not None:
             os.fchmod(fd, mode)
     except BaseException:
@@ -165,7 +205,7 @@ def atomic_write_bytes(
         tmp.unlink(missing_ok=True)
         raise
     try:
-        _write_fd(fd, data)
+        _sync_and_close(fd)
         refuse_symlink(dest)
         os.replace(tmp, dest)  # noqa: PTH105
     except BaseException:
@@ -174,7 +214,14 @@ def atomic_write_bytes(
 
 
 def atomic_write_text(
-    dest: Path, text: str, *, root: Path | None = None, mode: int | None = None
+    dest: Path,
+    text: str,
+    *,
+    root: Path | None = None,
+    mode: int | None = None,
+    keep_existing_tmp: bool = False,
 ) -> None:
     """Write *text* as UTF-8 to *dest* atomically; see :func:`atomic_write_bytes`."""
-    atomic_write_bytes(dest, text.encode("utf-8"), root=root, mode=mode)
+    atomic_write_bytes(
+        dest, text.encode("utf-8"), root=root, mode=mode, keep_existing_tmp=keep_existing_tmp
+    )

@@ -266,6 +266,31 @@ class TestAtomicWrite:
         assert dest.read_text() == "new"
         assert not (tmp_path / "out.md.tmp").exists()
 
+    def test_existing_tmp_is_refused_when_asked_and_left_alone(self, tmp_path: Path) -> None:
+        dest = tmp_path / "out.md"
+        dest.write_text("old")
+        tmp = tmp_path / "out.md.tmp"
+        tmp.write_text("user notes")
+        with pytest.raises(FileExistsError, match=r"out\.md\.tmp"):
+            atomic_write_text(dest, "new", keep_existing_tmp=True)
+        assert tmp.read_text() == "user notes"
+        assert dest.read_text() == "old"
+
+    def test_tmp_symlink_is_still_refused_as_a_symlink_when_asked(self, tmp_path: Path) -> None:
+        victim = tmp_path / "victim"
+        victim.write_text("keep me")
+        _symlink(tmp_path / "Foo.md.tmp", victim)
+        with pytest.raises(SymlinkRefusedError):
+            atomic_write_text(tmp_path / "Foo.md", "payload", keep_existing_tmp=True)
+        assert victim.read_text() == "keep me"
+
+    def test_keep_existing_tmp_writes_when_there_is_none(self, tmp_path: Path) -> None:
+        dest = tmp_path / "out.md"
+        dest.write_text("old")
+        atomic_write_text(dest, "new", keep_existing_tmp=True)
+        assert dest.read_text() == "new"
+        assert not (tmp_path / "out.md.tmp").exists()
+
     def test_permissions_follow_umask_not_0600(self, tmp_path: Path) -> None:
         dest = tmp_path / "out.md"
         old = os.umask(0o022)
@@ -359,6 +384,21 @@ class TestAtomicWrite:
         atomic_write_text(dest, "x", mode=mode)
         assert stat.S_IMODE(dest.stat().st_mode) == mode
         assert dest.read_text() == "x"
+
+    def test_setuid_and_setgid_bits_survive_the_write(self, tmp_path: Path) -> None:
+        """The kernel clears both bits on a write, so the mode is set after the data."""
+        probe = tmp_path / "probe"
+        probe.write_text("x")
+        mode = stat.S_ISUID | stat.S_ISGID | 0o755
+        try:
+            probe.chmod(mode)
+        except PermissionError:
+            pytest.skip("this platform does not let the owner set setuid and setgid")
+        if stat.S_IMODE(probe.stat().st_mode) != mode:
+            pytest.skip("this platform does not let the owner set setuid and setgid")
+        dest = tmp_path / "out.md"
+        atomic_write_text(dest, "x" * 10_000, mode=mode)
+        assert stat.S_IMODE(dest.stat().st_mode) == mode
 
     def test_chmod_failure_removes_tmp(self, tmp_path: Path) -> None:
         dest = tmp_path / "out.md"

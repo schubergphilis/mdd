@@ -166,6 +166,33 @@ def test_atomic_write_keeps_the_file_mode(tmp_path: Path, mode: int) -> None:
     assert target.read_text(encoding="utf-8") == "new\n"
 
 
+def test_atomic_write_keeps_setuid_and_setgid(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
+    mode = stat.S_ISUID | stat.S_ISGID | 0o755
+    try:
+        target.chmod(mode)
+    except PermissionError:
+        pytest.skip("this platform does not let the owner set setuid and setgid")
+    if stat.S_IMODE(target.stat().st_mode) != mode:
+        pytest.skip("this platform does not let the owner set setuid and setgid")
+    atomic_write(target, "new\n")
+    assert stat.S_IMODE(target.stat().st_mode) == mode
+    assert target.read_text(encoding="utf-8") == "new\n"
+
+
+def test_atomic_write_leaves_an_existing_temp_file_alone(tmp_path: Path) -> None:
+    """A file at the temp path is the user's: the write fails rather than delete it."""
+    target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
+    notes = tmp_path / "a.md.tmp"
+    _ = notes.write_text("my notes\n", encoding="utf-8")
+    with pytest.raises(FileExistsError, match=r"a\.md\.tmp"):
+        atomic_write(target, "new\n")
+    assert notes.read_text(encoding="utf-8") == "my notes\n"
+    assert target.read_text(encoding="utf-8") == "old\n"
+
+
 def test_atomic_write_does_not_follow_a_symlink_planted_at_the_temp_path(tmp_path: Path) -> None:
     victim = tmp_path / "victim.txt"
     _ = victim.write_text("original\n", encoding="utf-8")

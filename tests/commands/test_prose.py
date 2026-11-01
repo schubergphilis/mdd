@@ -171,6 +171,19 @@ def test_reflow_write_refuses_a_mirror_behind_an_empty_front_matter_block(
     assert target.read_bytes() == data
 
 
+def test_write_never_deletes_a_file_at_the_temp_path(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = corpus / "a.md"
+    _ = target.write_text(MESSY, encoding="utf-8")
+    notes = corpus / "a.md.tmp"
+    _ = notes.write_text("my notes\n", encoding="utf-8")
+    assert prose(["lint", "--write", "docs"]) == 1
+    assert "write-failed" in capsys.readouterr().out
+    assert notes.read_text(encoding="utf-8") == "my notes\n"
+    assert target.read_text(encoding="utf-8") == MESSY
+
+
 def test_allow_mirror_overrides_the_refusal(corpus: Path) -> None:
     target = corpus / "a.md"
     _ = target.write_text(MIRRORED, encoding="utf-8")
