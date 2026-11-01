@@ -229,7 +229,11 @@ The load-bearing subcommand.
 - Reflow never changes the number of blank lines, the order of blocks, or any
   character other than the whitespace it replaces with a newline (and the
   newline it replaces with a space when joining a paragraph that was
-  hard-wrapped).
+  hard-wrapped). Whitespace between two clauses or sentences that end up on
+  the same line is kept byte for byte, two spaces and tabs included; only the
+  run at a chosen break point is replaced. At a joined line break, the
+  newline, the next line's indent and any trailing whitespace before
+  it that is not a hard break become one space.
 
 **Clause breaking — the part that is easy to get wrong**
 

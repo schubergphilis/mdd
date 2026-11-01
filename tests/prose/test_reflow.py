@@ -8,7 +8,7 @@ from mdd.prose.classify import Classified, classify
 from mdd.prose.config import ProseConfig, ReflowConfig
 from mdd.prose.inline import mask_flags, scan
 from mdd.prose.reflow.apply import canonical, equivalent, findings, reflow_text
-from mdd.prose.reflow.clauses import pack, split_units
+from mdd.prose.reflow.clauses import Unit, pack, split_units
 from mdd.prose.reflow.sentences import segment
 from mdd.prose.rules import RULES
 
@@ -28,7 +28,13 @@ def sentences(text: str, config: ReflowConfig | None = None) -> list[str]:
 
 def units(text: str) -> list[str]:
     flags = mask_flags(len(text), scan(text).masks)
-    return split_units(text, flags, 0, len(text))
+    return [unit.text for unit in split_units(text, flags, 0, len(text))]
+
+
+def packed(texts: list[str], **kwargs: int) -> list[str]:
+    """Pack *texts* as units separated by single spaces, returning the line texts."""
+    given = [Unit(gap="" if index == 0 else " ", text=t) for index, t in enumerate(texts)]
+    return [line.text for line in pack(given, **kwargs)]
 
 
 def reflow(text: str, **kwargs: int) -> str:
@@ -135,6 +141,31 @@ def test_reflow_keeps_a_quoted_passage_on_one_line() -> None:
     assert reflow(text) == 'Intro sentence here.\nHe said "Stop. Now." and left.\n'
 
 
+def test_reflow_keeps_whitespace_between_units_on_one_line() -> None:
+    text = "A short line,  with two spaces;\tand a tab.\n"
+    assert reflow(text) == text
+
+
+def test_reflow_keeps_whitespace_where_a_block_starter_is_merged_back() -> None:
+    text = "First sentence.\n\nSecond sentence.  - not a list item.\n"
+    assert reflow(text) == text
+
+
+def test_reflow_replaces_only_the_whitespace_at_a_break() -> None:
+    long = "word " * 18
+    text = f"{long.strip()},  then  more words here to finish.\n"
+    assert reflow(text, width=60, min_line=1) == (
+        f"{long.strip()},\nthen  more words here to finish.\n"
+    )
+
+
+def test_reflow_with_wide_gaps_is_idempotent() -> None:
+    long = "word " * 18
+    text = f"{long.strip()},  then  more words,   and a tail that runs on. Next.\n"
+    once = reflow(text, width=60, min_line=1)
+    assert reflow(once, width=60, min_line=1) == once
+
+
 # --- clause units ----------------------------------------------------------
 
 
@@ -174,25 +205,38 @@ def test_unspaced_dash_is_not_a_boundary() -> None:
 
 
 def test_a_sentence_that_fits_stays_on_one_line() -> None:
-    assert pack(["a,", "b"], width=100, min_line=32, first_indent=0, cont_indent=0) == ["a, b"]
+    assert packed(["a,", "b"], width=100, min_line=32, first_indent=0, cont_indent=0) == ["a, b"]
 
 
 def test_packing_breaks_when_the_next_unit_would_overflow() -> None:
     long = "x" * 60
-    assert pack(
+    assert packed(
         [f"{long},", f"{long},", long], width=100, min_line=1, first_indent=0, cont_indent=0
     ) == [f"{long},", f"{long},", long]
 
 
 def test_a_unit_longer_than_the_width_is_not_broken() -> None:
     long = "x" * 200
-    assert pack([long], width=100, min_line=32, first_indent=0, cont_indent=0) == [long]
+    assert packed([long], width=100, min_line=32, first_indent=0, cont_indent=0) == [long]
 
 
 def test_min_line_keeps_a_short_tail_attached() -> None:
     long = "x" * 99
-    packed = pack([f"{long},", "too."], width=100, min_line=32, first_indent=0, cont_indent=0)
-    assert packed == [f"{long}, too."]
+    lines = packed([f"{long},", "too."], width=100, min_line=32, first_indent=0, cont_indent=0)
+    assert lines == [f"{long}, too."]
+
+
+def test_packing_keeps_the_gap_between_units_on_one_line() -> None:
+    given = [Unit(gap="", text="a,"), Unit(gap="\t ", text="b")]
+    lines = pack(given, width=100, min_line=1, first_indent=0, cont_indent=0)
+    assert [(line.gap, line.text) for line in lines] == [("", "a,\t b")]
+
+
+def test_units_carry_the_whitespace_before_them() -> None:
+    text = "a,  b;\tc"
+    flags = mask_flags(len(text), scan(text).masks)
+    found = split_units(text, flags, 0, len(text))
+    assert [(unit.gap, unit.text) for unit in found] == [("", "a,"), ("  ", "b;"), ("\t", "c")]
 
 
 def test_packing_nothing_yields_nothing() -> None:

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from mdd.markdown.ir import parse_markdown, render_markdown
 from mdd.prose.classify import ClassifyError, LineClass, block_text, classify, join_lines
 from mdd.prose.inline import mask_flags, scan
-from mdd.prose.reflow.clauses import merge_block_starters, pack, split_units
+from mdd.prose.reflow.clauses import PackedLine, Unit, merge_block_starters, pack, split_units
 from mdd.prose.reflow.sentences import segment
 from mdd.prose.report import Finding, make_excerpt
 from mdd.utils.logging import get_logger
@@ -42,9 +42,16 @@ def reflow_block(lines: Sequence[Line], config: ReflowConfig) -> list[str] | Non
         return None
     prefix = lines[0].prefix
     cont = lines[0].cont_prefix
-    packed: list[str] = []
+    packed: list[PackedLine] = []
+    previous_end = 0
     for sentence in segment(joined, flags, config):
         units = split_units(joined, flags, sentence.start, sentence.end)
+        if units:
+            # The whitespace between two sentences belongs to the next one's
+            # first unit, so a merged-back line keeps it.
+            gap = joined[previous_end : sentence.start] + units[0].gap
+            units[0] = Unit(gap=gap, text=units[0].text)
+        previous_end = sentence.end
         packed.extend(
             pack(
                 units,
