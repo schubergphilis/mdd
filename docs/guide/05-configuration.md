@@ -164,7 +164,7 @@ that is off by default, such as `punctuation-outside-quote`, stays off until you
 name it under `<name>.rules`.
 
 A key `mdd` does not know, anywhere in the file, is an error that names the key,
-so a misspelt setting cannot quietly keep its default.
+so a mistyped setting cannot quietly keep its default.
 
 A rule goes under the check that owns it; `mdd` rejects one filed under another
 check and tells you where it belongs. The rules that belong to no check
