@@ -212,7 +212,8 @@ CLASSIFIER_COUNTEREXAMPLES = [
     ),
     pytest.param("The\nthe.\n\nThe\nNo.\n5.\n=", id="bare-marker-in-a-setext-heading"),
     pytest.param(
-        "---\n---\n\n>::: callout-tip\n\xa0The\nthe.\n:::", id="fenced-div-in-a-quote-then-lazy-lines"
+        "---\n---\n\n>::: callout-tip\n\xa0The\nthe.\n:::",
+        id="fenced-div-in-a-quote-then-lazy-lines",
     ),
 ]
 
@@ -223,6 +224,14 @@ def test_classifier_counterexample(text: str) -> None:
 
 
 WRITER_DAMAGE = [
+    pytest.param(
+        "reflow",
+        "- The the.\n\n\t- \xa0The\n" + "the\n" * 26 + "``\n\ta ` b ``.\n- \xa0The\nthe\nthe the.",
+        id="reflow-joins-a-code-span-over-a-tab-indented-line",
+    ),
+    pytest.param(
+        "reflow", "- a\n\n\t- b ``\n\tc ``.\n", id="reflow-joins-a-short-code-span-over-a-tab"
+    ),
     pytest.param(
         "lint",
         "---\n---\n\n\xa0The\nthe.\n\n::: callout-tip\n3. \xa0The\nthe\nthe the.   \n\t#\n"

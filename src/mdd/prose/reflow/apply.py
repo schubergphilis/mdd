@@ -24,10 +24,28 @@ if TYPE_CHECKING:
 _FOOTNOTE_DEFINITION = re.compile(r"\[\^[^\]]*\]:[ \t]*$")
 
 
-def _join_block(lines: Sequence[Line]) -> tuple[str, list[bool]]:
-    """Unwrap a block to one logical string, carrying the mask vector with it."""
-    joined, _ = block_text(lines)
-    return joined, mask_flags(len(joined), scan(joined).masks)
+#: The run of indent and block-quote markers a line starts with.
+_LEADING = re.compile(r"[ \t>]*")
+
+
+def _join_block(lines: Sequence[Line]) -> tuple[str, list[bool], list[int]]:
+    """Unwrap a block to one logical string, carrying the mask vector and line starts."""
+    joined, starts = block_text(lines)
+    return joined, mask_flags(len(joined), scan(joined).masks), starts
+
+
+def _masked_break_before_tab(lines: Sequence[Line], flags: list[bool], starts: list[int]) -> bool:
+    """True when a line break inside a masked span comes before a tab-indented line.
+
+    A container can take only part of a tab's columns, and a renderer may keep
+    the rest as spaces inside a code span. Moving that break, or rewriting the
+    indent, changes the span's text.
+    """
+    for line, start in zip(lines[1:], starts[1:], strict=True):
+        leading = _LEADING.match(line.text)
+        if leading is not None and "\t" in leading.group() and flags[start - 1]:
+            return True
+    return False
 
 
 def reflow_block(lines: Sequence[Line], config: ReflowConfig) -> list[str] | None:
@@ -35,11 +53,13 @@ def reflow_block(lines: Sequence[Line], config: ReflowConfig) -> list[str] | Non
 
     A block carrying a Markdown hard line break is left alone: the two trailing
     spaces are load-bearing and joining the block would silently delete them.
+    So is a block with a tab-indented line that starts inside a code span or
+    another masked span.
     """
     if any(line.hard_break for line in lines):
         return None
-    joined, flags = _join_block(lines)
-    if not joined.strip():
+    joined, flags, starts = _join_block(lines)
+    if not joined.strip() or _masked_break_before_tab(lines, flags, starts):
         return None
     prefix = lines[0].prefix
     cont = lines[0].cont_prefix

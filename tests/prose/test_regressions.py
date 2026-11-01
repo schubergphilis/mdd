@@ -850,3 +850,21 @@ def test_a_byte_order_mark_stays_in_a_prose_line_prefix() -> None:
 )
 def test_more_lines_commonmark_renderers_disagree_on(source: str, expected: list[str]) -> None:
     assert classes(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "- a\n\n\t- b ``\n\tc ``.\n",
+        "- a\n\n\t- b `c\n\td` e.\n",
+        "> b ``\n>\tc ``.\n",
+    ],
+)
+def test_reflow_keeps_a_code_span_line_break_before_a_tab_indent(source: str) -> None:
+    # A container can take part of a tab's columns, and a renderer may keep the
+    # rest inside the code span.
+    assert reflow(source) == source
+
+
+def test_reflow_joins_a_tab_indented_line_outside_a_code_span() -> None:
+    assert reflow("- a\n\n\t- b c\n\td e.\n") == "- a\n\n\t- b c d e.\n"

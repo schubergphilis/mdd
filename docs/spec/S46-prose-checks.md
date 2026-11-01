@@ -353,6 +353,11 @@ The load-bearing subcommand.
   paragraph untouched is the simpler guarantee. A project that wants such
   paragraphs reflowed removes the breaks first, for which `lint` with
   `allow-hard-break: false` reports them.
+- A paragraph is left alone in the same way when a line break inside a code
+  span, or another masked span, comes before a line whose indent holds a
+  tab. A list item or a block quote can take only part of a tab's columns,
+  and cmark-gfm keeps the rest as spaces inside the code span, so joining
+  the lines, or rewriting that indent, changes the span's text.
 - Reflow never starts a line with text that would open a block there. A
   break that would is not taken, and the two lines stay one. That covers a
   block quote `>`, an ATX `#`, a list marker (`-`, `+`, `*`, `1.`, `1)`), a
