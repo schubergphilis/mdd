@@ -90,7 +90,6 @@ def test_a_write_names_every_file_it_wrote(
     assert "clean" not in err
 
 
-
 def test_an_undecodable_file_is_a_finding_with_its_path(
     corpus: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -272,7 +271,6 @@ def test_check_with_every_check_off_exits_zero(
     _ = (corpus / "a.md").write_text(MESSY, encoding="utf-8")
     assert prose(["check", "--config", str(config), "docs"]) == 0
     assert "no enabled checks" in capsys.readouterr().err
-
 
 
 def test_a_named_subcommand_runs_its_check_even_when_the_config_turns_it_off(
