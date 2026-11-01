@@ -51,14 +51,22 @@ log = get_logger(__name__)
 #: typographic choice, and collapsing it would let a writer silently drop one.
 _MARKDOWN_WHITESPACE = re.compile(r"[ \t\r\n]+")
 
-#: Inline HTML that opens or closes an element whose text keeps its whitespace
+#: An HTML tag that opens or closes an element whose text keeps its whitespace
 #: when a browser renders it, so text inside one is compared byte for byte.
+#: ``code``, ``kbd`` and ``samp`` collapse whitespace in a browser; counting
+#: them as literal is the conservative choice.
 _LITERAL_ELEMENT_OPEN = re.compile(
     r"<(pre|code|kbd|samp|textarea|listing|xmp)(?=[\s>/])[^>]*(?<!/)>", re.IGNORECASE
 )
 _LITERAL_ELEMENT_CLOSE = re.compile(
     r"</(pre|code|kbd|samp|textarea|listing|xmp)\s*>", re.IGNORECASE
 )
+_LITERAL_ELEMENT_TAG = re.compile(
+    rf"(?P<open>{_LITERAL_ELEMENT_OPEN.pattern})|{_LITERAL_ELEMENT_CLOSE.pattern}", re.IGNORECASE
+)
+#: An HTML comment, closed or running to the end of the HTML. A tag inside one
+#: opens or closes nothing.
+_HTML_COMMENT = re.compile(r"<!--(?:.*?-->|.*\Z)", re.DOTALL)
 
 #: Human-readable names for token types, for the reason a user is shown.
 _NOUNS: dict[str, str] = {
@@ -160,19 +168,33 @@ def _collapse(text: str) -> str:
     return _MARKDOWN_WHITESPACE.sub(" ", text)
 
 
+def _literal_depth_after(html: str, depth: int) -> int:
+    """Return how many whitespace-preserving elements are open after *html*.
+
+    *depth* is the count before it. Tags are taken in order, and a closing tag
+    with nothing open is ignored, as a browser ignores it.
+    """
+    for tag in _LITERAL_ELEMENT_TAG.finditer(_HTML_COMMENT.sub("", html)):
+        depth = depth + 1 if tag.group("open") else max(depth - 1, 0)
+    return depth
+
+
 class _InlineFlattener:
     """Turns one inline token's children into comparable items."""
 
-    def __init__(self, line: int) -> None:
+    def __init__(self, line: int, literal_depth: int = 0) -> None:
         self.line = line
         self.items: list[_Item] = []
         self._text: list[str] = []
         self._text_line = line
-        self._literal_depth = 0
+        #: How many whitespace-preserving elements are open. An element may
+        #: open in one paragraph or HTML block and close in a later one, so
+        #: the caller carries this from one inline token to the next.
+        self.literal_depth = literal_depth
 
     def _flush(self) -> None:
         if self._text:
-            if self._literal_depth:
+            if self.literal_depth:
                 joined = "".join(self._text)
                 kind = "html_literal_text"
             else:
@@ -209,14 +231,7 @@ class _InlineFlattener:
         self.items.append(_Item(child.type, _shape(child), child.content, self.line))
         self.line += 1 if child.type == "hardbreak" else child.content.count("\n")
         if child.type == "html_inline":
-            self._track_literal_element(child.content)
-
-    def _track_literal_element(self, html: str) -> None:
-        """Count the whitespace-preserving elements an inline HTML tag opens or closes."""
-        if _LITERAL_ELEMENT_OPEN.fullmatch(html.strip()):
-            self._literal_depth += 1
-        elif _LITERAL_ELEMENT_CLOSE.fullmatch(html.strip()) and self._literal_depth:
-            self._literal_depth -= 1
+            self.literal_depth = _literal_depth_after(child.content, self.literal_depth)
 
     def finish(self) -> list[_Item]:
         """Flush pending text and strip the whitespace at either end."""
@@ -235,14 +250,18 @@ def _items(text: str) -> list[_Item]:
     """Flatten *text*'s token stream into comparable items."""
     items: list[_Item] = []
     line = 1
+    literal_depth = 0
     for token in _parser().parse(text):
         if token.map is not None:
             line = token.map[0] + 1
         if token.type == "inline":
-            flattener = _InlineFlattener(line)
+            flattener = _InlineFlattener(line, literal_depth)
             flattener.feed(token.children or [])
             items.extend(flattener.finish())
+            literal_depth = flattener.literal_depth
             continue
+        if token.type == "html_block":
+            literal_depth = _literal_depth_after(token.content, literal_depth)
         items.append(_Item(token.type, _shape(token), token.content, line))
     return items
 

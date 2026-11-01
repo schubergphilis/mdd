@@ -390,11 +390,16 @@ is a test:
      attributes and every hard line break must be identical; text must match
      once runs of Markdown whitespace (space, tab, line ending, soft break)
      are collapsed to one space. A no-break or other Unicode space is not
-     Markdown whitespace and is never collapsed. Text between inline HTML
-     tags that open and close an element a browser renders with its
-     whitespace intact (`pre`, `code`, `kbd`, `samp`, `textarea`, `listing`,
-     `xmp`) must be byte identical. Footnote definitions are compared where
-     they are written, including those nothing references.
+     Markdown whitespace and is never collapsed. Text inside an element a
+     browser renders with its whitespace intact (`pre`, `code`, `kbd`,
+     `samp`, `textarea`, `listing`, `xmp`) must be byte identical. The open
+     element count is carried across the whole token stream, through inline
+     HTML and HTML blocks alike, because such an element may open in one
+     paragraph and close blank lines later; a tag inside an HTML comment
+     counts for nothing. `code`, `kbd` and `samp` collapse whitespace in a
+     browser, and are counted anyway as the conservative choice. Footnote
+     definitions are compared where they are written, including those
+     nothing references.
    - **Model comparison.** Parse both with
      [`parse_markdown`](S30-markdown-ir-conversion.md), run the
      [normalising pipeline](S31-ir-normalization-and-whitespace.md), and
@@ -1044,8 +1049,8 @@ with them.
 - The write gate has a passing and a failing pair for each thing it compares:
   a change inside a fence, a list turning loose, a lost hard break, a code
   span's internal spaces, a collapsed no-break space, a line that becomes a
-  setext underline or a lazy continuation, a broken table, and changed front
-  matter. Runner tests show both writers refusing a gate failure, and the
+  setext underline or a lazy continuation, a broken table, changed front
+  matter, and text inside a `<pre>` opened in an earlier paragraph. Runner tests show both writers refusing a gate failure, and the
   check-only report matching the `--write` one.
 - For `lint --write`: a fixture pair per fixable rule, a test that a fixed file
   has no fixable finding on a second run (the same idempotence property reflow

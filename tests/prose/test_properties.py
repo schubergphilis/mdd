@@ -298,6 +298,21 @@ WRITER_DAMAGE = [
         "The\nthe.\n\n- > ```\ndef f(x):  \ndef f(x):  \ndef f(x):  \n> def f(x):  \n\t>  ```",
         id="lint-rewrites-fence-in-indented-quote-line",
     ),
+    pytest.param(
+        "lint",
+        "Output: <pre>\n\nfirst  column  second\nnext row\n\n</pre>\n",
+        id="lint-collapses-spaces-in-pre-opened-in-an-earlier-paragraph",
+    ),
+    pytest.param(
+        "reflow",
+        "Output: <pre>\n\nfirst  column  second\nnext row\n\n</pre>\n",
+        id="reflow-joins-lines-in-pre-opened-in-an-earlier-paragraph",
+    ),
+    pytest.param(
+        "lint",
+        "<xmp>\n\nfirst  column  second\nnext row\n\n</xmp>\n",
+        id="lint-collapses-spaces-in-xmp-opened-by-an-html-block",
+    ),
 ]
 
 REFLOW_UNSTABLE = [

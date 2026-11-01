@@ -233,6 +233,37 @@ def test_collapsed_spaces_inside_an_inline_code_element_are_refused() -> None:
     refused("A <CODE>x  y</CODE> b.\n", "A <CODE>x y</CODE> b.\n")
 
 
+PRE_ACROSS_PARAGRAPHS = "Output: <pre>\n\nfirst  column  second\nnext row\n\n</pre>\n"
+XMP_BLOCK_ACROSS_BLANKS = "<xmp>\n\nfirst  column  second\nnext row\n\n</xmp>\n"
+
+
+def test_collapsed_spaces_in_a_pre_element_opened_in_an_earlier_paragraph_are_refused() -> None:
+    after = "Output: <pre>\n\nfirst column second\nnext row\n\n</pre>\n"
+    verdict = refused(PRE_ACROSS_PARAGRAPHS, after)
+    assert verdict.reason == "the text inside a whitespace-preserving HTML element changed"
+    assert verdict.line == 3
+
+
+def test_rewrapped_text_in_a_pre_element_opened_in_an_earlier_paragraph_is_refused() -> None:
+    after = "Output: <pre>\n\nfirst  column  second next row\n\n</pre>\n"
+    refused(PRE_ACROSS_PARAGRAPHS, after)
+
+
+def test_collapsed_spaces_in_an_xmp_element_opened_by_an_html_block_are_refused() -> None:
+    after = "<xmp>\n\nfirst column second\nnext row\n\n</xmp>\n"
+    refused(XMP_BLOCK_ACROSS_BLANKS, after)
+
+
+def test_rewrapped_text_after_a_pre_element_closed_by_an_html_block_passes() -> None:
+    before = "<pre>\na\n</pre>\n\nSome\ntext.\n"
+    assert verify(before, "<pre>\na\n</pre>\n\nSome text.\n") == PASSED
+
+
+def test_a_closing_tag_inside_an_html_comment_does_not_end_the_element() -> None:
+    before = "<div><pre>\n<!-- </pre> -->\n\nfirst  column\n\n</pre></div>\n"
+    refused(before, "<div><pre>\n<!-- </pre> -->\n\nfirst column\n\n</pre></div>\n")
+
+
 def test_rewrapped_text_after_an_inline_pre_element_passes() -> None:
     before = "Intro <pre>x</pre> and then\nsome more text.\n"
     assert verify(before, "Intro <pre>x</pre> and then some more text.\n") == PASSED

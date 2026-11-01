@@ -30,8 +30,13 @@ VERBATIM_TOKENS = frozenset(
 #: Markdown's own whitespace. Not `\s`: a no-break space is content.
 _MD_WHITESPACE = re.compile(r"[ \t\r\n]+")
 
-#: Elements whose whitespace is significant in the rendered output.
-_LITERAL_ELEMENT = re.compile(r"(<code[^>]*>.*?</code>|<pre[^>]*>.*?</pre>)", re.DOTALL)
+#: Elements whose whitespace is kept byte for byte, the same set the write gate
+#: keeps. ``code``, ``kbd`` and ``samp`` collapse whitespace in a browser;
+#: counting them is the conservative choice.
+_LITERAL_ELEMENT = re.compile(
+    r"(<(pre|code|kbd|samp|textarea|listing|xmp)(?=[\s>/])[^>]*>.*?</\2\s*>)",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 def oracle_parser() -> MarkdownIt:
@@ -58,17 +63,23 @@ def rendered(text: str) -> str:
     """Render *text* to HTML with insignificant whitespace runs collapsed.
 
     A soft line break and a space render identically, which is what lets a
-    reflow move one. Inside ``<code>`` and ``<pre>`` whitespace is content, so
-    those elements are kept byte for byte.
+    reflow move one. Inside ``<pre>``, ``<code>`` and the other elements in
+    :data:`_LITERAL_ELEMENT` whitespace is content, so those are kept byte for
+    byte.
     """
     return _collapse(PARSER.render(text))
 
 
 def _collapse(html: str) -> str:
+    # Each match yields two groups: the element, then its name.
     parts = _LITERAL_ELEMENT.split(html)
-    return "".join(
-        part if index % 2 else _MD_WHITESPACE.sub(" ", part) for index, part in enumerate(parts)
-    ).strip()
+    out: list[str] = []
+    for index, part in enumerate(parts):
+        if index % 3 == 0:
+            out.append(_MD_WHITESPACE.sub(" ", part))
+        elif index % 3 == 1:
+            out.append(part)
+    return "".join(out).strip()
 
 
 @dataclass(frozen=True)
