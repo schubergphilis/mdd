@@ -182,22 +182,25 @@ def _gated_fix(
     return [f for f in fix.findings if not f.fixable]
 
 
-def _hold_suppressed(classified: Classified, suppressions: suppress.Suppressions) -> Classified:
-    """Return *classified* with every block a ``reflow`` suppression covers taken out of reach.
+def _held_lines(classified: Classified, suppressions: suppress.Suppressions) -> frozenset[int]:
+    """Return every line of every paragraph a ``reflow`` suppression covers.
 
-    A block is held back when any of its lines is covered, so the fix never
-    edits a line whose finding the author silenced. A line outside every block
-    is one reflow already leaves alone.
+    Reflow rewrites a whole paragraph or none of it, so a paragraph is held
+    back when any of its lines is covered: the fix never edits a line whose
+    finding the author silenced.
     """
-    held = {
+    held_blocks = {
         line.block
         for line in classified.lines
         if line.block >= 0 and suppressions.covers(line.number, "reflow")
     }
-    if not held:
-        return classified
+    return frozenset(line.number for line in classified.lines if line.block in held_blocks)
+
+
+def _without(classified: Classified, held: frozenset[int]) -> Classified:
+    """Return *classified* with the *held* lines out of reflow's reach."""
     lines = tuple(
-        replace(line, block=-1) if line.block in held else line for line in classified.lines
+        replace(line, block=-1) if line.number in held else line for line in classified.lines
     )
     return replace(classified, lines=lines)
 
@@ -215,9 +218,10 @@ def _run_reflow(
     findings = reflow_apply.findings(unit.path, unit.classified, config, rewrite)
     if config.severity("reflow") is Severity.OFF:
         return findings
-    reachable = _hold_suppressed(unit.classified, suppressions)
-    if reachable is not unit.classified:
-        rewrite = reflow_apply.reflow_text(reachable, config.reflow)
+    held = _held_lines(unit.classified, suppressions)
+    if held:
+        rewrite = reflow_apply.reflow_text(_without(unit.classified, held), config.reflow)
+        findings = [replace(f, fixable=False) if f.line in held else f for f in findings]
     fix = _Fix(check="reflow", text=rewrite.text, findings=tuple(findings))
     return _gated_fix(unit, fix, config, options, result)
 

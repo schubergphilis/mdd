@@ -202,7 +202,11 @@ cannot promise.
   `reflow --write` never edit a line whose finding is suppressed, in the
   line, bare and file-wide forms alike; the suppression is applied before the
   fix is computed. Reflow rewrites whole paragraphs, so a paragraph is left
-  exactly as it is when a `reflow` suppression covers any of its lines.
+  exactly as it is when a `reflow` suppression covers any of its lines. Its
+  other lines are still reported, one finding per differing line, but as not
+  fixable. A directive is a line of its own, so it ends the paragraph above
+  it: the line form can only cover a paragraph's first line, and the
+  file-wide form is the way to silence reflow on the rest.
 - "On its own line" is decided by the [classifier](#the-shared-line-classifier):
   a directive counts only when it is the whole of a line classified as an HTML
   comment or a line of an HTML block, after any block-quote markers and
