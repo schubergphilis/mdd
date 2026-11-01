@@ -914,7 +914,10 @@ with them.
   construct, a sentence with a list of commas that must **not** be split, an
   abbreviation at a line end, an initial, a version number, a nested list, a
   block quote, a table adjacent to prose, a multi-line HTML comment, CRLF line
-  endings, and a file with no trailing newline.
+  endings, and a file with no trailing newline. The golden test compares
+  bytes, not decoded text, so line endings are part of every fixture's
+  assertion; the CRLF fixture is marked `-text` in `.gitattributes` so git
+  stores it as written.
 - Property tests: idempotence and IR equivalence over the golden corpus and
   over the existing IR corpus ([S32](S32-ir-test-corpus-expansion.md)), which
   is already the most hostile pile of Markdown in the repository and is exactly

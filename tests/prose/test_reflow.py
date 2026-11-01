@@ -334,16 +334,30 @@ def corpus_cases() -> list[Path]:
     return sorted(d for d in CORPUS.iterdir() if d.is_dir())
 
 
+def read_exact(path: Path) -> str:
+    """Read *path* without newline translation, so a CRLF fixture stays CRLF."""
+    return path.read_bytes().decode("utf-8")
+
+
 def test_golden_corpus_matches_expected_output() -> None:
+    """Byte for byte: a fixture's line endings are part of what it asserts."""
     for case in corpus_cases():
-        source = (case / "input.md").read_text(encoding="utf-8")
-        expected = (case / "expected.md").read_text(encoding="utf-8")
-        assert reflow(source) == expected, case.name
+        source = read_exact(case / "input.md")
+        expected = read_exact(case / "expected.md")
+        assert reflow(source).encode("utf-8") == expected.encode("utf-8"), case.name
+
+
+def test_golden_crlf_fixture_is_stored_with_crlf() -> None:
+    """Git must not normalise the CRLF fixture, or the golden test proves nothing."""
+    for name in ("input.md", "expected.md"):
+        data = (CORPUS / "crlf" / name).read_bytes()
+        assert b"\r\n" in data, name
+        assert b"\n" not in data.replace(b"\r\n", b""), name
 
 
 def test_golden_corpus_is_idempotent_and_equivalent() -> None:
     for case in corpus_cases():
-        source = (case / "input.md").read_text(encoding="utf-8")
+        source = read_exact(case / "input.md")
         once = reflow(source)
         assert reflow(once) == once, case.name
         assert verify(source, once).passed, case.name
