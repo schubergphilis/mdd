@@ -659,8 +659,13 @@ prose:
   - `--write` is opt-in per invocation, never sticky, and never inferred from
     the config file. A config may enable the *check*; only the command line can
     authorise the *write*.
-  - Writes are atomic — temp file, `fsync`, rename — reusing the existing
-    frontmatter-writer shape rather than a second implementation.
+  - Writes are atomic — temp file, `fsync`, rename — through the shared
+    atomic writer in `mdd.utils.safe_write` rather than a second
+    implementation, so a symlink planted at the temp path is refused rather
+    than followed. The rewritten file keeps the original's permission bits.
+  - A target that is a symlink is refused, and so is a file with more than one
+    hard link: replacing either would detach the other names from the new
+    text. Both are reported as `write-failed` and the file is left as it was.
   - A file is written only if it parsed cleanly, its masking was balanced, and
     the rewrite passed the write gate above. Fail closed: any doubt means the
     file is left exactly as it was and an `error` is reported.

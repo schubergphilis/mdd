@@ -8,13 +8,14 @@ this logic is how one of them quietly loses the mirror check.
 
 from __future__ import annotations
 
-import os
+import stat
 from typing import TYPE_CHECKING
 
 from mdd.prose import frontmatter
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING
 from mdd.utils.logging import get_logger
+from mdd.utils.safe_write import SymlinkRefusedError, atomic_write_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -100,24 +101,22 @@ def write_failure(path: Path, check: str, reason: str, config: ProseConfig) -> F
 
 
 def atomic_write(path: Path, text: str) -> None:
-    """Write *text* to *path* via a temp file, ``fsync`` and rename.
+    """Replace *path* with *text* through the shared atomic writer, keeping its mode.
 
     Line endings are written through unchanged: the caller has already decided
-    what they should be.
+    what they should be. A symlink is refused, because replacing it would turn
+    it into a regular file detached from its target. A file with more than one
+    hard link is refused for the same reason: the replacement gets a new inode
+    and the other names would keep the old text.
     """
-    if path.is_symlink():
-        # os.replace would clobber the link with a regular file, silently
-        # detaching it from its target. Refusing is the reversible choice.
-        msg = f"refusing to rewrite {path}: it is a symlink"
+    info = path.lstat()
+    if stat.S_ISLNK(info.st_mode):
+        raise SymlinkRefusedError(path)
+    if info.st_nlink > 1:
+        msg = (
+            f"refusing to rewrite {path}: it has {info.st_nlink} hard links, "
+            "and replacing it would detach the others"
+        )
         raise OSError(msg)
-    tmp_path = path.with_suffix(path.suffix + ".mdd-prose.tmp")
-    try:
-        with tmp_path.open("w", encoding="utf-8", newline="") as fh:
-            _ = fh.write(text)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp_path, path)  # noqa: PTH105
-    except BaseException:
-        tmp_path.unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, text, mode=stat.S_IMODE(info.st_mode))
     log.info("wrote %s", path)

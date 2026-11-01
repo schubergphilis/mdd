@@ -141,18 +141,29 @@ def _clear_stale_tmp(tmp: Path) -> None:
         tmp.unlink()
 
 
-def atomic_write_bytes(dest: Path, data: bytes, *, root: Path | None = None) -> None:
+def atomic_write_bytes(
+    dest: Path, data: bytes, *, root: Path | None = None, mode: int | None = None
+) -> None:
     """Write *data* to *dest* atomically via a ``<dest>.tmp`` sibling.
 
     Refuses to write through a symlink at *dest*, at the ``.tmp`` sibling, or
     at any directory between *root* and *dest*. The temp file is created
     exclusively so a link planted between the check and the open still fails.
-    The temp file is removed on any failure.
+    The temp file is removed on any failure. When *mode* is given the
+    permission bits are set on the temp file before it replaces *dest*, so a
+    rewrite can keep the mode of the file it replaces.
     """
     refuse_symlink_below(dest, root)
     tmp = dest.with_suffix(dest.suffix + ".tmp")
     _clear_stale_tmp(tmp)
     fd = _open_exclusive(tmp)
+    try:
+        if mode is not None:
+            os.fchmod(fd, mode)
+    except BaseException:
+        os.close(fd)
+        tmp.unlink(missing_ok=True)
+        raise
     try:
         _write_fd(fd, data)
         refuse_symlink(dest)
@@ -162,6 +173,8 @@ def atomic_write_bytes(dest: Path, data: bytes, *, root: Path | None = None) -> 
         raise
 
 
-def atomic_write_text(dest: Path, text: str, *, root: Path | None = None) -> None:
+def atomic_write_text(
+    dest: Path, text: str, *, root: Path | None = None, mode: int | None = None
+) -> None:
     """Write *text* as UTF-8 to *dest* atomically; see :func:`atomic_write_bytes`."""
-    atomic_write_bytes(dest, text.encode("utf-8"), root=root)
+    atomic_write_bytes(dest, text.encode("utf-8"), root=root, mode=mode)

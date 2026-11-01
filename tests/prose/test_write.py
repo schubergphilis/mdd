@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 from typing import TYPE_CHECKING
 
 import pytest
@@ -87,6 +88,7 @@ def test_atomic_write_replaces_the_file(tmp_path: Path) -> None:
 
 def test_atomic_write_preserves_crlf(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
     atomic_write(target, "a\r\nb\r\n")
     assert target.read_bytes() == b"a\r\nb\r\n"
 
@@ -96,3 +98,38 @@ def test_atomic_write_cleans_up_its_temp_file_on_failure(tmp_path: Path) -> None
     with pytest.raises(OSError, match="No such file"):
         atomic_write(target, "x")
     assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o644, 0o755])
+def test_atomic_write_keeps_the_file_mode(tmp_path: Path, mode: int) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
+    target.chmod(mode)
+    atomic_write(target, "new\n")
+    assert stat.S_IMODE(target.stat().st_mode) == mode
+    assert target.read_text(encoding="utf-8") == "new\n"
+
+
+def test_atomic_write_does_not_follow_a_symlink_planted_at_the_temp_path(tmp_path: Path) -> None:
+    victim = tmp_path / "victim.txt"
+    _ = victim.write_text("original\n", encoding="utf-8")
+    target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
+    for planted in (tmp_path / "a.md.tmp", tmp_path / "a.md.mdd-prose.tmp"):
+        planted.symlink_to(victim)
+    with pytest.raises(OSError, match="symlink"):
+        atomic_write(target, "new\n")
+    assert victim.read_text(encoding="utf-8") == "original\n"
+    assert target.read_text(encoding="utf-8") == "old\n"
+
+
+def test_atomic_write_refuses_a_hard_linked_file(tmp_path: Path) -> None:
+    """Replacing the file would give it a new inode and leave the other link behind."""
+    target = tmp_path / "a.md"
+    _ = target.write_text("old\n", encoding="utf-8")
+    other = tmp_path / "b.md"
+    other.hardlink_to(target)
+    with pytest.raises(OSError, match="hard link"):
+        atomic_write(target, "new\n")
+    assert target.read_text(encoding="utf-8") == "old\n"
+    assert target.stat().st_ino == other.stat().st_ino

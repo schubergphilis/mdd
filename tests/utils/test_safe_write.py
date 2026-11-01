@@ -352,3 +352,21 @@ class TestAtomicWrite:
         ):
             atomic_write_text(dest, "x")
         assert not (tmp_path / "out.md.tmp").exists()
+
+    @pytest.mark.parametrize("mode", [0o600, 0o755, 0o444])
+    def test_mode_applied_to_the_replacement(self, tmp_path: Path, mode: int) -> None:
+        dest = tmp_path / "out.md"
+        atomic_write_text(dest, "x", mode=mode)
+        assert stat.S_IMODE(dest.stat().st_mode) == mode
+        assert dest.read_text() == "x"
+
+    def test_chmod_failure_removes_tmp(self, tmp_path: Path) -> None:
+        dest = tmp_path / "out.md"
+        dest.write_text("old")
+        with (
+            patch("mdd.utils.safe_write.os.fchmod", side_effect=OSError("no chmod")),
+            pytest.raises(OSError, match="no chmod"),
+        ):
+            atomic_write_text(dest, "new", mode=0o600)
+        assert not (tmp_path / "out.md.tmp").exists()
+        assert dest.read_text() == "old"
