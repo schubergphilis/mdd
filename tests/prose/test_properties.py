@@ -195,16 +195,11 @@ CLASSIFIER_GAPS = [
     pytest.param("para\n- <span>\n", id="bare-tag-html-block-opens-list-item"),
     pytest.param("- > # h\n", id="heading-in-quote-in-list-item"),
     pytest.param("1.   ```\n     a  b\n     ```\nc\n", id="fence-after-wide-list-marker"),
-    _gap(
-        "-    a\n\n     $$\n     x\n     $$\n",
-        "a math block indented to a list item's content column is called prose",
-        "math-block-in-list-item",
-    ),
-    _gap(
-        "$$ a\nb\nc $$\n",
-        "a math block with content on its opening line is closed after one line",
-        "math-block-content-on-opener",
-    ),
+    pytest.param("-    a\n\n     $$\n     x\n     $$\n", id="math-block-in-list-item"),
+    pytest.param("$$ a\nb\nc $$\n", id="math-block-content-on-opener"),
+    pytest.param("$$ a\nb $$ (1)\nc\n", id="math-block-closed-by-a-label"),
+    pytest.param("-    a\n\n     # h\n", id="heading-at-list-content-column"),
+    pytest.param("1.   a\n\n     <div>\n     x\n", id="html-block-at-list-content-column"),
     pytest.param("[^1]:# A sentence. B.\n", id="footnote-without-space"),
 ]
 

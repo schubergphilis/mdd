@@ -60,6 +60,7 @@ _HTML_BLOCK_TAG = re.compile(
 )
 _DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$")
 _MATH_FENCE = re.compile(r"^ {0,3}\$\$")
+_MATH_LABEL_END = re.compile(r"\$\$[ \t]*\([^)$\r\n]+?\)$")
 _DIV_FENCE = re.compile(r"^[ \t]*:{3,}")
 _ALERT_MARKER = re.compile(r"^\[!\w+\]$")
 _MANAGED_CALLOUT = re.compile(r"^\*\*(?:Confluence|SharePoint) export\*\*")
@@ -321,13 +322,22 @@ def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -
     return _continuation_tail(number, raw, rest, state)
 
 
+def _closes_math(text: str) -> bool:
+    """True when *text* ends a math block: it ends in ``$$``, or in ``$$`` and a label.
+
+    The closer need not be alone on its line: ``c $$`` ends the block, and so
+    the line after it is not maths. A trailing no-break space is content, so
+    ``$$`` followed by one does not close the block; closing early hands the
+    rest of the maths to the fixers as prose.
+    """
+    stripped = text.strip(MD_SPACE)
+    return stripped.endswith("$$") or _MATH_LABEL_END.search(stripped) is not None
+
+
 def _continuation_tail(number: int, raw: str, rest: str, state: _State) -> Line | None:
     """The second half of :func:`_continuation`: math blocks and HTML blocks."""
     if state.in_math:
-        # Symmetric with the opener: a `$$` carrying anything else, including a
-        # no-break space, does not close the block. Closing early hands the rest
-        # of the maths to the fixers as prose.
-        state.in_math = rest.strip(MD_SPACE) != "$$"
+        state.in_math = not _closes_math(rest)
         return Line(number, raw, LineClass.MATH)
     if not state.in_html_block:
         return None
@@ -379,7 +389,9 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
             state.open_at = number
         return Line(number, raw, LineClass.HTML_COMMENT)
     if _MATH_FENCE.match(rest):
-        if rest.strip(MD_SPACE) == "$$":
+        # A math block is one line only when the opener carries its own closer;
+        # `$$`, `$$$` and `$$ a` all open a block that runs to a later line.
+        if len(rest.strip(MD_SPACE)) <= len("$$$") or not _closes_math(rest):
             state.in_math = True
             state.open_at = number
         return Line(number, raw, LineClass.MATH)
@@ -454,14 +466,12 @@ def _is_indented_code(rest: str, state: _State) -> bool:
     return _indent_columns(rest) >= floor
 
 
-def _single_line_class(rest: str, state: _State) -> LineClass | None:
+def _single_line_class(rest: str) -> LineClass | None:
     """Return the class of a line that is a whole block by itself, or ``None``."""
     if _ATX.match(rest):
         return LineClass.HEADING
     if _TBREAK.match(rest):
         return LineClass.THEMATIC_BREAK
-    if _is_indented_code(rest, state):
-        return LineClass.INDENTED_CODE
     if _LINK_DEF.match(rest) or _LINK_LABEL_ONLY.match(rest):
         return LineClass.LINK_DEF
     return None
@@ -501,6 +511,34 @@ def _link_definition(line: Line, rest: str, state: _State) -> Line:
         state.in_link_def = False
     state.after_link_def = line.cls is LineClass.LINK_DEF
     return line
+
+
+def _drop_columns(text: str, count: int) -> str:
+    """Remove *count* columns of leading whitespace from *text*.
+
+    A tab that straddles the boundary leaves its remaining columns behind as
+    spaces, as CommonMark does.
+    """
+    column = 0
+    index = 0
+    while index < len(text) and column < count and text[index] in MD_SPACE:
+        column = _columns(text[index], column)
+        index += 1
+    return " " * (column - count) + text[index:]
+
+
+def _container_content(rest: str, state: _State) -> str:
+    """Return *rest* as the open list item sees it, without the item's indent.
+
+    A block opener may be indented at most three columns *within its
+    container*. Measuring from the margin instead called a heading, maths or an
+    HTML block at a list item's content column prose. A line indented less
+    than the content column is outside the item and is measured as it stands.
+    """
+    column = state.list_content_col
+    if not column or _indent_columns(rest) < column:
+        return rest
+    return _drop_columns(rest, column)
 
 
 def _split_markers(rest: str) -> tuple[str, str, str] | None:
@@ -549,7 +587,7 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
         if opened.cls is LineClass.FENCED_CODE:
             state.fence_indent = _columns(markers)
         return replace(opened, prefix=prefix)
-    single = _single_line_class(content, state)
+    single = _single_line_class(content)
     return Line(number, raw, single, prefix=prefix) if single is not None else None
 
 
@@ -559,11 +597,14 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     # it that happens to read as `<!--` or a fence must not open a construct.
     if _is_indented_code(rest, state):
         return Line(number, raw, LineClass.INDENTED_CODE)
-    opened = _open_block(number, raw, quote, rest, state)
+    inner = _container_content(rest, state)
+    opened = _open_block(number, raw, quote, inner, state)
     if opened is not None:
+        if opened.cls is LineClass.FENCED_CODE:
+            state.fence_indent = _indent_columns(rest)
         _close_list(rest, state)
         return opened
-    single = _single_line_class(rest, state)
+    single = _single_line_class(inner)
     if single is not None:
         _close_list(rest, state)
         return Line(number, raw, single, prefix=quote)
