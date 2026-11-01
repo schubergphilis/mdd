@@ -28,6 +28,11 @@ of the three are in the local `ci` gate. `mise run ci-watch` follows the real
 run once you have pushed — a green local gate is not the same thing as a
 green workflow.
 
+A change to the prose writers also runs `mise run prose-corpus-pinned` in
+its own workflow: both writers over a public Markdown corpus pinned by commit
+and fetched at run time. `mise run prose-corpus PATH...` runs the same check
+over any local checkout, and is never wired into CI.
+
 A pull request is expected to be green before review. In particular:
 
 - **Full type annotations.** `basedpyright` runs in strict mode and must
@@ -40,7 +45,8 @@ A pull request is expected to be green before review. In particular:
 - **Tests for behaviour changes.** Anything talking to a live service is
   marked `@pytest.mark.integration` and stays out of the default run.
   Likewise anything that depends on Microsoft Office is marked
-  `@pytest.mark.office`.
+  `@pytest.mark.office`, and the external prose corpus check
+  `@pytest.mark.prose_corpus`.
 
 ## Design docs
 

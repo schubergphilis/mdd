@@ -1,0 +1,6 @@
+# Files of the pinned public corpus (see scripts/prose-corpus.py) that are
+# expected to fail the prose corpus check, one per line:
+#
+#   path/relative/to/the/corpus.md: one-line reason
+#
+# An entry for a file that passes fails the run, so remove it with the fix.

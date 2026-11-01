@@ -69,7 +69,7 @@ run = "python3 scripts/verify-clean.py"
 
 [tasks.test]
 description = "Unit tests (no external services, no Microsoft Office)"
-run = "uv run python -m pytest -m \"not integration and not office\""
+run = "uv run python -m pytest -m \"not integration and not office and not prose_corpus\""
 
 [tasks.test-integration]
 description = "Integration tests — talk to Confluence / SharePoint / an LLM gateway"
@@ -88,9 +88,25 @@ description = "Prose property tests under the long, randomized Hypothesis fuzz p
 env = { MDD_HYPOTHESIS_PROFILE = "fuzz" }
 run = "uv run python -m pytest tests/prose/test_properties.py -k \"not counterexample\" --no-cov -q --hypothesis-show-statistics"
 
+# Runs both prose writers over Markdown that lives outside this repository and
+# reports every file that fails, by name and line, without printing its text.
+# Local only: point it at any checkout, private ones included, but never wire a
+# private path into CI. `--allowlist FILE` names files expected to fail.
+[tasks.prose-corpus]
+description = "Prose writers over any Markdown corpus: mise run prose-corpus PATH..."
+run = "uv run python scripts/prose-corpus.py \"$@\""
+
+# The same check over a public corpus pinned by commit SHA, fetched into
+# .cache/prose-corpus/. Needs the network, so it is not part of `ci`; the
+# prose-corpus workflow runs it. The pin and how to bump it are in the script.
+[tasks.prose-corpus-pinned]
+description = "Prose writers over the pinned public Markdown corpus (needs the network)"
+run = "uv run python scripts/prose-corpus.py --pinned"
+
+# The prose_corpus tests need a corpus to run over; the two tasks above supply one.
 [tasks.test-all]
 description = "Every test — unit + integration + office (needs services and Office)"
-run = "uv run python -m pytest -m \"\""
+run = "uv run python -m pytest -m \"not prose_corpus\""
 
 [tasks.audit]
 description = "pip-audit (OSV) over the dependency closure"

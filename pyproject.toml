@@ -165,10 +165,11 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "scripts"]
-addopts = "-v --cov=mdd --cov-report=term-missing --cov-fail-under=85 -m 'not integration and not office'"
+addopts = "-v --cov=mdd --cov-report=term-missing --cov-fail-under=85 -m 'not integration and not office and not prose_corpus'"
 markers = [
     "integration: requires a live external service (Confluence, SharePoint, GitLab, Anthropic)",
     "office: requires Microsoft Office installed locally (macOS)",
+    "prose_corpus: runs the prose writers over an external Markdown corpus (MDD_PROSE_CORPUS)",
 ]
 # Third-party deprecation noise the suite can't act on; everything else is
 # surfaced (warnings get tracked in test output, no implicit filter).

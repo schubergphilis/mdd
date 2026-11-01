@@ -917,8 +917,26 @@ with them.
 - A test that every rule id appearing in the default config resolves to a real
   rule, and vice versa. Declared-but-nonexistent rule ids are the thing that
   rots first in a configurable linter.
+- A corpus check over Markdown written by other people, for the cases a
+  corpus written with the tool in mind misses. `tests/prose/test_corpus.py`,
+  marked `prose_corpus` and out of the default run, runs both writers on a
+  temporary copy of every file under the roots in `MDD_PROSE_CORPUS`. A file
+  fails when the test-side oracle rejects what was written, when a second run
+  changes it again, or when a run reports `parse-error`, `not-equivalent` or
+  `write-failed`. A file expected to fail is listed in an allowlist with a
+  one-line reason, and the entry fails the run once the file passes.
+  `mise run prose-corpus PATH...` runs it over any checkout, private ones
+  included, and reports each failing file by name, writer and line without
+  printing its text. `mise run prose-corpus-pinned` fetches
+  [schubergphilis/ai-training](https://github.com/schubergphilis/ai-training)
+  at the commit pinned in `scripts/prose-corpus.py`, where the bump procedure
+  is written, and runs the check over it. The `Prose corpus` workflow runs
+  that task when the writers, their tests or the pin change. The corpus is
+  CC BY-SA 4.0, so it is fetched at run time and never copied into this
+  repository; a defect it reveals gets a fixture written from scratch.
 - No test in this feature may touch the network or a model; `mdd prose` needs
-  no `integration` marker because there is nothing to integrate with.
+  no `integration` marker because there is nothing to integrate with. The
+  pinned corpus is fetched by its mise task, not by a test.
 
 ## Related upstream specs
 
