@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from hypothesis import Phase, event, given, settings
+from hypothesis import event, given
 
 from mdd.prose import runner
 from mdd.prose.classify import Classified, LineClass, classify
@@ -88,22 +88,8 @@ def label(document: Document) -> None:
 
 
 # --- properties -------------------------------------------------------------
-#
-# Two properties are expected to fail until the defects recorded in the
-# counterexample section below are fixed. They are marked non-strict so that a
-# fix which makes them pass does not break the build; drop the marker then.
-# They also skip shrinking: a known failure is not worth twenty seconds of
-# every test run, and the counterexamples below are already minimal.
-
-KNOWN_FAILURE = settings(phases=(Phase.explicit, Phase.reuse, Phase.generate))
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="the classifier still calls several non-paragraph constructs prose; "
-    "each one is pinned by a strict counterexample below",
-)
-@KNOWN_FAILURE
 @given(documents())
 def test_prose_lines_are_paragraph_lines(document: Document) -> None:
     """Every line the classifier calls prose is paragraph text according to markdown-it."""
@@ -159,15 +145,10 @@ def test_refused_file_is_never_written(document: Document) -> None:
 
 # --- counterexamples ----------------------------------------------------------
 #
-# Minimal inputs the properties above found, shrunk by hand. Each is a known
-# defect, marked strict so the marker has to come off when the defect is fixed.
+# Minimal inputs the properties above found, shrunk by hand, kept so that a
+# fixed defect stays fixed under the derandomized ci profile too.
 
-
-def _gap(text: str, reason: str, name: str) -> object:
-    return pytest.param(text, id=name, marks=pytest.mark.xfail(strict=True, reason=reason))
-
-
-CLASSIFIER_GAPS = [
+CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param("<pre>\na\n\nb\n</pre>\n", id="html-block-survives-blank-line"),
     pytest.param("Intro.\n<div>\nb\n</div>\n", id="html-block-interrupts-paragraph"),
     pytest.param("# h\n    code\n", id="indented-code-after-heading"),
@@ -177,7 +158,27 @@ CLASSIFIER_GAPS = [
     pytest.param("[x]: /u\n'title'\n", id="link-definition-title-on-next-line"),
     pytest.param("[x]: /u 'a\nb'\n", id="link-definition-title-over-two-lines"),
     pytest.param("[x]: /u\n[y]:\n/v\n", id="link-definition-after-link-definition"),
+    pytest.param("[x]:\n      /u\n  'title'\n", id="link-definition-destination-indented-as-code"),
     pytest.param("- [x]: /u\n", id="link-definition-in-list-item"),
+    pytest.param("- [x]:\n  /u\n  'title'\n", id="multi-line-link-definition-in-list-item"),
+    pytest.param("- ```\n```\na  b\n```\nc\n```\n", id="fence-ended-by-its-list-item"),
+    pytest.param(
+        "1. a\n   ```\n   > b\n   ```\n   c  d\n   ```\n",
+        id="quote-shaped-line-in-a-list-item-fence",
+    ),
+    pytest.param("> ```\n> a\nb\n> ```\nc  d\n", id="fence-ended-by-its-block-quote"),
+    pytest.param("a\n>     code\n", id="indented-code-opening-a-block-quote"),
+    pytest.param("- ::: callout-tip\nb\n:::\n", id="fenced-div-in-list-item-drops-a-line"),
+    pytest.param("::: x\n:::\n2. a\n\n\tb\n", id="list-item-after-unknown-div-continues-it"),
+    pytest.param("a\n   -\n\n        code\n", id="bare-marker-under-a-paragraph-opens-no-list"),
+    pytest.param("- a\nb\n-\n\n\tc\n", id="empty-item-closes-at-a-blank-line"),
+    pytest.param("1. a\n   b\n2. c\n\t***\n", id="rule-in-a-sibling-list-item"),
+    pytest.param("1. a\n2. ```\n```\n\nb\n", id="fence-in-a-sibling-list-item"),
+    pytest.param("- a\n\n\t>***\n", id="rule-in-a-block-quote-in-a-list-item"),
+    pytest.param(
+        "1.   a\n\n     > ```\n     > b  c\n     > ```\n",
+        id="fence-in-a-block-quote-in-a-list-item",
+    ),
     pytest.param("| a |\n| --- |\n", id="single-column-table"),
     pytest.param("| a |\n|---|\nfoo\n", id="table-row-without-a-pipe"),
     pytest.param("| a |\n|---|\n[x]: /u\nfoo\n", id="link-definition-as-table-row"),
@@ -187,6 +188,7 @@ CLASSIFIER_GAPS = [
     pytest.param("- # h\n", id="heading-after-list-marker"),
     pytest.param("1. $$ x $$\n", id="math-after-list-marker"),
     pytest.param("-     code  x\n", id="indented-code-after-list-marker"),
+    pytest.param("-   \tcode  x\n", id="indented-code-after-list-marker-and-tab"),
     pytest.param("- <div>\n", id="html-block-after-list-marker"),
     pytest.param("[^1]: ``` a\n    c\n", id="fence-after-footnote-label"),
     pytest.param("10.\nfoo\n", id="empty-list-item"),
@@ -204,7 +206,7 @@ CLASSIFIER_GAPS = [
 ]
 
 
-@pytest.mark.parametrize("text", CLASSIFIER_GAPS)
+@pytest.mark.parametrize("text", CLASSIFIER_COUNTEREXAMPLES)
 def test_classifier_counterexample(text: str) -> None:
     assert misplaced_prose(text) == []
 

@@ -13,7 +13,7 @@ is skipped by every check — and never written to.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _BQ = re.compile(r"(?: {0,3}>[ \t]?)+")
+_BQ_ANY_INDENT = re.compile(r"(?:[ \t]*>[ \t]?)+")
 _FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
 _ATX = re.compile(r"^ {0,3}#{1,6}(\s|$)")
 _TBREAK = re.compile(r"^ {0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$")
@@ -63,6 +64,7 @@ _DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\
 _MATH_FENCE = re.compile(r"^ {0,3}\$\$")
 _MATH_LABEL_END = re.compile(r"\$\$[ \t]*\([^)$\r\n]+?\)$")
 _DIV_FENCE = re.compile(r"^[ \t]*:{3,}")
+_DIV_OPEN = re.compile(r"^[ \t]*(:{3,})[ \t]*\S")
 _ALERT_MARKER = re.compile(r"^\[!\w+\]$")
 _MANAGED_CALLOUT = re.compile(r"^\*\*(?:Confluence|SharePoint) export\*\*")
 _INDENT = re.compile(r"^[ \t]*")
@@ -238,16 +240,29 @@ class _State:
     #: What ends the open HTML block: a closing marker, or ``None`` for a blank line.
     html_end: re.Pattern[str] | None = None
     in_indented_code: bool = False
-    list_content_col: int | None = None
+    #: The content columns of the open list items, innermost last.
+    list_cols: list[int] = field(default_factory=list)
+    #: The content column of the list item the open fence sits in. A line
+    #: indented less than this ends the item, and the fence with it.
+    fence_container: int = 0
     #: The previous line was paragraph text, which an indented code block or a
     #: bare-tag HTML block cannot interrupt. A blank line is not the only thing
     #: that ends a paragraph: a heading, a fence or a rule does too.
     in_paragraph: bool = False
+    after_div_marker: bool = False
+    after_empty_item: bool = False
+    #: How many block quotes deep the open paragraph is.
+    paragraph_depth: int = 0
     #: A link reference definition is still open: its destination or its title
     #: has yet to come, so the lines that follow belong to it.
     in_link_def: bool = False
     after_link_def: bool = False
     open_at: int = 0
+    #: The closing marker of a fenced div opened inside a list item, the
+    #: item's content column, and the first line the renderer would drop.
+    list_div: str | None = None
+    list_div_column: int = 0
+    dropped: ClassifyError | None = None
 
 
 def _prose_line(number: int, raw: str, quote: str, rest: str) -> Line:
@@ -308,12 +323,37 @@ def _closes_fence(rest: str, quote: str, state: _State) -> bool:
     return not rest[closer.end() :].strip(MD_SPACE)
 
 
+_ONE_QUOTE = re.compile(r"[ \t]*>[ \t]?")
+
+
+def _leaves_fence_container(raw: str, state: _State) -> bool:
+    """True when *raw* ends the container the open fence is in, and so the fence.
+
+    A fence is not a paragraph, so it has no lazy continuation: a line with
+    fewer ``>`` than the fence's opener ends its block quote, and a non-blank
+    line indented less than its list item's content column ends the item. The
+    indent is measured inside the fence's own block quotes; a ``>`` beyond
+    those is fence content. Treating either as fence content let a later
+    fence-shaped line close the block, and the code after that read as prose.
+    """
+    inside = raw
+    for _ in range(state.fence_quote_depth):
+        marker = _ONE_QUOTE.match(inside)
+        if marker is None:
+            return True
+        inside = inside[marker.end() :]
+    return bool(inside.strip(MD_SPACE)) and _indent_columns(inside) < state.fence_container
+
+
 def _continuation(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
     """Classify *raw* against an open multi-line construct, or return ``None``."""
     if state.in_frontmatter:
         state.in_frontmatter = rest.strip(MD_SPACE) not in ("---", "...")
         return Line(number, raw, LineClass.FRONTMATTER)
     if state.fence is not None:
+        if _leaves_fence_container(raw, state):
+            state.fence = None
+            return None
         if _closes_fence(rest, quote, state):
             state.fence = None
         return Line(number, raw, LineClass.FENCED_CODE)
@@ -381,6 +421,7 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
         state.fence = fence.group(1)
         state.fence_quote_depth = _quote_depth(quote)
         state.fence_indent = _indent_columns(rest)
+        state.fence_container = 0
         state.open_at = number
         return Line(number, raw, LineClass.FENCED_CODE)
     stripped = rest.lstrip()
@@ -406,17 +447,25 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
     return None
 
 
-def _close_list(rest: str, state: _State) -> None:
-    """Close the open list item when *rest* starts a block flush against the margin.
+def _close_items(rest: str, state: _State) -> None:
+    """Close every open list item that *rest*, starting a block, is indented less than.
 
-    Called for every fresh line, not only the ones that end up as prose. A
-    heading, a fence or a thematic break at column zero ends the list just as a
-    paragraph does, and leaving the content column set after one raised the
-    indented-code floor so a genuine four-space code block read as prose — and
-    the fixers then rewrote its interior.
+    Called for every fresh line that starts a block, not only the ones that end
+    up as prose. A heading, a fence or a thematic break at column zero ends the
+    list just as a paragraph does, and leaving the content column set after one
+    raised the indented-code floor so a genuine four-space code block read as
+    prose, and the fixers then rewrote its interior.
     """
-    if rest.strip(MD_SPACE) and _indent_columns(rest) == 0:
-        state.list_content_col = None
+    if not rest.strip(MD_SPACE):
+        return
+    indent = _indent_columns(rest)
+    while state.list_cols and state.list_cols[-1] > indent:
+        _ = state.list_cols.pop()
+
+
+def _container_column(indent: int, state: _State) -> int:
+    """Return the content column of the innermost open item a line at *indent* is in."""
+    return max((column for column in state.list_cols if column <= indent), default=0)
 
 
 #: Five or more columns of whitespace after a list marker mean the content
@@ -439,17 +488,51 @@ def _list_content_column(indent: str, marker: str, gap: str) -> int:
     return content
 
 
-def _track_list(rest: str, state: _State) -> None:
-    """Update the innermost open list item's content column."""
+def _interrupts_paragraph(rest: str) -> bool:
+    """True when the list item on *rest* may interrupt a paragraph.
+
+    Only an item with content may, and of ordered items only one numbered 1. A
+    bare `-` under a paragraph is a setext underline, and `10. x` continues it.
+    """
     item = _LIST.match(rest)
-    if item is not None:
-        state.list_content_col = _list_content_column(item.group(1), item.group(2), item.group(3))
+    if item is None:
+        return False
+    number = item.group(2)[:-1]
+    return not number or number == "1"
+
+
+def _track_list(rest: str, state: _State) -> None:
+    """Open the list items *rest* starts, or close the ones it ends.
+
+    A lazy paragraph continuation is less indented than its item and still
+    belongs to it, so a line inside a paragraph closes nothing.
+    """
+    content = rest
+    opened = False
+    # A fenced-div marker with a name the renderer does not know is paragraph
+    # text, so an item after one may be continuing a paragraph too. Opening
+    # fewer items is the safe guess: it only lowers the indented-code floor.
+    # A marker that cannot interrupt a paragraph continues it, unless it sits
+    # left of the paragraph's list item: then it starts a sibling item.
+    paragraph = state.in_paragraph or state.after_div_marker
+    innermost = state.list_cols[-1] if state.list_cols else 0
+    if paragraph and not _interrupts_paragraph(rest) and _indent_columns(rest) >= innermost:
+        if not state.in_paragraph:
+            _close_items(rest, state)
         return
-    bare = _LIST_BARE.match(rest)
-    if bare is not None:
-        state.list_content_col = _list_content_column(bare.group(1), bare.group(2), "")
-        return
-    _close_list(rest, state)
+    while (item := _LIST.match(content) or _LIST_BARE.match(content)) is not None:
+        if opened and _TBREAK.match(content):
+            break
+        if not opened:
+            _close_items(rest, state)
+        base = _columns(rest[: len(rest) - len(content)])
+        gap = item.group(3) if item.re is _LIST else ""
+        column = _list_content_column(item.group(1), item.group(2), gap)
+        state.list_cols.append(base + column)
+        opened = True
+        content = content[item.end() :]
+    if not opened and not state.in_paragraph:
+        _close_items(rest, state)
 
 
 def _is_indented_code(rest: str, state: _State) -> bool:
@@ -463,8 +546,8 @@ def _is_indented_code(rest: str, state: _State) -> bool:
     """
     if state.in_paragraph and not state.in_indented_code:
         return False
-    floor = _INDENTED_CODE_COLUMN + (state.list_content_col or 0)
-    return _indent_columns(rest) >= floor
+    indent = _indent_columns(rest)
+    return indent >= _INDENTED_CODE_COLUMN + _container_column(indent, state)
 
 
 def _single_line_class(rest: str) -> LineClass | None:
@@ -507,7 +590,9 @@ def _link_definition(line: Line, rest: str, state: _State) -> Line:
         line = Line(line.number, line.text, LineClass.LINK_DEF)
         state.in_link_def = True
     elif line.cls is LineClass.LINK_DEF:
-        state.in_link_def = bool(_LINK_LABEL_ONLY.match(rest)) or _unclosed_title(rest)
+        split = _split_markers(rest)
+        definition = (split[2] if split is not None else rest).lstrip(MD_SPACE)
+        state.in_link_def = bool(_LINK_LABEL_ONLY.match(definition)) or _unclosed_title(definition)
     else:
         state.in_link_def = False
     state.after_link_def = line.cls is LineClass.LINK_DEF
@@ -536,10 +621,8 @@ def _container_content(rest: str, state: _State) -> str:
     HTML block at a list item's content column prose. A line indented less
     than the content column is outside the item and is measured as it stands.
     """
-    column = state.list_content_col
-    if not column or _indent_columns(rest) < column:
-        return rest
-    return _drop_columns(rest, column)
+    column = _container_column(_indent_columns(rest), state)
+    return _drop_columns(rest, column) if column else rest
 
 
 def _split_markers(rest: str) -> tuple[str, str, str] | None:
@@ -556,6 +639,8 @@ def _split_markers(rest: str) -> tuple[str, str, str] | None:
     gap = ""
     content = rest
     while (match := _CONTAINER_MARKER.match(content)) is not None and match.end() > 0:
+        if markers and _TBREAK.match(content):
+            break
         markers += match.group(0)
         gap = match.group("gap")
         content = content[match.end() :]
@@ -578,7 +663,9 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
     prefix = quote + markers
     if not content.strip(MD_SPACE):
         return Line(number, raw, LineClass.LIST_MARKER, prefix=prefix)
-    if _columns(gap) > _MAX_MARKER_GAP:
+    # Tabs in the gap expand from the column the marker ends at.
+    marker_end = _columns(markers[: len(markers) - len(gap)])
+    if _columns(gap, marker_end) - marker_end > _MAX_MARKER_GAP:
         return Line(number, raw, LineClass.INDENTED_CODE, prefix=prefix)
     # Nothing the content opens is interrupting a paragraph: it is the first
     # line of the item. The scan loop recomputes this flag after every line.
@@ -587,6 +674,7 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
     if opened is not None:
         if opened.cls is LineClass.FENCED_CODE:
             state.fence_indent = _columns(markers)
+            state.fence_container = _container_column(state.fence_indent, state)
         return replace(opened, prefix=prefix)
     single = _single_line_class(content)
     return Line(number, raw, single, prefix=prefix) if single is not None else None
@@ -601,18 +689,82 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     inner = _container_content(rest, state)
     opened = _open_block(number, raw, quote, inner, state)
     if opened is not None:
+        _close_items(rest, state)
         if opened.cls is LineClass.FENCED_CODE:
             state.fence_indent = _indent_columns(rest)
-        _close_list(rest, state)
+            state.fence_container = _container_column(state.fence_indent, state)
         return opened
-    single = _single_line_class(inner)
+    # A one-line block is looked for at any indent that is not code. Which list
+    # item a line sits in is a guess, and a wrong guess must not hide a heading
+    # or a rule; calling an indented paragraph line one only splits the
+    # paragraph, and the writers leave the line alone.
+    single = _single_line_class(rest.lstrip(MD_SPACE))
     if single is not None:
-        _close_list(rest, state)
+        _close_items(rest, state)
         return Line(number, raw, single, prefix=quote)
     _track_list(rest, state)
     if not rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.BLOCK_QUOTE if quote else LineClass.BLANK)
     return _marker_line(number, raw, quote, rest, state) or _prose_line(number, raw, quote, rest)
+
+
+def _track_list_div(line: Line, rest: str, state: _State) -> None:
+    """Fail closed on a fenced div in a list item with a line outside the item.
+
+    The fenced-div renderer looks for its closing marker past the end of the
+    list item, and silently drops every line between the first one indented
+    less than the item and that marker. Such a line is not prose, nor anything
+    else the classifier has a class for, so the file is refused instead.
+    """
+    content = rest.strip(MD_SPACE)
+    if state.list_div is not None:
+        dedented = bool(content) and _indent_columns(rest) < state.list_div_column
+        if line.cls is LineClass.DIV_MARKER and content == state.list_div:
+            state.list_div = None
+        elif dedented and state.dropped is None:
+            state.dropped = ClassifyError(
+                line.number, "a fenced div in a list item drops a less-indented line"
+            )
+        return
+    if line.cls is not LineClass.DIV_MARKER:
+        return
+    split = _split_markers(rest)
+    if split is None:
+        indent, opener = _indent_columns(rest), _DIV_OPEN.match(rest)
+    else:
+        indent, opener = _columns(split[0]), _DIV_OPEN.match(split[2])
+    column = _container_column(indent, state)
+    if opener is not None and column:
+        state.list_div = opener.group(1)
+        state.list_div_column = column
+
+
+def _strip_quote_in_item(quote: str, rest: str, state: _State) -> tuple[str, str]:
+    """Strip a block quote that opens inside a list item, at the item's indent.
+
+    Three columns of indent is the limit for a ``>`` within its container, so
+    a quote in a list item may sit further in than that from the margin. Any
+    indent is accepted here once a list item is open: a paragraph line taken
+    for a quote is only split from its paragraph, while a quote taken for a
+    paragraph line hides the code or the rule inside it.
+    """
+    if not state.list_cols:
+        return quote, rest
+    match = _BQ_ANY_INDENT.match(rest)
+    if match is None:
+        return quote, rest
+    return quote + rest[: match.end()], rest[match.end() :]
+
+
+def _in_literal_block(rest: str, state: _State) -> bool:
+    """True when *rest* is inside a construct whose lines are literal text."""
+    return (
+        state.in_frontmatter
+        or state.in_comment
+        or state.in_math
+        or state.in_html_block
+        or (state.fence is None and _is_indented_code(rest, state))
+    )
 
 
 def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None]:
@@ -627,29 +779,56 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             out.append(Line(1, raw, LineClass.FRONTMATTER))
             continue
         quote, rest = _strip_quote(raw)
+        if not _in_literal_block(rest, state):
+            quote, rest = _strip_quote_in_item(quote, rest, state)
+        # A deeper block quote opens a new container, and no paragraph is open
+        # inside it yet. A shallower one is a lazy continuation.
+        if _quote_depth(quote) > state.paragraph_depth:
+            state.in_paragraph = False
         line = _continuation(number, raw, quote, rest, state) or _classify_fresh(
             number, raw, quote, rest, state
         )
         line = _link_definition(line, rest, state)
-        blank = line.cls in (LineClass.BLANK, LineClass.BLOCK_QUOTE)
-        state.in_paragraph = line.cls is LineClass.PROSE and not (
-            state.in_paragraph and _SETEXT.match(rest)
-        )
-        # A blank line does not end an indented code block — it is content
-        # inside one — so the flag survives a blank and only a shallower
-        # non-blank line clears it.
-        if not blank:
-            state.in_indented_code = line.cls is LineClass.INDENTED_CODE
+        _track_list_div(line, rest, state)
+        _after_line(line, quote, rest, state)
         out.append(line)
+    return out, _unclosed(state)
+
+
+def _after_line(line: Line, quote: str, rest: str, state: _State) -> None:
+    """Carry what *line* turned out to be over to the classification of the next one."""
+    blank = line.cls in (LineClass.BLANK, LineClass.BLOCK_QUOTE)
+    # An empty list item followed by a blank line has ended: an item may start
+    # with at most one blank line.
+    if blank and state.after_empty_item and state.list_cols:
+        _ = state.list_cols.pop()
+    state.after_empty_item = line.cls is LineClass.LIST_MARKER
+    # An incomplete link definition reads on like a paragraph: indented code
+    # cannot interrupt it either.
+    state.in_paragraph = state.in_link_def or (
+        line.cls is LineClass.PROSE and not (state.in_paragraph and _SETEXT.match(rest))
+    )
+    if line.cls is LineClass.PROSE:
+        state.paragraph_depth = _quote_depth(quote)
+    state.after_div_marker = line.cls is LineClass.DIV_MARKER
+    # A blank line does not end an indented code block — it is content inside
+    # one — so the flag survives a blank and only a shallower non-blank line
+    # clears it.
+    if not blank:
+        state.in_indented_code = line.cls is LineClass.INDENTED_CODE
+
+
+def _unclosed(state: _State) -> ClassifyError | None:
+    """Return why the file cannot be classified once every line has been read."""
     if state.in_frontmatter:
-        return out, ClassifyError(state.open_at, "frontmatter block never closes")
+        return ClassifyError(state.open_at, "frontmatter block never closes")
     if state.fence is not None:
-        return out, ClassifyError(state.open_at, "fenced code block never closes")
+        return ClassifyError(state.open_at, "fenced code block never closes")
     if state.in_comment:
-        return out, ClassifyError(state.open_at, "HTML comment never closes")
+        return ClassifyError(state.open_at, "HTML comment never closes")
     if state.in_math:
-        return out, ClassifyError(state.open_at, "math block never closes")
-    return out, None
+        return ClassifyError(state.open_at, "math block never closes")
+    return state.dropped
 
 
 def _reclaim_code_blanks(lines: list[Line]) -> None:
