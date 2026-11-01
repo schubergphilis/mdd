@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
 
 from mdd.cli import main as cli_main
+from mdd.prose import config as prose_config
+from mdd.prose import runner
+from mdd.prose.config import AnchorsConfig, ProseConfig
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -254,3 +258,41 @@ def test_whitespace_inside_masked_constructs_survives_a_write(corpus: Path) -> N
 def test_unreadable_file_is_an_operational_failure(corpus: Path) -> None:
     _ = (corpus / "a.md").write_bytes(b"\xff\xfe\x00bad")
     assert prose(["lint", "docs"]) == 1
+
+
+def _capture_config(monkeypatch: pytest.MonkeyPatch, loaded: ProseConfig) -> list[ProseConfig]:
+    """Stub the config loader and the runner, recording the config the runner gets."""
+    seen: list[ProseConfig] = []
+
+    def fake_run(_files: object, config: ProseConfig, _options: object) -> runner.RunResult:
+        seen.append(config)
+        return runner.RunResult()
+
+    def fake_load(_path: object) -> ProseConfig:
+        return loaded
+
+    monkeypatch.setattr(prose_config, "load", fake_load)
+    monkeypatch.setattr(runner, "run", fake_run)
+    return seen
+
+
+def _with_slug_style(style: str) -> ProseConfig:
+    # Only `github` exists today; a second value stands in for a future style
+    # so the test can tell the flag's value from the config file's.
+    return replace(ProseConfig(), anchors=AnchorsConfig(slug_style=style))  # pyright: ignore[reportArgumentType]
+
+
+def test_slug_style_flag_overrides_the_config(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _capture_config(monkeypatch, _with_slug_style("future"))
+    assert prose(["anchors", "--slug-style", "github", "docs"]) == 0
+    assert seen[0].anchors.slug_style == "github"
+
+
+def test_slug_style_from_config_stands_without_the_flag(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _capture_config(monkeypatch, _with_slug_style("future"))
+    assert prose(["anchors", "docs"]) == 0
+    assert seen[0].anchors.slug_style == "future"

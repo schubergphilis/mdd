@@ -46,7 +46,7 @@ class _ProseArgs(argparse.Namespace):
     allow_mirror: bool
     width: int | None
     min_line: int | None
-    slug_style: str
+    slug_style: Literal["github"] | None
     max_age: int | None
     as_of: dt.date | None
     only_missing: bool
@@ -78,10 +78,13 @@ def _apply_overrides(loaded: ProseConfig, args: _ProseArgs) -> ProseConfig:
         reflow = replace(reflow, width=args.width)
     if args.min_line is not None:
         reflow = replace(reflow, min_line=args.min_line)
+    anchors = loaded.anchors
+    if args.slug_style is not None:
+        anchors = replace(anchors, slug_style=args.slug_style)
     freshness = loaded.freshness
     if args.max_age is not None:
         freshness = replace(freshness, max_age_days=args.max_age)
-    return replace(loaded, reflow=reflow, freshness=freshness)
+    return replace(loaded, reflow=reflow, anchors=anchors, freshness=freshness)
 
 
 def _freshness_only(args: _ProseArgs) -> str | None:
@@ -211,7 +214,7 @@ def _add_defaults(parser: argparse.ArgumentParser) -> None:
         allow_mirror=False,
         width=None,
         min_line=None,
-        slug_style="github",
+        slug_style=None,
         max_age=None,
         as_of=None,
         only_missing=False,
@@ -289,8 +292,8 @@ def _register_anchors(
     _ = p.add_argument(
         "--slug-style",
         choices=("github",),
-        default="github",
-        help="Heading-slug rule to resolve anchors against (default: github)",
+        default=None,
+        help="Heading-slug rule to resolve anchors against (default: from config, else github)",
     )
     _add_defaults(p)
     p.set_defaults(func=_run_anchors)
