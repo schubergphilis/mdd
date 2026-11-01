@@ -159,7 +159,12 @@ the second needs project-supplied data to mean anything.
 Two keys can set a severity, and the order is fixed. `checks.<name>: off` means
 the check does not run at all, and nothing under `<name>.rules` can re-enable
 it. Otherwise `checks.<name>` sets the default for every rule in that check, and
-a rule named under `<name>.rules` overrides that. Specific beats general.
+a rule named under `<name>.rules` overrides that. Specific beats general. A rule
+that is off by default, such as `punctuation-outside-quote`, stays off until you
+name it under `<name>.rules`.
+
+A key `mdd` does not know, anywhere in the file, is an error that names the key,
+so a misspelt setting cannot quietly keep its default.
 
 A rule goes under the check that owns it; `mdd` rejects one filed under another
 check and tells you where it belongs. The rules that belong to no check

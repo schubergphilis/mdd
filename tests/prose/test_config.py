@@ -64,7 +64,29 @@ def test_checks_off_disables_the_check(tmp_path: Path) -> None:
 def test_check_level_severity_replaces_every_rule_default(tmp_path: Path) -> None:
     loaded = prose_config.load(write_config(tmp_path, "prose:\n  checks:\n    lint: warning\n"))
     for rule in rules_for("lint"):
-        assert loaded.severity(rule.rule) is Severity.WARNING
+        expected = Severity.OFF if rule.default is Severity.OFF else Severity.WARNING
+        assert loaded.severity(rule.rule) is expected
+
+
+def test_check_level_severity_does_not_turn_on_a_rule_that_is_off_by_default(
+    tmp_path: Path,
+) -> None:
+    loaded = prose_config.load(write_config(tmp_path, "prose:\n  checks:\n    lint: error\n"))
+    assert RULES["punctuation-outside-quote"].default is Severity.OFF
+    assert loaded.severity("punctuation-outside-quote") is Severity.OFF
+    assert loaded.severity("multiple-spaces") is Severity.ERROR
+    assert loaded.severity("invisible-space") is Severity.ERROR
+
+
+def test_a_rule_that_is_off_by_default_is_turned_on_by_name(tmp_path: Path) -> None:
+    loaded = prose_config.load(
+        write_config(
+            tmp_path,
+            "prose:\n  checks:\n    lint: error\n  lint:\n    rules:\n"
+            "      punctuation-outside-quote: warning\n",
+        )
+    )
+    assert loaded.severity("punctuation-outside-quote") is Severity.WARNING
 
 
 def test_rule_level_severity_beats_the_check_level(tmp_path: Path) -> None:
@@ -156,6 +178,12 @@ def test_freshness_knobs(tmp_path: Path) -> None:
         ("prose:\n  anchors:\n    slug-style: gitlab\n", "must be github"),
         ("prose:\n  freshness:\n    field: ''\n", "non-empty string"),
         ("prose:\n  checks: 3\n", "must be a mapping"),
+        ("prose:\n  lint:\n    alow-hard-break: false\n", "prose.lint.alow-hard-break"),
+        ("prose:\n  reflow:\n    min_line: 10\n", "prose.reflow.min_line"),
+        ("prose:\n  anchors:\n    style: github\n", "prose.anchors.style"),
+        ("prose:\n  freshness:\n    max-age: 10\n", "prose.freshness.max-age"),
+        ("prose:\n  lnit:\n    rules: {}\n", "prose.lnit"),
+        ("prose: {}\nprsoe: {}\n", "prsoe"),
     ],
 )
 def test_invalid_config_is_rejected(tmp_path: Path, body: str, message: str) -> None:
@@ -163,36 +191,27 @@ def test_invalid_config_is_rejected(tmp_path: Path, body: str, message: str) -> 
         _ = prose_config.load(write_config(tmp_path, body))
 
 
-def _config_rule_ids(text: str) -> set[str]:
-    """Every rule id named under a `rules:` block in *text*."""
-    found: set[str] = set()
-    in_rules = False
-    for raw in text.splitlines():
-        line = raw.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-        if line.strip() == "rules:":
-            in_rules = True
-            continue
-        if in_rules and line.strip().endswith(":") and ":" in line:
-            in_rules = False
-        if in_rules and ":" in line:
-            found.add(line.strip().split(":", 1)[0])
-    return found
-
-
-def test_every_rule_named_in_a_config_resolves_to_a_real_rule() -> None:
-    """Declared-but-nonexistent rule ids are what rots first in a configurable linter.
-
-    The earlier version of this test iterated ``RULES`` and asserted each member
-    was in ``RULES`` — a tautology that could not fail. This walks the direction
-    that matters: config → registry.
-    """
+def test_the_bundled_config_loads() -> None:
+    """Loading rejects unknown keys and rule ids, so this is the config-to-registry check."""
     sample = Path("configs/prose.yaml")
     assert sample.is_file(), "the bundled configs/prose.yaml is the dogfooding config"
-    named = _config_rule_ids(sample.read_text(encoding="utf-8"))
-    unknown = named - set(RULES)
-    assert not unknown, f"config names rules that do not exist: {sorted(unknown)}"
+    loaded = prose_config.load(sample)
+    assert {"lint", "anchors"} <= loaded.enabled
+
+
+_YAML_FENCE = re.compile(r"^```ya?ml\n(.*?)^```", re.MULTILINE | re.DOTALL)
+
+
+@pytest.mark.parametrize(
+    "document", ["docs/spec/S46-prose-checks.md", "docs/guide/05-configuration.md"]
+)
+def test_every_documented_prose_config_loads(tmp_path: Path, document: str) -> None:
+    """Declared-but-nonexistent keys and rule ids are what rots first in a configurable linter."""
+    text = Path(document).read_text(encoding="utf-8")
+    examples = [m.group(1) for m in _YAML_FENCE.finditer(text) if "prose:" in m.group(1)]
+    assert examples, f"{document} has no prose.yaml example"
+    for example in examples:
+        _ = prose_config.load(write_config(tmp_path, example))
 
 
 def test_every_registered_rule_has_a_check_that_can_configure_it() -> None:

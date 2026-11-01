@@ -153,6 +153,31 @@ def find_config_file(explicit: Path | None) -> Path | None:
     return None
 
 
+#: Every key each section accepts. A key outside these is a config error, so a
+#: misspelt knob fails loudly instead of silently keeping its default.
+_KNOWN_KEYS: dict[str, frozenset[str]] = {
+    "": frozenset({"prose"}),
+    "prose": frozenset({"checks", "rules", *CHECK_NAMES}),
+    "prose.reflow": frozenset(
+        {"width", "min-line", "abbreviations", "single-letter-words", "rules"}
+    ),
+    "prose.lint": frozenset(
+        {"quote-punctuation", "allow-hard-break", "literal-quote-patterns", "rules"}
+    ),
+    "prose.anchors": frozenset({"slug-style", "rules"}),
+    "prose.freshness": frozenset({"field", "max-age-days", "rules"}),
+}
+
+
+def _reject_unknown_keys(where: str, raw: dict[str, Any]) -> None:
+    known = _KNOWN_KEYS[where]
+    for key in raw:  # pyright: ignore[reportAny]
+        if key not in known:
+            path = f"{where}.{key}" if where else str(key)  # pyright: ignore[reportAny]
+            expected = ", ".join(sorted(known))
+            raise ConfigError(f"{path} is not a known key; expected one of {expected}")
+
+
 def _section(raw: dict[str, Any], key: str) -> dict[str, Any]:
     value: Any = raw.get(key)  # pyright: ignore[reportAny]
     if value is None:
@@ -190,7 +215,11 @@ def _resolve_enabled(checks: dict[str, Any]) -> frozenset[str]:
 
 
 def _apply_check_level(severities: dict[str, Severity], name: str, checks: dict[str, Any]) -> None:
-    """Step 2: a check-level severity replaces the built-in default for its rules."""
+    """Step 2: a check-level severity replaces the built-in default for its rules.
+
+    A rule that is off by default stays off: it encodes a house style or is
+    noisy, and only naming it under the check's ``rules`` turns it on.
+    """
     raw: Any = checks.get(name)  # pyright: ignore[reportAny]
     if raw is None:
         return
@@ -198,7 +227,8 @@ def _apply_check_level(severities: dict[str, Severity], name: str, checks: dict[
     if resolved is Severity.OFF:
         return
     for rule in rules_for(name):
-        severities[rule.rule] = resolved
+        if rule.default is not Severity.OFF:
+            severities[rule.rule] = resolved
 
 
 def _rules_key(check: str) -> str:
@@ -322,7 +352,12 @@ def load(path: Path | None = None) -> ProseConfig:
     found = find_config_file(path)
     if found is None:
         return ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
-    raw_prose = _section(load_yaml(found), "prose")
+    raw_file = load_yaml(found)
+    _reject_unknown_keys("", raw_file)
+    raw_prose = _section(raw_file, "prose")
+    _reject_unknown_keys("prose", raw_prose)
+    for name in CHECK_NAMES:
+        _reject_unknown_keys(f"prose.{name}", _section(raw_prose, name))
     checks = _section(raw_prose, "checks")
     return ProseConfig(
         enabled=_resolve_enabled(checks),

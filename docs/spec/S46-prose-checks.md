@@ -590,7 +590,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
      check is one edit a reviewer can see rather than one edit plus a search for
      contradicting overrides.
   2. Otherwise `checks.<name>` sets the default severity for every rule in that
-     check, replacing the built-in default.
+     check, replacing the built-in default. A rule that is `off` by default,
+     such as `punctuation-outside-quote` or `missing-review-date`, stays off:
+     it encodes a house style or needs data a corpus may not have, and turning
+     on a check does not adopt it.
   3. A rule named in `<name>.rules` takes that severity, overriding step 2.
      Specific beats general.
 
@@ -606,6 +609,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   Stated because `--min-severity` turns severity into the build's outcome: a
   reader of `prose.yaml` must be able to tell what gates CI without knowing
   which key the implementation happened to consult first.
+- An unknown key anywhere in `prose.yaml` is a config error naming the key's
+  full path, such as `prose.lint.alow-hard-break`. A misspelt knob that
+  silently keeps its default is worse than a run that refuses to start.
 - No config file at all is not an error. The default set runs `lint` and
   `anchors` at their default severities. `reflow` and `freshness` do nothing
   until configured, because the first produces a corpus-wide diff and the second
