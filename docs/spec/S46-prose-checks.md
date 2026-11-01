@@ -186,6 +186,9 @@ cannot promise.
   After a `--write` that changed files the summary leads with the count and
   never says "clean": `mdd prose lint: wrote 2 files, no findings left in 214
   files`, or `mdd prose lint: wrote 2 files, 1 error, 0 warnings in 214 files`.
+  A finding whose file `--write` refused as `mirrored-file` or failed to write
+  as `write-failed` is not counted as fixable: running `--write` again would
+  not fix it.
 
 ### Suppression
 

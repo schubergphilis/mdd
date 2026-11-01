@@ -184,6 +184,20 @@ def test_write_never_deletes_a_file_at_the_temp_path(
     assert target.read_text(encoding="utf-8") == MESSY
 
 
+@pytest.mark.parametrize("plant", ["mirror", "temp-file"])
+def test_a_refused_write_is_not_called_fixable_with_write(
+    corpus: Path, capsys: pytest.CaptureFixture[str], plant: str
+) -> None:
+    target = corpus / "a.md"
+    if plant == "mirror":
+        _ = target.write_text(MIRRORED, encoding="utf-8")
+    else:
+        _ = target.write_text(MESSY, encoding="utf-8")
+        _ = (corpus / "a.md.tmp").write_text("my notes\n", encoding="utf-8")
+    assert prose(["lint", "--write", "docs"]) == 1
+    assert "fixable with --write" not in capsys.readouterr().err
+
+
 def test_allow_mirror_overrides_the_refusal(corpus: Path) -> None:
     target = corpus / "a.md"
     _ = target.write_text(MIRRORED, encoding="utf-8")

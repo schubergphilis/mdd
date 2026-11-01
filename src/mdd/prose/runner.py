@@ -182,7 +182,9 @@ def _gated_fix(
 
     The gate runs with and without ``--write``, so the check-only report and
     the write agree on what is fixable: a fix the gate refuses is reported as
-    not fixable, with the refusal, in both modes.
+    not fixable, with the refusal, in both modes. A write that is refused as a
+    mirror or that fails leaves its findings not fixable too, since running
+    ``--write`` again would not fix them.
     """
     verdict = gate.verify(unit.text, fix.text)
     if not verdict.passed:
@@ -191,10 +193,10 @@ def _gated_fix(
         return list(fix.findings)
     refusal = _refuse_mirror(unit.path, unit.text, fix.check, config, options)
     if refusal is not None:
-        return [*fix.findings, refusal]
+        return [*_unfixable(fix.findings), refusal]
     failure = _write(unit.path, fix.text, fix.check, config, result)
     if failure is not None:
-        return [*fix.findings, failure]
+        return [*_unfixable(fix.findings), failure]
     return [f for f in fix.findings if not f.fixable]
 
 
