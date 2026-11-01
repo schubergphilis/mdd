@@ -126,6 +126,16 @@ def test_a_changed_math_block_is_refused() -> None:
     assert verdict.reason == "the content of a math block changed"
 
 
+def test_a_change_inside_an_unreferenced_footnote_is_refused() -> None:
+    verdict = refused("[^1]: ``` a. B\n    c\n", "[^1]: ``` a.\n      B c\n")
+    assert verdict.reason == "the info string of a fenced code block changed"
+
+
+def test_a_change_inside_a_referenced_footnote_is_refused() -> None:
+    before = "See[^n].\n\n[^n]: A note\n    <div>\n"
+    refused(before, "See[^n].\n\n[^n]: A note <div>\n")
+
+
 # --- block structure -------------------------------------------------------
 
 

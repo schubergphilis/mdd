@@ -221,12 +221,6 @@ def test_reflow_write_preserves_the_document(document: Document) -> None:
     assert_same_document(document.text, outcome.text)
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="lint --write has no equivalence gate yet, so every classifier gap "
-    "below reaches the disk; drop this marker once the gate lands",
-)
-@KNOWN_FAILURE
 @given(documents())
 def test_lint_write_preserves_the_document(document: Document) -> None:
     """Whatever ``lint --write`` leaves on disk means what the original meant."""
@@ -368,96 +362,61 @@ WRITER_DAMAGE = [
         "reflow",
         "[^1]:# A sentence. B.\n",
         id="reflow-splits-footnote-heading",
-        marks=pytest.mark.xfail(
-            strict=True, reason="reflow moves the second sentence out of the footnote's heading"
-        ),
     ),
     pytest.param(
         "reflow",
         "$$ a\nb\nc $$\n",
         id="reflow-joins-math-lines",
-        marks=pytest.mark.xfail(strict=True, reason="reflow joins two lines of a math block"),
     ),
     pytest.param(
         "reflow",
         "[^1]: :80 it\n    configuration ;block\n    <div>\n",
         id="reflow-joins-html-into-footnote",
-        marks=pytest.mark.xfail(
-            strict=True, reason="reflow joins an HTML block into a footnote's paragraph"
-        ),
     ),
     pytest.param(
         "reflow",
         "[^1]: ``` a. B\n    c\n",
         id="reflow-splits-footnote-fence-info",
-        marks=pytest.mark.xfail(
-            strict=True, reason="reflow moves part of a fence's info string into the code"
-        ),
     ),
     pytest.param(
         "reflow",
         "- 1. $$\n    a\n    b\n    $$\n",
         id="reflow-joins-math-in-nested-list",
-        marks=pytest.mark.xfail(
-            strict=True, reason="reflow joins the lines of a math block inside a nested list"
-        ),
     ),
     pytest.param(
         "reflow",
         "- <pre>\nOne.\nTwo.\n</pre>\n",
         id="reflow-rewrites-raw-pre",
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="reflow rewrites text a raw <pre> opened on a list marker line keeps literal",
-        ),
     ),
     pytest.param(
         "lint",
         "a   \nb\n",
         id="lint-deletes-hard-break",
-        marks=pytest.mark.xfail(
-            strict=True, reason="trailing-whitespace deletes a hard break of three or more spaces"
-        ),
     ),
     pytest.param(
         "lint",
         "OSC 9 ; 4\n",
         id="lint-space-before-punctuation",
-        marks=pytest.mark.xfail(
-            strict=True, reason="space-before-punctuation changes the rendered text"
-        ),
     ),
     pytest.param(
         "lint",
         "<textarea>\na  b\n\nc  d\n</textarea>\n",
         id="lint-rewrites-html-block",
-        marks=pytest.mark.xfail(
-            strict=True, reason="multiple-spaces rewrites an HTML block after a blank line"
-        ),
     ),
     pytest.param(
         "lint",
         "# h\n    a  b\n",
         id="lint-rewrites-indented-code",
-        marks=pytest.mark.xfail(
-            strict=True, reason="multiple-spaces rewrites indented code that follows a heading"
-        ),
     ),
     pytest.param(
         "lint",
         "Intro.\n<div>\nb  c\n</div>\n",
         id="lint-rewrites-interrupting-html",
-        marks=pytest.mark.xfail(
-            strict=True, reason="multiple-spaces rewrites an HTML block that interrupts a paragraph"
-        ),
     ),
     pytest.param(
         "lint",
         "-     code  x\n",
         id="lint-rewrites-list-item-code",
-        marks=pytest.mark.xfail(
-            strict=True, reason="multiple-spaces rewrites indented code inside a list item"
-        ),
     ),
 ]
 

@@ -111,11 +111,15 @@ class _Item:
 def _parser() -> MarkdownIt:
     # The pandoc rules for `$`: no space just inside the delimiters and no
     # digit after the closing one, so that "costs $5 and $6" stays text.
+    # Footnote definitions stay where they are written: the tail rule moves
+    # them to the end and drops any that nothing references, which would hide
+    # a change inside an unreferenced footnote from the comparison.
     return (
         build_md()
         .use(front_matter_plugin)
         .use(footnote_plugin)
         .use(dollarmath_plugin, allow_space=False, allow_digits=False)
+        .disable("footnote_tail")
     )
 
 
