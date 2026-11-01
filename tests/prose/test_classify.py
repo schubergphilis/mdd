@@ -254,3 +254,27 @@ def test_a_bare_list_marker_is_a_block_of_its_own() -> None:
     assert blocks("-\nfoo\n") == [1, 2]
     assert blocks("> -\n> foo\n") == [1, 2]
     assert blocks("- a\n-\n") == [1, 2]
+
+
+def test_list_content_column_counts_a_tab_after_the_marker_as_columns() -> None:
+    # `-\t` puts the content at column 4, so six spaces is a paragraph inside
+    # the item, not code. Counting the tab as one character set the floor at 6.
+    text = "-\titem\n\n      para\n"
+    assert classes(text)[2] is LineClass.PROSE
+
+
+def test_list_content_column_counts_a_tab_before_the_marker_as_columns() -> None:
+    text = "- outer\n\n\t- inner\n\n        para\n"
+    assert classes(text)[4] is LineClass.PROSE
+
+
+def test_five_spaces_after_a_marker_put_the_content_one_column_in() -> None:
+    # Five or more spaces after the marker make the content column the marker
+    # plus one, so a six-space line after a blank is code inside the item.
+    text = "-      x\n\n      code  here\n"
+    assert classes(text)[2] is LineClass.INDENTED_CODE
+
+
+def test_a_tab_run_after_the_marker_wider_than_four_columns() -> None:
+    text = "-\t\tx\n\n      code  here\n"
+    assert classes(text)[2] is LineClass.INDENTED_CODE

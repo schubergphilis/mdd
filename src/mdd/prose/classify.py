@@ -171,16 +171,22 @@ def _indent_bytes(text: str) -> str:
     return _INDENT.match(text).group(0)  # pyright: ignore[reportOptionalMemberAccess]
 
 
-def _indent_columns(text: str) -> int:
-    """Return the indent's width in columns, expanding tabs to 4-column stops.
+def _columns(text: str, start: int = 0) -> int:
+    """Return the column *text* ends at when it begins at column *start*.
 
-    Character count is the wrong measure: a single leading tab is four columns,
-    which is the difference between a paragraph and an indented code block.
+    Tabs expand to 4-column stops. Character count is the wrong measure: a
+    single leading tab is four columns, which is the difference between a
+    paragraph and an indented code block.
     """
-    column = 0
-    for char in _indent_bytes(text):
+    column = start
+    for char in text:
         column += _TAB_STOP - (column % _TAB_STOP) if char == "\t" else 1
     return column
+
+
+def _indent_columns(text: str) -> int:
+    """Return the indent's width in columns, expanding tabs to 4-column stops."""
+    return _columns(_indent_bytes(text))
 
 
 def _hard_break(text: str) -> bool:
@@ -341,11 +347,35 @@ def _close_list(rest: str, state: _State) -> None:
         state.list_content_col = None
 
 
+#: Five or more columns of whitespace after a list marker mean the content
+#: starts one column after the marker and the rest is indented code.
+_MAX_MARKER_GAP = 4
+
+
+def _list_content_column(indent: str, marker: str, gap: str) -> int:
+    """Return the column a list item's content starts at, per CommonMark.
+
+    Measured in columns, not characters: a tab before or after the marker is up
+    to four columns wide, and counting it as one put the indented-code floor
+    too low. *gap* is the whitespace between the marker and the content, empty
+    for a bare marker, whose content can only start one column further in.
+    """
+    marker_end = _columns(marker, _columns(indent))
+    content = _columns(gap, marker_end)
+    if not gap or content - marker_end > _MAX_MARKER_GAP:
+        return marker_end + 1
+    return content
+
+
 def _track_list(rest: str, state: _State) -> None:
     """Update the innermost open list item's content column."""
-    marker = _LIST.match(rest) or _LIST_BARE.match(rest)
-    if marker is not None:
-        state.list_content_col = len(marker.group(0))
+    item = _LIST.match(rest)
+    if item is not None:
+        state.list_content_col = _list_content_column(item.group(1), item.group(2), item.group(3))
+        return
+    bare = _LIST_BARE.match(rest)
+    if bare is not None:
+        state.list_content_col = _list_content_column(bare.group(1), bare.group(2), "")
         return
     _close_list(rest, state)
 
