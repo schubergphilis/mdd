@@ -501,37 +501,51 @@ def _interrupts_paragraph(rest: str) -> bool:
     return not number or number == "1"
 
 
+def _continues_paragraph_text(rest: str, state: _State) -> bool:
+    """True when a list marker on *rest* is paragraph text rather than a new item.
+
+    A marker that cannot interrupt a paragraph continues it, unless it sits
+    left of the paragraph's list item: then it starts a sibling item. A
+    fenced-div marker with a name the renderer does not know is paragraph text
+    too, so an item after one may be continuing a paragraph. Opening fewer
+    items is the safe guess: it only lowers the indented-code floor.
+    """
+    paragraph = state.in_paragraph or state.after_div_marker
+    innermost = state.list_cols[-1] if state.list_cols else 0
+    return paragraph and not _interrupts_paragraph(rest) and _indent_columns(rest) >= innermost
+
+
+def _open_items(rest: str, state: _State) -> bool:
+    """Open one list item per marker *rest* starts with; say whether there was one.
+
+    Markers nest, as in ``- 1. a``, and each opens an item one level deeper. A
+    run like ``* * *`` after the first marker is a thematic break, not more
+    items.
+    """
+    consumed = 0
+    while (item := _LIST.match(rest[consumed:]) or _LIST_BARE.match(rest[consumed:])) is not None:
+        if consumed and _TBREAK.match(rest[consumed:]):
+            break
+        if not consumed:
+            _close_items(rest, state)
+        gap = item.group(3) if item.re is _LIST else ""
+        column = _list_content_column(item.group(1), item.group(2), gap)
+        state.list_cols.append(_columns(rest[:consumed]) + column)
+        consumed += item.end()
+    return consumed > 0
+
+
 def _track_list(rest: str, state: _State) -> None:
     """Open the list items *rest* starts, or close the ones it ends.
 
     A lazy paragraph continuation is less indented than its item and still
     belongs to it, so a line inside a paragraph closes nothing.
     """
-    content = rest
-    opened = False
-    # A fenced-div marker with a name the renderer does not know is paragraph
-    # text, so an item after one may be continuing a paragraph too. Opening
-    # fewer items is the safe guess: it only lowers the indented-code floor.
-    # A marker that cannot interrupt a paragraph continues it, unless it sits
-    # left of the paragraph's list item: then it starts a sibling item.
-    paragraph = state.in_paragraph or state.after_div_marker
-    innermost = state.list_cols[-1] if state.list_cols else 0
-    if paragraph and not _interrupts_paragraph(rest) and _indent_columns(rest) >= innermost:
+    if _continues_paragraph_text(rest, state):
         if not state.in_paragraph:
             _close_items(rest, state)
         return
-    while (item := _LIST.match(content) or _LIST_BARE.match(content)) is not None:
-        if opened and _TBREAK.match(content):
-            break
-        if not opened:
-            _close_items(rest, state)
-        base = _columns(rest[: len(rest) - len(content)])
-        gap = item.group(3) if item.re is _LIST else ""
-        column = _list_content_column(item.group(1), item.group(2), gap)
-        state.list_cols.append(base + column)
-        opened = True
-        content = content[item.end() :]
-    if not opened and not state.in_paragraph:
+    if not _open_items(rest, state) and not state.in_paragraph:
         _close_items(rest, state)
 
 
