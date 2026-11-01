@@ -89,9 +89,10 @@ network call, no token, no model — the same bytes always produce the same
 answer, which is what makes it usable as a merge gate.
 
 `mdd prose check` is the entry point for CI. It runs every check your project
-has enabled in one pass over each file, prints one finding per line as
-`path:line:column: severity: rule: message`, and exits `1` if anything at or
-above `--min-severity` (default `error`) turned up. `--json` switches to
+has enabled in one pass over each file, prints each finding as
+`path:line:column: severity: rule: message` with an excerpt of the source
+indented on the line below (`--no-excerpt` drops it), and exits `1` if
+anything at or above `--min-severity` (default `error`) turned up. `--json` switches to
 line-delimited JSON for a script or an agent.
 
 There are four checks behind it. Enabling and disabling a check in
