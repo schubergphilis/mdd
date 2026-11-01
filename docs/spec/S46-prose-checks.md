@@ -637,7 +637,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 
 - Every internal link of the form `path/file.md#anchor`, `#anchor`
   (same-file), or `path/file.md` must resolve: the target file must exist, and
-  where an anchor is given, a heading in that file must slug to it.
+  where an anchor is given, a heading in that file must slug to it. A target
+  file that does not exist is reported under `missing-file`, an anchor no
+  heading slugs to under `missing-anchor`; both default to `error`.
 - External links (`http:`, `https:`, `mailto:` and any other scheme) are not
   checked. Link-rot checking needs the network and would break the
   determinism rule.

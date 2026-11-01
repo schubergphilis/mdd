@@ -99,7 +99,8 @@ There are four checks behind it. Enabling and disabling a check in
 subcommand runs it regardless, with the defaults if you have not configured it.
 
 `mdd prose lint` finds mechanical slips a spell checker cannot see: runs of two
-or more spaces, a space before terminal punctuation, more than one consecutive
+or more spaces, a space before a comma, semicolon, colon or terminal
+punctuation, more than one consecutive
 blank line, trailing whitespace, an invisible space where a plain one was
 meant, and — off by default, because it is a house style — punctuation placed
 outside a closing quote. `--write` fixes the three unambiguous whitespace
@@ -109,13 +110,20 @@ A space before punctuation is reported but never fixed, because in text such as
 
 `mdd prose anchors` checks that every internal `file.md#anchor` link resolves:
 the target file exists, and a heading in it slugs to the anchor under GitHub's
-rule. An unresolved anchor gets a `did you mean` hint. This is what makes it
-safe to split, merge or renumber files in a large corpus.
+rule. A link to a file that does not exist is a `missing-file` finding, and
+an anchor no heading slugs to is a `missing-anchor` finding, with a
+`did you mean` hint when a close match exists. Two headings with the same text
+are an `ambiguous-anchor` warning. This is what makes it safe to split, merge
+or renumber files in a large corpus.
 
 `mdd prose freshness` checks that each file carries a `last-verified:` date in
 its frontmatter and that it is recent enough. `--as-of DATE` pins the clock so
-a test or a rebuilt CI job gets the same answer. It does nothing until you
-configure it, because a corpus mirrored from Confluence has no such field.
+a test or a rebuilt CI job gets the same answer. `mdd prose check` leaves
+freshness out until you enable it in `prose.yaml`. Run on its own,
+`mdd prose freshness` uses the defaults: a date older than 180 days is a
+`stale` warning and a value that is not a date is an error, while a file with
+no date is not reported, because a corpus mirrored from Confluence has no such
+field.
 
 `mdd prose reflow` is the one that matters most and the one you have to opt
 into. It rewrites prose to **semantic line breaks**: one sentence per line,
@@ -142,9 +150,16 @@ Any finding can be silenced in place:
 <!-- mdd-prose-ignore: punctuation-outside-quote -->
 ```
 
-That covers the next line only. A comma-separated list names several rules, the
-bare form covers every rule, and `<!-- mdd-prose-ignore-file: reflow -->`
-covers the whole file from anywhere in it.
+For a `lint` rule that covers the next line only. For `reflow`, which works
+on whole paragraphs, it covers every line of the paragraph that starts on the
+next line, so put the comment directly above the paragraph. A comma-separated
+list names several rules, the bare form `<!-- mdd-prose-ignore -->` covers every
+rule, and `<!-- mdd-prose-ignore-file: reflow -->` covers the whole file from
+anywhere in it.
+
+A suppression stops the fix as well as the report: `--write` never changes
+what a suppression covers. `blank-run` can only be suppressed file-wide, since
+a comment placed among the blank lines splits the run instead of covering it.
 
 ## AI assistance
 
