@@ -1022,7 +1022,16 @@ src/mdd/prose/
     rules.py                  # the rule registry: ids, owning check, defaults
     walk.py                   # path-based file discovery, .mddignore
     runner.py                 # read, classify once, run the checks, write
-    classify.py               # the shared line/span classifier
+    classify/                 # the shared line/span classifier
+        __init__.py           # classify() and the public types callers import
+        lines.py              # LineClass, Line, Classified, ClassifyError; split/join
+        prefixes.py           # quote markers, indent columns, list-marker prefixes
+        state.py              # the scanner's mutable state, open list items
+        blocks.py             # fences, HTML blocks, math, link definitions, divs
+        tables.py             # pipe-table rows and their container
+        scan.py               # the line-by-line block scan, quote and div tracking
+        passes.py             # setext, managed callouts, divergent, blank runs, blocks
+        masks.py              # block_text() and inline masks across a block's lines
     inline.py                 # inline span masking within a prose block
     suppress.py               # suppression directives and their audit
     report.py                 # Finding, human + JSON emit, run summary
