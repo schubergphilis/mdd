@@ -178,6 +178,11 @@ cannot promise.
   `<!-- mdd-prose-ignore -->` suppresses every rule on the next line. A
   file-wide form, `<!-- mdd-prose-ignore-file: reflow -->`, may appear anywhere
   in the file and disables the named rules (or all of them) for the whole file.
+- A suppression stops the fix as well as the report. `lint --write` and
+  `reflow --write` never edit a line whose finding is suppressed, in the
+  line, bare and file-wide forms alike; the suppression is applied before the
+  fix is computed. Reflow rewrites whole paragraphs, so a paragraph is left
+  exactly as it is when a `reflow` suppression covers any of its lines.
 - HTML comments are used because they are invisible in every Markdown renderer
   and survive round-tripping through the [IR](S30-markdown-ir-conversion.md).
 - A suppression whose rule id does not exist is itself a finding

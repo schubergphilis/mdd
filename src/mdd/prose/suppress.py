@@ -58,6 +58,14 @@ class Suppressions:
                 return site
         return None
 
+    def covers(self, line: int, rule: str) -> bool:
+        """True when *rule* at *line* is suppressed; unlike :meth:`suppresses`, records nothing.
+
+        A writer asks this to decide what it may edit. Only a finding that was
+        actually silenced counts as the directive doing work.
+        """
+        return self._match(line, rule) is not None
+
     def suppresses(self, line: int, rule: str) -> bool:
         """True when *rule* at *line* is suppressed; records the directive as used."""
         site = self._match(line, rule)

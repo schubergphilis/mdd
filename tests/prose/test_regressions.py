@@ -404,6 +404,49 @@ def test_lint_write_refuses_a_mirror_whatever_its_line_endings(
     assert "mirrored-file" in capsys.readouterr().out
 
 
+
+LONG_PARAGRAPH = (
+    "This is the first sentence of the paragraph. "
+    "This is the second sentence which is long enough to matter.\n"
+)
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        pytest.param("<!-- mdd-prose-ignore-file: reflow -->\n\n", id="file-wide"),
+        pytest.param("<!-- mdd-prose-ignore-file -->\n\n", id="bare-file-wide"),
+        pytest.param("<!-- mdd-prose-ignore: reflow -->\n", id="line"),
+        pytest.param("<!-- mdd-prose-ignore -->\n", id="bare-line"),
+    ],
+)
+def test_reflow_write_leaves_a_suppressed_paragraph_alone(tmp_path: Path, directive: str) -> None:
+    """The finding was suppressed but reflow --write still rewrote the paragraph."""
+    target = tmp_path / "a.md"
+    source = directive + LONG_PARAGRAPH
+    write_file(target, source)
+    assert cli_main(["prose", "reflow", "--write", str(target)]) == 0
+    assert read_file(target) == source
+
+
+def test_reflow_write_still_fixes_the_paragraphs_that_are_not_suppressed(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    source = "<!-- mdd-prose-ignore: reflow -->\n" + LONG_PARAGRAPH + "\n" + LONG_PARAGRAPH
+    write_file(target, source)
+    assert cli_main(["prose", "reflow", "--write", str(target)]) == 0
+    first, _, second = read_file(target).partition("\n\n")
+    assert first + "\n" == "<!-- mdd-prose-ignore: reflow -->\n" + LONG_PARAGRAPH
+    assert second.count("\n") == 2
+
+
+def test_lint_write_leaves_a_line_under_a_bare_suppression_alone(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    source = "Intro.\n\n<!-- mdd-prose-ignore -->\nTwo  spaces   \n"
+    write_file(target, source)
+    assert lint_write(target) == 0
+    assert read_file(target) == source
+
+
 # --- second review round: block state that outlived its block ------------
 
 

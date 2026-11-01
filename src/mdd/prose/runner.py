@@ -159,7 +159,7 @@ def _gated_fix(
     verdict = gate.verify(unit.text, fix.text)
     if not verdict.passed:
         return [*_unfixable(fix.findings), refusal_finding(unit.path, fix.check, verdict, config)]
-    if not options.write:
+    if not options.write or fix.text == unit.text:
         return list(fix.findings)
     refusal = _refuse_mirror(unit.path, unit.text, fix.check, config, options)
     if refusal is not None:
@@ -170,8 +170,32 @@ def _gated_fix(
     return [f for f in fix.findings if not f.fixable]
 
 
+def _hold_suppressed(classified: Classified, suppressions: suppress.Suppressions) -> Classified:
+    """Return *classified* with every block a ``reflow`` suppression covers taken out of reach.
+
+    A block is held back when any of its lines is covered, so the fix never
+    edits a line whose finding the author silenced. A line outside every block
+    is one reflow already leaves alone.
+    """
+    held = {
+        line.block
+        for line in classified.lines
+        if line.block >= 0 and suppressions.covers(line.number, "reflow")
+    }
+    if not held:
+        return classified
+    lines = tuple(
+        replace(line, block=-1) if line.block in held else line for line in classified.lines
+    )
+    return replace(classified, lines=lines)
+
+
 def _run_reflow(
-    unit: _Unit, config: ProseConfig, options: RunOptions, result: RunResult
+    unit: _Unit,
+    config: ProseConfig,
+    options: RunOptions,
+    result: RunResult,
+    suppressions: suppress.Suppressions,
 ) -> list[Finding]:
     rewrite = reflow_apply.reflow_text(unit.classified, config.reflow)
     if not rewrite.changed:
@@ -179,6 +203,9 @@ def _run_reflow(
     findings = reflow_apply.findings(unit.path, unit.classified, config, rewrite)
     if config.severity("reflow") is Severity.OFF:
         return findings
+    reachable = _hold_suppressed(unit.classified, suppressions)
+    if reachable is not unit.classified:
+        rewrite = reflow_apply.reflow_text(reachable, config.reflow)
     fix = _Fix(check="reflow", text=rewrite.text, findings=tuple(findings))
     return _gated_fix(unit, fix, config, options, result)
 
@@ -212,7 +239,7 @@ def _check_file(
 ) -> list[Finding]:
     findings: list[Finding] = []
     if "reflow" in options.checks:
-        findings.extend(_run_reflow(unit, config, options, result))
+        findings.extend(_run_reflow(unit, config, options, result, suppressions))
     if "lint" in options.checks:
         findings.extend(_run_lint(unit, config, options, result, suppressions))
     if "anchors" in options.checks:
