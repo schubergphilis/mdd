@@ -1040,7 +1040,11 @@ src/mdd/prose/
         sentences.py          # sentence segmentation, abbreviations, initials
         clauses.py            # clause-boundary detection, greedy packing
         apply.py              # per-block rewriting and the reflow findings
-    gate.py                   # the write gate both writers pass; no classifier
+    gate/                     # the write gate both writers pass; no classifier
+        __init__.py           # verify(), compare(), canonical(); Verdict re-exported
+        literal.py            # the whitespace-preserving HTML a browser has open
+        stream.py             # the token stream flattened into comparable items
+        verdict.py            # Verdict, and the reason two item streams differ
     write.py                  # the shared atomic-write + mirror-refusal path
     frontmatter.py            # front matter read the way the sync readers see it
     lint.py                   # rules, and the whitespace fixers
@@ -1119,9 +1123,9 @@ lines; re-apply the prefix. Masked spans travel as opaque tokens through the
 whole pipeline and are substituted back at the end, which is what makes "never
 break inside a link" structural rather than a rule that can be forgotten.
 
-Then the write gate, in `gate.py`, which both writers share: compare the
+Then the write gate, in `gate/`, which both writers share: compare the
 markdown-it token streams of the before and after text, then their normalised
-renderings through the IR. `gate.py` does not import the classifier. Comparing
+renderings through the IR. The gate does not import the classifier. Comparing
 whole documents rather than per-block keeps the check simple and catches the
 interesting failures, which are the ones where a rewrite changes block
 *structure*. The runner gates every fix it computes, with or without `--write`.

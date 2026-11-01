@@ -21,14 +21,16 @@ def refused(before: str, after: str) -> Verdict:
 
 def test_the_gate_does_not_import_the_classifier() -> None:
     """The gate certifies the classifier's output, so it must not share its bugs."""
-    source = Path(gate.__file__).read_text(encoding="utf-8")
     imported: list[str] = []
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.ImportFrom) and node.module is not None:
-            imported.append(node.module)
-        elif isinstance(node, ast.Import):
-            imported.extend(alias.name for alias in node.names)
-    assert not [name for name in imported if name.startswith("mdd.prose")]
+    for path in Path(gate.__file__).parent.glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.ImportFrom) and node.module is not None:
+                imported.append(node.module)
+            elif isinstance(node, ast.Import):
+                imported.extend(alias.name for alias in node.names)
+    outside = [name for name in imported if not name.startswith("mdd.prose.gate")]
+    assert not [name for name in outside if name.startswith("mdd.prose")]
 
 
 def test_identical_text_passes() -> None:
@@ -536,7 +538,7 @@ def test_a_parser_failure_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     def explode(_text: str) -> list[object]:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(gate, "_items", explode)
+    monkeypatch.setattr(gate, "items", explode)
     verdict = compare("a\n", "a\n")
     assert verdict == Verdict(passed=False, reason="the document could not be parsed")
 
