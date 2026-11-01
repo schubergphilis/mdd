@@ -337,7 +337,7 @@ def test_findings_name_the_block_start() -> None:
     assert [(f.rule, f.line, f.fixable) for f in found] == [("reflow", 1, True)]
 
 
-def reflow_findings(text: str) -> list[tuple[int, str]]:
+def reflow_findings(text: str) -> list[tuple[int, str | None]]:
     doc = ok(text)
     config = ProseConfig(severities={rule.rule: rule.default for rule in RULES.values()})
     found = findings(Path("a.md"), doc, config, reflow_text(doc, ReflowConfig()))
