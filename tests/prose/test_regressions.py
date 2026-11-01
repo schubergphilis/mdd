@@ -677,3 +677,17 @@ def test_a_marker_that_cannot_interrupt_a_paragraph_is_its_text() -> None:
     assert [line.cls.value for line in lines] == ["prose"] * 3
     assert [line.prefix for line in lines] == ["", "", ""]
     assert {line.block for line in lines} == {1}
+
+
+BOM_FRONT_MATTER = "\ufeff---\ntitle: x\ntags:\n- a  b\n---\n\nSome  text.\n"
+
+
+def test_front_matter_after_a_byte_order_mark_is_front_matter() -> None:
+    assert classes(BOM_FRONT_MATTER) == ["frontmatter"] * 5 + ["blank", "prose"]
+
+
+def test_lint_leaves_front_matter_after_a_byte_order_mark_alone(tmp_path: Path) -> None:
+    path = tmp_path / "doc.md"
+    write_file(path, BOM_FRONT_MATTER)
+    _ = lint_write(path)
+    assert read_file(path).startswith("\ufeff---\ntitle: x\ntags:\n- a  b\n---\n")

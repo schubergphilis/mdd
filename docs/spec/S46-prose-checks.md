@@ -255,6 +255,9 @@ cannot promise.
   four or more columns under a quoted paragraph makes itself and the line
   above it divergent, since only one of the renderers reads the trailing
   spaces there as a hard break.
+- Front matter is recognised behind a leading byte order mark, as the sync
+  commands recognise it, so the writers never touch it. markdown-it does not
+  skip the mark and reads such a block as paragraph text or a heading.
 - Tables follow GFM: a table runs from its header row to the next blank line
   or the start of another block. A line directly below a table is one more
   row, not prose, whether or not it contains a pipe. A row is not a

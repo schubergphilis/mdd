@@ -70,6 +70,7 @@ _MANAGED_CALLOUT = re.compile(r"^\*\*(?:Confluence|SharePoint) export\*\*")
 _INDENT = re.compile(r"^[ \t]*")
 
 _INDENTED_CODE_COLUMN = 4
+_BYTE_ORDER_MARK = "\ufeff"
 
 #: How deep a line's containers may nest, counting a block quote as one level
 #: and a list item as two, as markdown-it does. markdown-it stops parsing at
@@ -921,7 +922,9 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
     out: list[Line] = []
     for index, raw in enumerate(raw_lines):
         number = index + 1
-        if number == 1 and raw.rstrip(MD_SPACE) == "---":
+        # A byte order mark is not content: the sync reads the front matter
+        # behind one, so the writers must not touch it either.
+        if number == 1 and raw.removeprefix(_BYTE_ORDER_MARK).rstrip(MD_SPACE) == "---":
             state.in_frontmatter = True
             state.open_at = 1
             out.append(Line(1, raw, LineClass.FRONTMATTER))
