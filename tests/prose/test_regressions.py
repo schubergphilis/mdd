@@ -691,3 +691,29 @@ def test_lint_leaves_front_matter_after_a_byte_order_mark_alone(tmp_path: Path) 
     write_file(path, BOM_FRONT_MATTER)
     _ = lint_write(path)
     assert read_file(path).startswith("\ufeff---\ntitle: x\ntags:\n- a  b\n---\n")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "- [a]: /u\n\n\n  b\n",
+        "- a\n\n\n  b\n",
+        "1. a\n\n\n\n   - b\n",
+    ],
+)
+def test_blank_lines_in_a_list_item_before_an_indented_line_are_kept(
+    tmp_path: Path, source: str
+) -> None:
+    path = tmp_path / "doc.md"
+    write_file(path, source)
+    _ = lint_write(path)
+    assert read_file(path) == source
+
+
+def test_blank_lines_after_a_list_before_an_unindented_line_are_collapsed(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "doc.md"
+    write_file(path, "- a\n\n\nb\n")
+    _ = lint_write(path)
+    assert read_file(path) == "- a\n\nb\n"

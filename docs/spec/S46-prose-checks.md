@@ -254,7 +254,10 @@ cannot promise.
   block quote makes its whole paragraph divergent, and a lazy line indented
   four or more columns under a quoted paragraph makes itself and the line
   above it divergent, since only one of the renderers reads the trailing
-  spaces there as a hard break.
+  spaces there as a hard break. A run of two or more blank lines inside or
+  directly after a list item is divergent when an indented line follows it,
+  so `blank-run` leaves it alone: in CommonMark, whether that line is still
+  in the item can depend on the number of blank lines.
 - Front matter is recognised behind a leading byte order mark, as the sync
   commands recognise it, so the writers never touch it. markdown-it does not
   skip the mark and reads such a block as paragraph text or a heading.

@@ -105,8 +105,8 @@ class LineClass(StrEnum):
     #: an empty item, whose content, if any, starts on a later line.
     LIST_MARKER = "list-marker"
     #: A line markdown-it and CommonMark renderers such as GitHub's read
-    #: differently, so that an edit safe for one may change the other. Passed
-    #: through byte for byte.
+    #: differently, so that an edit safe for one may change the other, or a
+    #: blank line only one of them counts. Passed through byte for byte.
     DIVERGENT = "divergent"
     PROSE = "prose"
 
@@ -293,6 +293,8 @@ class _State:
     divergent_lines: set[int] = field(default_factory=set)
     #: The content column of the list item the open block quote started in.
     quote_base: int = 0
+    #: Blank lines read while a list item was open.
+    list_blanks: set[int] = field(default_factory=set)
 
 
 def _continuation_markers(markers: str, column: int) -> str:
@@ -953,6 +955,8 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
         _track_list_div(line, rest, state)
         _track_nesting(number, quote, state)
         line = replace(line, quote=quote)
+        if line.cls is LineClass.BLANK and state.list_cols:
+            state.list_blanks.add(number)
         if not state.open_quotes and quote:
             column = _indent_columns(quote)
             state.quote_base = max((c for c in state.cols_before_line if c <= column), default=0)
@@ -1013,6 +1017,31 @@ def _apply_divergent(
             continue
         if line.block in blocks or line.number in lines_only:
             lines[index] = replace(line, cls=LineClass.DIVERGENT, block=-1, cont_prefix="")
+
+
+def _keep_list_blank_runs(lines: list[Line], list_blanks: set[int]) -> None:
+    """Make a run of blank lines in a list item divergent when an indented line follows.
+
+    Whether such a line is still in the item can depend on how many blank
+    lines come before it: in CommonMark an item that starts with a link
+    definition ends at two of them and not at one, where markdown-it reads
+    both the same. Collapsing the run is then not safe, so it is kept.
+    """
+    run: list[int] = []
+    for index, line in enumerate([*lines, None]):
+        if line is not None and line.cls is LineClass.BLANK:
+            run.append(index)
+            continue
+        keep = (
+            len(run) > 1
+            and line is not None
+            and lines[run[0]].number in list_blanks
+            and _indent_columns(line.text[len(line.quote) :]) > 0
+        )
+        if keep:
+            for blank in run:
+                lines[blank] = replace(lines[blank], cls=LineClass.DIVERGENT)
+        run = []
 
 
 #: What the scan may have called a line that is really a table row. A link
@@ -1402,6 +1431,7 @@ def classify(text: str) -> Classified | ClassifyError:
     _apply_setext(lines)
     _apply_managed(lines)
     _apply_divergent(lines, state.divergent_paragraphs, state.divergent_lines)
+    _keep_list_blank_runs(lines, state.list_blanks)
     _assign_blocks(lines)
     _apply_masks(lines)
     return Classified(lines=tuple(lines), newline=newline, final_newline=final_newline)

@@ -325,6 +325,9 @@ WRITER_DAMAGE = [
         "\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
         id="lint-trims-blank-line-in-code-after-a-table-in-a-list-item",
     ),
+    pytest.param(
+        "lint", "- [a]: /u\n\n\n  b\n", id="lint-collapses-blanks-in-a-link-definition-item"
+    ),
 ]
 
 REFLOW_UNSTABLE = [
