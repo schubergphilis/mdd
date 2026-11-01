@@ -382,6 +382,15 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   style — the American convention — that not every corpus follows.
   `quote-punctuation: inside | outside | off` selects the convention;
   `outside` inverts the check.
+- Trailing whitespace after a link or code span that ends the line is a
+  finding like any other. It is skipped only when the next line of the
+  paragraph opens inside a masked span, because then the construct may run
+  across the line break with the whitespace inside it.
+- Some trailing whitespace is reported but not fixed, because deleting it
+  would change the document. Both cases sit before a line the paragraph
+  continues on: a run that contains a tab, which mdd's model keeps at a soft
+  break, and a run after a backslash, whose deletion would turn the
+  backslash into a hard line break. At the end of a paragraph both are fixed.
 - **The literal escape.** Moving a mark inside a quoted literal corrupts the
   literal: `the flag is "--dry-run", not "--check"` must not become
   `"--dry-run,"`. Three layers, applied in order:

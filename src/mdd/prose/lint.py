@@ -43,8 +43,6 @@ INVISIBLE_SPACES: dict[str, str] = {
     "﻿": "zero-width no-break space",
 }
 
-_LINT_LINE_CLASSES = (LineClass.PROSE, LineClass.BLANK)
-
 
 @dataclass(frozen=True)
 class Edit:
@@ -55,6 +53,9 @@ class Edit:
     end: int
     replacement: str
     message: str
+    #: False when the rule is fixable in general but this occurrence is not:
+    #: the edit is reported and never applied.
+    fixable: bool = True
 
 
 def _unmasked(line: Line) -> list[bool]:
@@ -115,7 +116,26 @@ def _space_before_punctuation(line: Line) -> Iterable[Edit]:
         )
 
 
-def _trailing_whitespace(line: Line, config: LintConfig, *, breaks: bool) -> Iterable[Edit]:
+def _unfixable_reason(line: Line, start: int, run: str, *, breaks: bool, keep_break: bool) -> str:
+    """Why the trailing run at *start* must be reported but not fixed, or ``""``.
+
+    Both cases sit before a line the paragraph continues on. A backslash left
+    at the end of the line becomes a hard line break, and a tab there is kept
+    by mdd's model, so deleting it changes the document even though the
+    rendered text looks the same.
+    """
+    if not breaks:
+        return ""
+    if "\t" in run:
+        return "; not fixed: a tab before a continuation line is kept by mdd's model"
+    if not keep_break and line.text[:start].endswith("\\"):
+        return "; not fixed: deleting it would make the backslash a hard line break"
+    return ""
+
+
+def _trailing_whitespace(
+    line: Line, config: LintConfig, *, breaks: bool, continued_construct: bool
+) -> Iterable[Edit]:
     """Flag trailing whitespace; *breaks* says the paragraph continues on the next line.
 
     Two or more trailing spaces before a continuation line are a hard line
@@ -130,20 +150,23 @@ def _trailing_whitespace(line: Line, config: LintConfig, *, breaks: bool) -> Ite
     keep_break = config.allow_hard_break and breaks and run.endswith(_HARD_BREAK)
     if config.allow_hard_break and run == _HARD_BREAK:
         return
-    # Masks are computed over the block's *rstripped* content, so they never
-    # reach a trailing run even when an inline construct straddles the soft
-    # break and the run is inside it. Treat a construct that reaches the end of
-    # the visible content as possibly owning what follows, and skip. Losing a
-    # finding is the acceptable direction; rewriting a code span is not.
-    if any(span.end >= match.start() for span in line.masks):
+    # Masks are computed over the block's *rstripped* content, so a span that
+    # reaches the end of the visible content may be a construct that carries
+    # on across the soft break, with this run inside it. That is only possible
+    # when the next line opens with a span too; then skip. Losing a finding is
+    # the acceptable direction; rewriting a code span is not.
+    if continued_construct and any(span.end >= match.start() for span in line.masks):
         return
+    reason = _unfixable_reason(line, match.start(), run, breaks=breaks, keep_break=keep_break)
     yield Edit(
         rule="trailing-whitespace",
         start=match.start(),
         end=match.end(),
         replacement=_HARD_BREAK if keep_break else "",
         message=f"{len(run)} trailing whitespace characters"
-        + ("; a hard line break needs exactly two spaces" if keep_break else ""),
+        + ("; a hard line break needs exactly two spaces" if keep_break else "")
+        + reason,
+        fixable=not reason,
     )
 
 
@@ -242,15 +265,17 @@ def _blank_run(lines: Sequence[Line]) -> Iterable[tuple[Line, Edit]]:
             )
 
 
-def _line_edits(line: Line, config: LintConfig, *, breaks: bool) -> list[Edit]:
+def _line_edits(
+    line: Line, config: LintConfig, *, breaks: bool, continued_construct: bool
+) -> list[Edit]:
     if line.cls is LineClass.BLANK:
-        return list(_trailing_whitespace(line, config, breaks=False))
+        return list(_trailing_whitespace(line, config, breaks=False, continued_construct=False))
     if line.cls is not LineClass.PROSE:
         return []
     return [
         *_multiple_spaces(line),
         *_space_before_punctuation(line),
-        *_trailing_whitespace(line, config, breaks=breaks),
+        *_trailing_whitespace(line, config, breaks=breaks, continued_construct=continued_construct),
         *_invisible_space(line),
         *_punctuation_outside_quote(line, config),
     ]
@@ -267,7 +292,7 @@ def _finding(path: Path, line: Line, edit: Edit, config: ProseConfig) -> Finding
         message=edit.message,
         severity=config.severity(edit.rule),
         excerpt=make_excerpt(line.text, edit.start + 1),
-        fixable=rule.fixable,
+        fixable=rule.fixable and edit.fixable,
     )
 
 
@@ -337,6 +362,7 @@ def _fixable_edits(
         edit
         for edit in edits
         if edit.rule in LINT_FIXABLE
+        and edit.fixable
         and config.severity(edit.rule) is not Severity.OFF
         and not suppressed(line, edit.rule)
     ]
@@ -356,6 +382,15 @@ def _continues(line: Line, following: Line | None) -> bool:
     )
 
 
+def _opens_on_a_span(line: Line) -> bool:
+    """True when *line*'s content starts inside a masked span.
+
+    A span clipped from one that began on the line before starts exactly at the
+    content's first column, so this is the only way such a span can show.
+    """
+    return any(span.start <= len(line.prefix) for span in line.masks)
+
+
 def _lint_one_line(
     path: Path,
     line: Line,
@@ -363,12 +398,16 @@ def _lint_one_line(
     suppressed: RuleFilter,
     findings: list[Finding],
     *,
-    breaks: bool,
+    following: Line | None,
 ) -> Line | None:
     """Append *line*'s findings and return its fixed form, or ``None`` if unchanged."""
+    breaks = _continues(line, following)
+    continued_construct = breaks and following is not None and _opens_on_a_span(following)
     edits = [
         e
-        for e in _line_edits(line, config.lint, breaks=breaks)
+        for e in _line_edits(
+            line, config.lint, breaks=breaks, continued_construct=continued_construct
+        )
         if config.severity(e.rule) is not Severity.OFF
     ]
     findings.extend(_finding(path, line, edit, config) for edit in edits)
@@ -400,8 +439,7 @@ def run(
 
     for index, line in enumerate(lines):
         following = lines[index + 1] if index + 1 < len(lines) else None
-        breaks = _continues(line, following)
-        fixed = _lint_one_line(path, line, config, suppressed, findings, breaks=breaks)
+        fixed = _lint_one_line(path, line, config, suppressed, findings, following=following)
         if fixed is not None:
             lines[index] = fixed
             changed = True

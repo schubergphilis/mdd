@@ -81,7 +81,7 @@ def test_trailing_whitespace_allows_the_two_space_hard_break() -> None:
 def test_a_long_hard_break_is_trimmed_to_two_spaces() -> None:
     # Deleting the run would join the lines; two spaces keep the break.
     assert fixed_text("a   \nb\n") == "a  \nb\n"
-    assert fixed_text("> a \t  \n> b\n") == "> a  \n> b\n"
+    assert fixed_text("> a    \n> b\n") == "> a  \n> b\n"
 
 
 def test_trailing_spaces_ending_a_paragraph_are_deleted() -> None:
@@ -202,3 +202,47 @@ def test_findings_carry_a_column_and_an_excerpt() -> None:
     assert finding.column == 5
     assert finding.excerpt == "word  word"
     assert finding.check == "lint"
+
+
+def test_trailing_whitespace_after_a_line_final_link_is_found_and_fixed() -> None:
+    text = "See [the link](x.md)   \nNext line here.\n"
+    assert rules_found(text) == ["trailing-whitespace"]
+    assert fixed_text(text) == "See [the link](x.md)  \nNext line here.\n"
+    assert fixed_text("See [the link](x.md) \n") == "See [the link](x.md)\n"
+
+
+def test_trailing_whitespace_after_a_line_final_code_span_is_found_and_fixed() -> None:
+    assert rules_found("Code `span` \nNext.\n") == ["trailing-whitespace"]
+    assert fixed_text("Code `span` \nNext.\n") == "Code `span`\nNext.\n"
+
+
+def test_trailing_whitespace_inside_a_code_span_across_lines_is_left_alone() -> None:
+    # The run is inside the span, which carries on to the next line.
+    assert rules_found("a `code   \nmore` b\n") == []
+    assert rules_found("a [link   \ntext](x.md) b\n") == []
+
+
+def test_removing_trailing_space_never_makes_a_backslash_hard_break() -> None:
+    text = "foo \\ \nbar\n"
+    outcome = run(PATH, ok(text), defaults())
+    assert [(f.rule, f.fixable) for f in outcome.findings] == [("trailing-whitespace", False)]
+    assert outcome.fixed is None
+
+
+def test_a_backslash_before_trailing_space_at_paragraph_end_is_fixed() -> None:
+    # A backslash at the end of a paragraph is literal; there is no break to make.
+    assert fixed_text("foo \\ \n") == "foo \\\n"
+
+
+def test_a_trailing_tab_before_a_continuation_line_is_reported_without_a_fix() -> None:
+    # mdd's model keeps a tab at a soft break, so deleting it changes the document.
+    for text in ("Code span\t\nNext.\n", "Code `span`\t\nNext.\n", "> a \t  \n> b\n"):
+        outcome = run(PATH, ok(text), defaults())
+        assert [(f.rule, f.fixable) for f in outcome.findings] == [
+            ("trailing-whitespace", False)
+        ], text
+        assert outcome.fixed is None, text
+
+
+def test_a_trailing_tab_ending_a_paragraph_is_fixed() -> None:
+    assert fixed_text("Code span\t\n") == "Code span\n"
