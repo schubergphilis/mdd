@@ -989,10 +989,12 @@ def _reclaim_code_blanks(lines: list[Line]) -> None:
 
 
 def _paragraph_start(lines: Sequence[Line], index: int) -> int:
-    """Return the index of the first line of the paragraph *index* belongs to."""
-    while index > 0 and lines[index - 1].cls is LineClass.PROSE:
-        if not _continues_paragraph(_line_depth(lines[index - 1]), lines[index]):
-            break
+    """Return the index of the first line of the paragraph *index* belongs to.
+
+    Reads the block numbers :func:`_assign_blocks` gave the prose lines.
+    """
+    block = lines[index].block
+    while index > 0 and lines[index - 1].cls is LineClass.PROSE and lines[index - 1].block == block:
         index -= 1
     return index
 
@@ -1038,10 +1040,16 @@ def _apply_setext(lines: list[Line]) -> None:
         if lines[index - 1].cls is not LineClass.PROSE:
             continue
         start = _paragraph_start(lines, index - 1)
+        # An underline cannot be a lazy continuation line: without the `>` of
+        # its paragraph it is one more line of that paragraph.
+        if _line_depth(line) < _line_depth(lines[start]):
+            continue
         if not _underlines(_split_quote(line)[1], _split_quote(lines[start])[1]):
             continue
         for heading in range(start, index + 1):
-            lines[heading] = replace(lines[heading], cls=LineClass.HEADING, cont_prefix="")
+            lines[heading] = replace(
+                lines[heading], cls=LineClass.HEADING, cont_prefix="", block=-1
+            )
 
 
 #: What the scan may have called a line that is really a table row. A link
@@ -1251,6 +1259,9 @@ def classify(text: str) -> Classified | ClassifyError:
     # Tables first: a row is never paragraph text, so an `===` or `---` under
     # one is a row or a rule, never a setext underline for the table.
     _apply_tables(lines)
+    # Blocks twice: the setext pass needs to know where each paragraph starts,
+    # and the headings it makes are paragraphs no longer.
+    _assign_blocks(lines)
     _apply_setext(lines)
     _apply_managed(lines)
     _assign_blocks(lines)

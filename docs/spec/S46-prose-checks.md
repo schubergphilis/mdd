@@ -288,7 +288,9 @@ The load-bearing subcommand.
   defines it: a continuation line belongs to the paragraph whatever its indent,
   and so does a lazy one with no `>`. Only a list or footnote marker, a deeper
   block quote, or a bare list marker starts a new block. Reflow re-emits such
-  a paragraph with the canonical continuation prefix.
+  a paragraph with the canonical continuation prefix. A setext underline
+  closes the whole paragraph, measured from its first line, and is never a
+  lazy line: `> a` over `===` is one paragraph of two lines.
 - Reflow never changes the number of blank lines, the order of blocks, or any
   character other than the whitespace it replaces with a newline (and the
   newline it replaces with a space when joining a paragraph that was

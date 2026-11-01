@@ -603,3 +603,13 @@ def test_lint_leaves_the_gap_after_nested_markers_alone(tmp_path: Path) -> None:
     write_file(path, "- >   - a  b\n")
     _ = lint_write(path)
     assert read_file(path) == "- >   - a b\n"
+
+
+def test_a_lazy_line_is_not_a_setext_underline() -> None:
+    assert classes("> a\n===\n") == ["prose", "prose"]
+
+
+def test_a_setext_underline_finds_its_paragraph_across_a_lazy_line() -> None:
+    source = "> 1. a\nb\n> c\n=\n"
+    assert classes(source) == ["prose"] * 4
+    assert {line.block for line in ok(source).lines} == {1}
