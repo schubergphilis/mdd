@@ -168,16 +168,8 @@ def _gap(text: str, reason: str, name: str) -> object:
 
 
 CLASSIFIER_GAPS = [
-    _gap(
-        "<pre>\na\n\nb\n</pre>\n",
-        "an HTML block of kinds 1 to 5 is ended by a blank line instead of its end tag",
-        "html-block-survives-blank-line",
-    ),
-    _gap(
-        "Intro.\n<div>\nb\n</div>\n",
-        "an HTML block of kinds 1 to 6 that interrupts a paragraph is called prose",
-        "html-block-interrupts-paragraph",
-    ),
+    pytest.param("<pre>\na\n\nb\n</pre>\n", id="html-block-survives-blank-line"),
+    pytest.param("Intro.\n<div>\nb\n</div>\n", id="html-block-interrupts-paragraph"),
     _gap(
         "# h\n    code\n",
         "indented code straight after a heading is called prose",

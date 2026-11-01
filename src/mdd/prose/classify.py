@@ -17,6 +17,8 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from markdown_it.common.html_blocks import block_names
+
 from mdd.prose.inline import LinkRef, Span, scan
 
 if TYPE_CHECKING:
@@ -32,6 +34,22 @@ _LIST_BARE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]*$")
 _LINK_DEF = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+")
 _FOOTNOTE_DEF = re.compile(r"^([ \t]*\[\^[^\]]+\]:[ \t]+)(?=\S)")
 _HTML_BLOCK = re.compile(r"^ {0,3}</?[A-Za-z!?]")
+#: HTML blocks that end at a closing marker rather than at a blank line, with
+#: that marker. Each may contain blank lines, and each may interrupt a paragraph.
+_HTML_RAW_BLOCKS: tuple[tuple[re.Pattern[str], re.Pattern[str]], ...] = (
+    (
+        re.compile(r"^ {0,3}<(?:script|pre|style|textarea)(?=[ \t>]|$)", re.IGNORECASE),
+        re.compile(r"</(?:script|pre|style|textarea)>", re.IGNORECASE),
+    ),
+    (re.compile(r"^ {0,3}<\?"), re.compile(r"\?>")),
+    (re.compile(r"^ {0,3}<![A-Za-z]"), re.compile(r">")),
+    (re.compile(r"^ {0,3}<!\[CDATA\["), re.compile(r"\]\]>")),
+)
+#: An HTML block opened by a block-level tag name. It ends at a blank line and,
+#: unlike any other tag, may interrupt a paragraph.
+_HTML_BLOCK_TAG = re.compile(
+    r"^ {0,3}</?(?:" + "|".join(block_names) + r")(?=[ \t]|/?>|$)", re.IGNORECASE
+)
 _DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$")
 _MATH_FENCE = re.compile(r"^ {0,3}\$\$")
 _DIV_FENCE = re.compile(r"^[ \t]*:{3,}")
@@ -204,6 +222,8 @@ class _State:
     in_comment: bool = False
     in_math: bool = False
     in_html_block: bool = False
+    #: What ends the open HTML block: a closing marker, or ``None`` for a blank line.
+    html_end: re.Pattern[str] | None = None
     in_indented_code: bool = False
     list_content_col: int | None = None
     after_blank: bool = True
@@ -293,10 +313,36 @@ def _continuation_tail(number: int, raw: str, rest: str, state: _State) -> Line 
         return Line(number, raw, LineClass.MATH)
     if not state.in_html_block:
         return None
+    if state.html_end is not None:
+        state.in_html_block = state.html_end.search(rest) is None
+        return Line(number, raw, LineClass.HTML_BLOCK)
     if rest.strip(MD_SPACE):
         return Line(number, raw, LineClass.HTML_BLOCK)
     state.in_html_block = False
     return Line(number, raw, LineClass.BLANK)
+
+
+def _open_html_block(rest: str, state: _State) -> bool:
+    """Open an HTML block at *rest* if one starts there, and say whether it did.
+
+    Mirrors CommonMark's seven kinds closely enough to fail closed. ``<pre>``,
+    ``<script>``, processing instructions and the like run to their closing
+    marker, blank lines included; ending them at the first blank line handed
+    their tail to the fixers as prose. Those kinds and the block-level tag names
+    may interrupt a paragraph. Any other tag-shaped line opens a block only
+    after a blank line, so a mid-paragraph ``<https://…>`` stays prose.
+    """
+    for opener, end in _HTML_RAW_BLOCKS:
+        opened = opener.match(rest)
+        if opened is not None:
+            state.in_html_block = end.search(rest, opened.end()) is None
+            state.html_end = end
+            return True
+    if _HTML_BLOCK_TAG.match(rest) or (state.after_blank and _HTML_BLOCK.match(rest)):
+        state.in_html_block = True
+        state.html_end = None
+        return True
+    return False
 
 
 def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
@@ -324,12 +370,7 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
     # destroys the callout, which is a first-class construct in the IR.
     if _DIV_FENCE.match(rest):
         return Line(number, raw, LineClass.DIV_MARKER)
-    # CommonMark condition 7: a bare-tag HTML block cannot interrupt a
-    # paragraph. Without the blank-line requirement a mid-paragraph line
-    # starting `<https://…>` swallowed the rest of the paragraph, exempting it
-    # from every check.
-    if state.after_blank and _HTML_BLOCK.match(rest):
-        state.in_html_block = True
+    if _open_html_block(rest, state):
         return Line(number, raw, LineClass.HTML_BLOCK)
     return None
 
