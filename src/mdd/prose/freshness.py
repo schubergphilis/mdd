@@ -57,6 +57,20 @@ def _review_value(front: frontmatter.FrontMatter, field: str) -> object | None:
     return front.mapping.get(field) if front.mapping is not None else None
 
 
+def _check_date(
+    path: Path, field: str, raw: object, config: ProseConfig, as_of: dt.date
+) -> list[Finding]:
+    parsed = _coerce_date(raw)
+    if parsed is None:
+        message = f"{field}: {raw!r} is not an ISO-8601 date"
+        return _report(path, "malformed-review-date", message, config)
+    age = (as_of - parsed).days
+    if age <= config.freshness.max_age_days:
+        return []
+    message = f"{field} is {age} days old, over the {config.freshness.max_age_days}-day threshold"
+    return _report(path, "stale", message, config)
+
+
 def run(
     path: Path,
     text: str,
@@ -74,21 +88,10 @@ def run(
         message = f"{field}: the front matter cannot be parsed"
         return _report(path, "malformed-review-date", message, config)
     raw = _review_value(front, field)
-
     if raw is None:
         if only == "stale":
             return []
         return _report(path, "missing-review-date", f"no {field!r} field in frontmatter", config)
     if only == "missing":
         return []
-
-    parsed = _coerce_date(raw)
-    if parsed is None:
-        message = f"{field}: {raw!r} is not an ISO-8601 date"
-        return _report(path, "malformed-review-date", message, config)
-
-    age = (as_of - parsed).days
-    if age <= config.freshness.max_age_days:
-        return []
-    message = f"{field} is {age} days old, over the {config.freshness.max_age_days}-day threshold"
-    return _report(path, "stale", message, config)
+    return _check_date(path, field, raw, config, as_of)
