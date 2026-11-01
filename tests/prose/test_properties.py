@@ -148,6 +148,15 @@ def test_refused_file_is_never_written(document: Document) -> None:
 # Minimal inputs the properties above found, shrunk by hand, kept so that a
 # fixed defect stays fixed under the derandomized ci profile too.
 
+# Open classifier holes found by fuzzing and not yet fixed. Each one fails
+# today; a fix turns its strict xfail into a failure so the mark comes off.
+OPEN_HOLE = pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "open classifier hole: the line classifier disagrees with markdown-it or cmark-gfm here"
+    ),
+)
+
 CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param("<pre>\na\n\nb\n</pre>\n", id="html-block-survives-blank-line"),
     pytest.param("Intro.\n<div>\nb\n</div>\n", id="html-block-interrupts-paragraph"),
@@ -214,6 +223,28 @@ CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param(
         "---\n---\n\n>::: callout-tip\n\xa0The\nthe.\n:::",
         id="fenced-div-in-a-quote-then-lazy-lines",
+    ),
+    pytest.param(
+        "---\n---\n\nThe\nthe.\n- - -\n\nThe\nthe\n"
+        "the\nthe.\nThe\nthe\nthe\nthe\nthe\nthe\n"
+        "the\nthe\nthe\tthe\n$$.\n-\n\n$$ x + y $$",
+        id="open-setext-dash-after-math-opener",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "[^1]: The\n    the.\n\n[^1]: The\n    <div>.",
+        id="open-html-block-interrupts-footnote",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "[^1]: The\n    the.\nThe\nthe.\n    ---",
+        id="open-setext-underline-under-footnote",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "\xa0The\nthe.\n\n>- $$ x + y $$\n>\n    def f(x):  ",
+        id="open-math-in-quoted-list-item",
+        marks=OPEN_HOLE,
     ),
 ]
 
@@ -354,6 +385,55 @@ WRITER_DAMAGE = [
     pytest.param(
         "lint", "- [a]: /u\n\n\n  b\n", id="lint-collapses-blanks-in-a-link-definition-item"
     ),
+    pytest.param(
+        "reflow",
+        "\xa0The\nthe.\n\n- >The\nthe.\nThe\nthe the the the the the"
+        " the the the the the the\tthe\tOSC 9 ; 4.\n"
+        "\t>\n>\xa0The\tthe.\nThe\n\t>the the the the the the\tthe.",
+        id="open-lazy-quote-in-list-item-tab-indent",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "lint",
+        "- <!--\nThe\nthe\nthe\nthe the the the the the the the the "
+        "the e.g. No. 5 (a parenthetical, with a comma. And a stop.)"
+        ".\n\nThe\nthe\nthe\nthe the the the the the the the the the"
+        " e.g. No. 5 (a parenthetical, with a comma. And a stop.).\n"
+        "-->\n\n\t- \xa0The\n\tthe.\n\tThe\n\tthe.\n"
+        " \n\t\xa0The\nthe\nthe\nthe.\n\n- \xa0The\n"
+        "the\nthe.",
+        id="open-blank-line-in-code-after-list-comment",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "lint",
+        "1. <!--\n   The the “smart\n   quotes.” the the the the the"
+        " the the the the the\n   the  `a\n   b` (a parenthetical,\n"
+        "   with a comma. And a stop.).\n\n   The the “smart\n"
+        "   quotes.” the the the the the the the the the the\n"
+        "   the  `a\n   b` (a parenthetical,\n   with a comma. And a"
+        " stop.).\n-->\n\n   ---\n    Output because however <!-- no"
+        "te --> belongs output.\n      What > 'single quoted', … end"
+        "s .\xa0rendered.\n  \t    return x  # trailing  \n"
+        "    [^1] x!\n\n$$\n$$\n",
+        id="open-indented-content-after-list-comment",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "reflow",
+        "---\n---\n\nThe the.\n\n- [^1]: The the.\n"
+        '- [label]: https://example.com/l "A  title ."\n'
+        "\n\n\tThe the. ",
+        id="open-blank-run-after-list-item-link-definition",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "lint",
+        "---\n---\n\nThe the.\n\n- The\nthe.\n- [label]: https://exa"
+        'mple.com/l "A  title ."\n\n\n\tThe the. ',
+        id="open-blank-run-after-list-item-link-definition-lint",
+        marks=OPEN_HOLE,
+    ),
 ]
 
 REFLOW_UNSTABLE = [
@@ -371,6 +451,20 @@ REFLOW_UNSTABLE = [
         ">The the the the\n>1. the\nthe the the the the the the the the the the the the\nthe\n"
         "the\tthe\tthe.\n>The the the the the\tthe\tthe.\n=",
         id="reflow-unstable-setext-underline-after-a-quoted-list-item",
+    ),
+    pytest.param(
+        ">The\nthe\nthe\nthe\nthe\nthe\nthe\nthe\n"
+        "the\nthe\nthe\nthe\nthe\nthe\nthe\nthe\n"
+        "the\nthe\tthe\t(a\nparenthetical,\nwith\n"
+        "a\ncomma.\nAnd\na\nstop.)\n><span>inline</span>.\n"
+        "- - -",
+        id="open-quote-lazy-lines-then-thematic-break",
+        marks=OPEN_HOLE,
+    ),
+    pytest.param(
+        "\xa0The\nthe.\n\n>\xa0The\nthe.\n>\n>The\nthe.\nThe\na\n|\nb\n>[x]:.\n- - -",
+        id="open-quote-lazy-pipe-and-link-definition",
+        marks=OPEN_HOLE,
     ),
 ]
 
