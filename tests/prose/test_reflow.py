@@ -240,11 +240,11 @@ def _sweep(paths: list[Path], label: str) -> int:
 
 
 def test_ir_corpus_reflows_idempotently_and_equivalently() -> None:
-    """The S32 corpus is the most hostile Markdown in the repository.
+    """The vendored IR corpus is the most hostile Markdown in the repository.
 
-    The spec names it as the reflow's adversary for exactly this reason. An
-    earlier version of this test used ``docs/`` instead, which is tidy prose and
-    hid a whole class of defect — fenced divs, among others.
+    It exercises every construct the IR knows, which is why the reflow is tested
+    against it. An earlier version of this test used ``docs/`` instead, which is
+    tidy prose and hid a whole class of defect — fenced divs, among others.
     """
     corpus = Path(__file__).resolve().parents[1] / "corpus" / "confluence"
     docs = sorted(corpus.rglob("*.md"))
