@@ -500,6 +500,22 @@ def test_a_reflow_suppression_silences_every_line_of_its_paragraph(
     assert read_file(target) == source
 
 
+@pytest.mark.parametrize("marker", ["- ", "1. "])
+def test_reflow_write_honours_a_directive_on_a_list_marker_line(
+    tmp_path: Path, marker: str
+) -> None:
+    """A directive after a list marker was not read, so reflow rewrote the item."""
+    pad = " " * len(marker)
+    source = (
+        f"{marker}<!-- mdd-prose-ignore: reflow -->\n"
+        f"{pad}Hello world. This is a sentence. And another one here.\n"
+    )
+    target = tmp_path / "a.md"
+    write_file(target, source)
+    assert cli_main(["prose", "reflow", "--write", str(target)]) == 0
+    assert read_file(target) == source
+
+
 def test_lint_write_leaves_a_line_under_a_bare_suppression_alone(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     source = "Intro.\n\n<!-- mdd-prose-ignore -->\nTwo  spaces   \n"

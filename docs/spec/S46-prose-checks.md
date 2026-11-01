@@ -223,8 +223,11 @@ cannot promise.
   `reflow` suppression is neither reported nor rewritten.
 - "On its own line" is decided by the [classifier](#the-shared-line-classifier):
   a directive counts only when it is the whole of a line classified as an HTML
-  comment or a line of an HTML block, after any block-quote markers and
-  surrounding spaces. The same text in a code span, a fence, indented code,
+  comment or a line of an HTML block, after any block-quote markers, list
+  markers or footnote label, and surrounding spaces. In
+  `- <!-- mdd-prose-ignore: reflow -->` the comment is the item's first block
+  and the paragraph on the next line its second, so the directive covers that
+  paragraph. The same text in a code span, a fence, indented code,
   front matter or the middle of a sentence is an example of the syntax and
   suppresses nothing; this spec and the guide quote it that way.
 - HTML comments are used because they are invisible in every Markdown renderer

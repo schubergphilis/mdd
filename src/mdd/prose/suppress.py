@@ -7,9 +7,10 @@ survives round-tripping through the IR::
     <!-- mdd-prose-ignore -->
     <!-- mdd-prose-ignore-file: reflow -->
 
-A directive counts only as an HTML comment alone on its own line. The same
-text in a code span, a fence, front matter or a sentence is an example of the
-syntax, not an instruction, so it suppresses nothing.
+A directive counts only as an HTML comment alone on its own line, or alone
+after a list marker or footnote label. The same text in a code span, a fence,
+front matter or a sentence is an example of the syntax, not an instruction, so
+it suppresses nothing.
 """
 
 from __future__ import annotations
@@ -112,11 +113,17 @@ def _rules_of(raw: str | None) -> list[str]:
 
 
 def _directive_of(line: Line) -> re.Match[str] | None:
-    """Return the directive *line* holds, when it holds one and nothing else."""
+    """Return the directive *line* holds, when it holds one and nothing else.
+
+    The directive may follow a list marker or footnote label: the comment is
+    then the first block of the item, and the paragraph below it is the next.
+    The classifier keeps such markers in the line's prefix, block-quote
+    markers in its quote.
+    """
     if line.cls not in _DIRECTIVE_CLASSES:
         return None
-    body = line.text.removeprefix(line.quote)
-    return _DIRECTIVE.fullmatch(body.strip(MD_SPACE))
+    lead = line.prefix if len(line.prefix) > len(line.quote) else line.quote
+    return _DIRECTIVE.fullmatch(line.text[len(lead) :].strip(MD_SPACE))
 
 
 def collect(lines: Sequence[Line]) -> Suppressions:

@@ -118,7 +118,24 @@ def test_a_directive_that_is_not_a_comment_on_its_own_line_is_ignored(text: str)
         pytest.param("> <!-- mdd-prose-ignore-file -->\n", id="block-quote"),
         pytest.param("<div>\n<!-- mdd-prose-ignore-file -->\n</div>\n", id="html-block"),
         pytest.param("Prose.\n<!-- mdd-prose-ignore-file -->\n", id="after-a-paragraph"),
+        pytest.param("- <!-- mdd-prose-ignore-file -->\n  a\n", id="bullet-marker"),
+        pytest.param("1. <!-- mdd-prose-ignore-file -->\n   a\n", id="ordered-marker"),
+        pytest.param("[^1]: <!-- mdd-prose-ignore-file -->\n", id="footnote-label"),
+        pytest.param("> - <!-- mdd-prose-ignore-file -->\n>   a\n", id="quoted-marker"),
     ],
 )
 def test_a_directive_on_its_own_line_is_honoured(text: str) -> None:
     assert [site.rule for site in collect(ok(text).lines).sites] == ["*"]
+
+
+@pytest.mark.parametrize("marker", ["- ", "1. "])
+def test_a_reflow_directive_on_a_list_marker_covers_the_item_paragraph(marker: str) -> None:
+    pad = " " * len(marker)
+    doc = ok(f"{marker}<!-- mdd-prose-ignore: reflow -->\n{pad}Hello world. A sentence.\n")
+    assert collect(doc.lines).covers(2, "reflow")
+
+
+def test_an_unknown_rule_on_a_list_marker_line_is_reported() -> None:
+    doc = ok("- <!-- mdd-prose-ignore: bogus-rule -->\n  a\n")
+    findings = audit(PATH, collect(doc.lines), config())
+    assert [f.rule for f in findings] == ["unknown-suppression"]
