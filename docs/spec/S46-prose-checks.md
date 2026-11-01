@@ -247,6 +247,10 @@ cannot promise.
   several lines, a doubtful line is called something other than `prose` and
   the writers leave it alone. A paragraph line mistaken for a link definition
   only loses its checks; a link definition mistaken for prose gets rewritten.
+  A link label follows CommonMark: it may hold `^` (other than as its first
+  character, which makes a footnote label) and backslash-escaped brackets,
+  and may not be blank. The 999-character cap is not applied, as markdown-it
+  does not apply it.
 - The classifier imitates markdown-it, which departs from CommonMark in
   places, and GitHub renders with cmark-gfm. Where the two are known to
   disagree, the lines involved are `divergent`, not `prose`: a `>` four or

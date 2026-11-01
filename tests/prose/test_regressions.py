@@ -717,3 +717,22 @@ def test_blank_lines_after_a_list_before_an_unindented_line_are_collapsed(
     write_file(path, "- a\n\n\nb\n")
     _ = lint_write(path)
     assert read_file(path) == "- a\n\nb\n"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ('[a^b]: /url  "Big  title"\n', ["link-target"]),
+        ('[a^b]:\n/url\n"title  one\n  two  three"\n', ["link-target"] * 4),
+        ("[a\\]b]: /u  'x  y'\n", ["link-target"]),
+        ("[a\\\\]: /u  'x  y'\n", ["link-target"]),
+        ("[\\^a]: /u  'x  y'\n", ["link-target"]),
+        ("[ ]: /u 'x  y'\n", ["prose"]),
+        ("[a[b]: /u 'x  y'\n", ["prose"]),
+        # CommonMark caps a label at 999 characters; neither renderer here does.
+        ("[" + "a" * 1000 + "]: /u 'x  y'\n", ["link-target"]),
+        ("[^n]: a  b\n", ["prose"]),
+    ],
+)
+def test_link_definition_labels_follow_commonmark(source: str, expected: list[str]) -> None:
+    assert classes(source) == expected

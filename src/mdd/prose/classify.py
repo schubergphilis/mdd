@@ -33,9 +33,14 @@ _TBREAK = re.compile(r"^ {0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$")
 _SETEXT = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
 _LIST = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+)(?=\S)")
 _LIST_BARE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]*$")
-_LINK_DEF = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+")
-_LINK_LABEL_ONLY = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*$")
-_LINK_DEF_TAIL = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+[ \t]*(.*)$")
+#: A link label: not a footnote label, not blank, no unescaped bracket, and
+#: backslash escapes allowed. CommonMark's 999-character cap is not applied:
+#: markdown-it does not apply it, and a long label taken for a definition
+#: only keeps its line from the fixers.
+_LINK_LABEL = r"\[(?!\^)(?=[ \t]*(?:[^ \t\\\[\]]|\\.))(?:[^\\\[\]]|\\.)+\]"
+_LINK_DEF = re.compile(rf"^ {{0,3}}{_LINK_LABEL}:[ \t]*\S+")
+_LINK_LABEL_ONLY = re.compile(rf"^ {{0,3}}{_LINK_LABEL}:[ \t]*$")
+_LINK_DEF_TAIL = re.compile(rf"^ {{0,3}}{_LINK_LABEL}:[ \t]*\S+[ \t]*(.*)$")
 _LINK_TITLE_START = re.compile(r"^[ \t]*[\"'(]")
 _FOOTNOTE_DEF = re.compile(r"^([ \t]*\[\^[^\]\s]+\]:[ \t]*)(?=\S)")
 #: One container marker at the start of a line: a list marker, a footnote label
