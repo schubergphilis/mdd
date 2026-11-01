@@ -151,3 +151,32 @@ def test_a_heading_in_a_container_is_slugged_without_its_markers() -> None:
     assert slugs("- # Step one\n") == ["step-one"]
     assert slugs("> # Quoted\n") == ["quoted"]
     assert slugs("> Title\n> ===\n") == ["title"]
+
+
+def test_slug_strips_underscore_emphasis() -> None:
+    assert slug("_Emph_ and __strong__ words") == "emph-and-strong-words"
+    assert slug("___both___ at once") == "both-at-once"
+    assert slug("__init__ method") == "init-method"
+    assert slug("__outer _inner_ text__") == "outer-inner-text"
+
+
+def test_slug_keeps_intraword_and_literal_underscores() -> None:
+    assert slug("The snake_case name") == "the-snake_case-name"
+    assert slug("foo__bar__baz") == "foo__bar__baz"
+    assert slug("trailing_ and _leading") == "trailing_-and-_leading"
+    assert slug("`_private_` names") == "_private_-names"
+
+
+def test_a_query_is_not_part_of_the_link_path(tmp_path: Path) -> None:
+    _ = (tmp_path / "b.md").write_text("# Target\n", encoding="utf-8")
+    source = tmp_path / "a.md"
+    _ = source.write_text(
+        "[a](b.md?plain=1#target) [b](b.md?plain=1) [c](?x=1#here)\n\n# Here\n", encoding="utf-8"
+    )
+    doc = ok(source.read_text(encoding="utf-8"))
+    assert [(link.target, link.fragment) for link in internal_links(doc)] == [
+        ("b.md", "target"),
+        ("b.md", ""),
+        ("", "here"),
+    ]
+    assert run(source, doc, config(), AnchorIndex()) == []

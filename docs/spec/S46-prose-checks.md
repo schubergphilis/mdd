@@ -461,6 +461,10 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - External links (`http:`, `https:`, `mailto:` and any other scheme) are not
   checked. Link-rot checking needs the network and would break the
   determinism rule.
+- A `/`-rooted link (`/docs/a.md`) is not checked either. It is relative to a
+  publish root the check does not know, and resolving it against the
+  filesystem root would make the answer depend on the host.
+- A query is not part of the path: `b.md?plain=1#x` checks `b.md` for `x`.
 - **Slugging rule**, stated so it can be relied on and so a project can tell
   whether its renderer agrees: lowercase the heading text; strip Markdown
   inline markup, leaving its text; remove every character that is not a letter,
@@ -468,6 +472,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   hyphen. A heading whose slug collides with an earlier one in the same file
   gets `-1`, `-2`, … appended in document order. This is GitHub's rule, which
   is where the corpora `mdd` mirrors are read.
+- Underscore emphasis is markup and goes: `_x_`, `__x__` and `___x___` slug
+  as `x`. An underscore inside a word (`snake_case`), one without a partner,
+  and one inside a code span are characters and stay.
 - Each space, not each *run* of spaces, and the difference is not academic: a
   heading like `### foo — bar` loses the em dash and keeps both spaces around
   it, so its GitHub anchor is `foo--bar` with two hyphens. Collapsing runs would
@@ -481,7 +488,9 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
 - An unresolved anchor reports the nearest existing anchor in the target file
   by edit distance, as a `did you mean` hint — the affordance
   `scripts/check-mdd-commands.py` already has, and the thing that makes the
-  check pleasant rather than tedious.
+  check pleasant rather than tedious. The nearest anchor is offered only when
+  its similarity ratio (Python's `difflib`) is at least 0.6, so an unrelated
+  anchor is never suggested; below that the finding carries no hint.
 - A duplicate heading text is reported under `ambiguous-anchor` (default
   `warning`): the link still resolves, but a later edit reordering the two
   headings silently retargets it.

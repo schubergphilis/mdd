@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlsplit
 
 from mdd.prose.classify import ClassifyError, LineClass, classify
+from mdd.prose.inline import SpanClass, scan
 from mdd.prose.report import Finding, make_excerpt
 from mdd.prose.rules import Severity
 
@@ -33,14 +34,46 @@ _EXPLICIT_ID = re.compile(r"[ \t]*\{#([^}\s]+)\}[ \t]*#*[ \t]*$")
 _LINK_TEXT = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 _REF_LINK = re.compile(r"!?\[([^\]]*)\]\[[^\]]*\]")
 _SLUG_DROP = re.compile(r"[^\w \-]", re.UNICODE)
+#: A matched pair of underscore delimiters around text. An underscore with a
+#: word character on its outer side is intraword, as in ``snake_case``, and
+#: never emphasis, so the pair must sit at word boundaries.
+_UNDERSCORE_EMPHASIS = re.compile(r"(?<!\w)(_{1,3})(?=\S)(.+?)(?<=\S)\1(?!\w)", re.UNICODE)
 _SETEXT_RULE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
 
 _SUGGESTION_CUTOFF = 0.6
 
 
+def _unemphasise(text: str) -> str:
+    """Strip underscore pairs until none is left, so nested emphasis goes too."""
+    while True:
+        stripped = _UNDERSCORE_EMPHASIS.sub(r"\2", text)
+        if stripped == text:
+            return text
+        text = stripped
+
+
+def _strip_underscore_emphasis(text: str) -> str:
+    """Remove underscore emphasis delimiters outside code spans, keeping the text.
+
+    GitHub slugs the rendered heading, where ``_x_`` and ``__x__`` are markup
+    and an underscore inside a word or a code span is a character.
+    """
+    out: list[str] = []
+    position = 0
+    for span in scan(text).masks:
+        if span.cls is not SpanClass.INLINE_CODE:
+            continue
+        out.append(_unemphasise(text[position : span.start]))
+        out.append(text[span.start : span.end])
+        position = span.end
+    out.append(_unemphasise(text[position:]))
+    return "".join(out)
+
+
 def slug(heading_text: str) -> str:
     """Return the GitHub anchor slug for *heading_text*."""
-    text = _LINK_TEXT.sub(r"\1", heading_text)
+    text = _strip_underscore_emphasis(heading_text)
+    text = _LINK_TEXT.sub(r"\1", text)
     text = _REF_LINK.sub(r"\1", text)
     text = _SLUG_DROP.sub("", text.lower())
     # No strip: GitHub replaces *each* remaining space with a hyphen, including
@@ -161,6 +194,8 @@ def internal_links(classified: Classified) -> tuple[InternalLink, ...]:
             if not raw or _is_external(raw) or _is_root_absolute(raw):
                 continue
             path_part, _, fragment = raw.partition("#")
+            # A query never names part of the file, so `b.md?plain=1` is `b.md`.
+            path_part, _, _query = path_part.partition("?")
             out.append(
                 InternalLink(
                     line=line.number,
