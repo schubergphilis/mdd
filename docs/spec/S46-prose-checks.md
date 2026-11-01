@@ -164,6 +164,9 @@ cannot promise.
   as red, and the log says which it was.
 - A run summary on stderr: `mdd prose check: 3 errors, 11 warnings in 214
   files (2 fixable with --write)`, or `mdd prose check: clean (214 files)`.
+  After a `--write` that changed files the summary leads with the count and
+  never says "clean": `mdd prose lint: wrote 2 files, no findings left in 214
+  files`, or `mdd prose lint: wrote 2 files, 1 error, 0 warnings in 214 files`.
 
 ### Suppression
 
@@ -485,7 +488,7 @@ Small mistakes a spell checker cannot see, each with a stable rule id, each
   mode as well as under `--write`, and it inherits every other `--write` rule in
   [Data protection](#data-protection-and-destructive-behaviour) without
   exception: opt-in per invocation, never from config; atomic write; the file
-  written only if it classified cleanly; `.mddignore` honoured; one `info` line
+  written only if it classified cleanly; `.mddignore` honoured; one `wrote` line
   per modified file; `--write` with `--json` an argparse error; and the refusal
   to rewrite a mirrored file, overridable only with `--allow-mirror`.
 - The mirror refusal is not a formality here. A trailing-whitespace deletion
@@ -673,8 +676,10 @@ prose:
     file is left exactly as it was and an `error` is reported.
   - Only files under a `PATH` the user named are ever opened for writing, and
     `.mddignore` is honoured on the write path exactly as on the read path.
-  - Each modified file is logged at `info`, one line per file, so a destructive
-    run leaves an audit trail in scrollback and not only a count.
+  - Each modified file is named on stderr as `wrote PATH`, one line per file
+    and at the default verbosity, so a destructive run leaves an audit trail in
+    scrollback and not only a count. The runner returns the written paths, so a
+    caller other than the CLI gets the same trail.
   - `--write` combined with `--json` is an argparse error. A caller streaming
     machine output while the tree changes underneath it is parsing a moving
     target, and the two modes serve different jobs.

@@ -142,8 +142,11 @@ def _execute(ns: argparse.Namespace, requested: tuple[str, ...], *, respect_enab
     )
     findings = sorted(result.findings, key=report.sort_key)
     report.emit(findings, sys.stdout, json_mode=args.json, show_excerpt=not args.no_excerpt)
+    for written in result.written_paths:
+        print(f"wrote {written}", file=sys.stderr)  # noqa: T201  # program output
     command = "mdd prose " + (requested[0] if len(requested) == 1 else "check")
-    print(report.summarise(command, findings, result.file_count), file=sys.stderr)  # noqa: T201  # program output
+    summary = report.summarise(command, findings, result.file_count, written=result.written)
+    print(summary, file=sys.stderr)  # noqa: T201  # program output
     if result.failed:
         return 1
     return 1 if _gating(findings, args.min_severity) else 0

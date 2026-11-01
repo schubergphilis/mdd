@@ -107,3 +107,16 @@ def test_summary_without_fixables() -> None:
     assert summarise("mdd prose check", findings, 3) == (
         "mdd prose check: 2 errors, 0 warnings in 3 files"
     )
+
+
+def test_summary_after_a_write_that_left_nothing_does_not_say_clean() -> None:
+    assert summarise("mdd prose lint", [], 3, written=2) == (
+        "mdd prose lint: wrote 2 files, no findings left in 3 files"
+    )
+
+
+def test_summary_after_a_write_counts_what_was_written() -> None:
+    findings = [finding(fixable=False)]
+    assert summarise("mdd prose lint", findings, 3, written=1) == (
+        "mdd prose lint: wrote 1 file, 1 error, 0 warnings in 3 files"
+    )

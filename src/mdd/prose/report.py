@@ -99,14 +99,24 @@ def sort_key(finding: Finding) -> tuple[str, int, int, str]:
     return (str(finding.path), finding.line, finding.column, finding.rule)
 
 
-def summarise(command: str, findings: Sequence[Finding], file_count: int) -> str:
-    """Return the one-line run summary written to stderr."""
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def summarise(command: str, findings: Sequence[Finding], file_count: int, written: int = 0) -> str:
+    """Return the one-line run summary written to stderr.
+
+    After a ``--write`` that changed files the summary leads with how many, and
+    never says "clean": the run did something, and the line should say so.
+    """
     errors = sum(1 for f in findings if f.severity is Severity.ERROR)
     warnings = sum(1 for f in findings if f.severity is Severity.WARNING)
+    wrote = f"wrote {_plural(written, 'file')}, " if written else ""
     if not errors and not warnings:
+        if written:
+            return f"{command}: {wrote}no findings left in {file_count} files"
         return f"{command}: clean ({file_count} files)"
     fixable = sum(1 for f in findings if f.fixable)
     suffix = f" ({fixable} fixable with --write)" if fixable else ""
-    plural_e = "error" if errors == 1 else "errors"
-    plural_w = "warning" if warnings == 1 else "warnings"
-    return f"{command}: {errors} {plural_e}, {warnings} {plural_w} in {file_count} files{suffix}"
+    counts = f"{_plural(errors, 'error')}, {_plural(warnings, 'warning')}"
+    return f"{command}: {wrote}{counts} in {file_count} files{suffix}"

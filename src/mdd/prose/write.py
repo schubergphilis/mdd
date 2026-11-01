@@ -1,8 +1,7 @@
 """The shared write path for both writers.
 
-The mirror refusal, the write-gate refusal, the atomic replace and the
-per-file ``info`` log live here once and both ``reflow --write`` and
-``lint --write`` call them. Two copies of
+The mirror refusal, the write-gate refusal and the atomic replace live here
+once and both ``reflow --write`` and ``lint --write`` call them. Two copies of
 this logic is how one of them quietly loses the mirror check.
 """
 
@@ -14,7 +13,6 @@ from typing import TYPE_CHECKING
 from mdd.prose import frontmatter
 from mdd.prose.report import Finding
 from mdd.prose.rules import CROSS_CUTTING
-from mdd.utils.logging import get_logger
 from mdd.utils.safe_write import SymlinkRefusedError, atomic_write_text
 
 if TYPE_CHECKING:
@@ -22,8 +20,6 @@ if TYPE_CHECKING:
 
     from mdd.prose.config import ProseConfig
     from mdd.prose.gate import Verdict
-
-log = get_logger(__name__)
 
 #: The mirror reason for front matter that is there but cannot be read.
 UNREADABLE_FRONTMATTER = "front matter that cannot be parsed"
@@ -119,4 +115,3 @@ def atomic_write(path: Path, text: str) -> None:
         )
         raise OSError(msg)
     atomic_write_text(path, text, mode=stat.S_IMODE(info.st_mode))
-    log.info("wrote %s", path)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,7 +17,6 @@ from mdd.prose.lint import Edit
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from pathlib import Path
 
     from mdd.prose.classify import Line
 
@@ -74,6 +74,20 @@ def test_lint_write_fixes_what_it_can_and_reports_the_rest(
     assert "space-before-punctuation" in capsys.readouterr().out
     assert prose(["lint", "--write", "docs"]) == 1
     assert target.read_text(encoding="utf-8") == fixed
+
+
+def test_a_write_names_every_file_it_wrote(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = corpus / "a.md"
+    _ = target.write_text("Intro.\n\nTwo  spaces.\n", encoding="utf-8")
+    _ = (corpus / "b.md").write_text("Nothing to fix.\n", encoding="utf-8")
+    assert prose(["lint", "--write", "docs"]) == 0
+    err = capsys.readouterr().err
+    assert f"wrote {Path('docs') / 'a.md'}" in err
+    assert "b.md" not in err
+    assert "mdd prose lint: wrote 1 file, no findings left in 2 files" in err
+    assert "clean" not in err
 
 
 def _lint_report(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, list[str]]:

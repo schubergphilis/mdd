@@ -11,7 +11,6 @@ import pytest
 
 from mdd.commands.prose import _iso_date, _positive_int  # pyright: ignore[reportPrivateUsage]
 from mdd.prose import gate, lint, runner
-from mdd.prose.classify import Line
 from mdd.prose.config import LintConfig, ProseConfig
 from mdd.prose.lint import Edit
 from mdd.prose.rules import RULES
@@ -19,6 +18,8 @@ from mdd.prose.rules import RULES
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
+
+    from mdd.prose.classify import Line
 
 LONG = (
     "One sentence that is quite long and carries a clause, and then keeps going for "

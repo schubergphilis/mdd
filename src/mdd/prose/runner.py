@@ -73,12 +73,17 @@ class _Unit:
 
 @dataclass
 class RunResult:
-    """Every finding, how many files were looked at, and whether the run itself failed."""
+    """Every finding, the files looked at and written, and whether the run itself failed."""
 
     findings: list[Finding] = field(default_factory=list)
     file_count: int = 0
-    written: int = 0
+    written_paths: list[Path] = field(default_factory=list)
     failed: bool = False
+
+    @property
+    def written(self) -> int:
+        """How many files a ``--write`` run rewrote."""
+        return len(self.written_paths)
 
 
 def _read(path: Path, result: RunResult) -> str | None:
@@ -130,7 +135,7 @@ def _write(
         log.error("cannot write %s: %s", path, exc)
         result.failed = True
         return write_failure(path, check, str(exc), config)
-    result.written += 1
+    result.written_paths.append(path)
     return None
 
 
