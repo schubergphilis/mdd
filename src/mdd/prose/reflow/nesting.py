@@ -47,6 +47,29 @@ def _straight_quote_role(text: str, index: int, start: int, end: int) -> str:
     return ""
 
 
+def _action(text: str, index: int, start: int, end: int) -> tuple[str, str]:
+    """Say whether the character at *index* opens a pair, closes one (and which), or neither."""
+    char = text[index]
+    if char in _OPENERS:
+        return "open", ""
+    if char in _CLOSERS:
+        return "close", _OPENERS[_CLOSERS.index(char)]
+    if char == _STRAIGHT_QUOTE:
+        role = _straight_quote_role(text, index, start, end)
+        return role, _STRAIGHT_QUOTE if role == "close" else ""
+    return "", ""
+
+
+def _close(stack: list[tuple[str, int]], opener: str, closer_at: int) -> tuple[int, int] | None:
+    """Pop the innermost *opener* and what was opened inside it; return the pair, if any."""
+    for depth in range(len(stack) - 1, -1, -1):
+        if stack[depth][0] == opener:
+            pair = (stack[depth][1], closer_at)
+            del stack[depth:]
+            return pair
+    return None
+
+
 def _matched_pairs(
     text: str, masked: Sequence[bool], start: int, end: int
 ) -> list[tuple[int, int]]:
@@ -56,27 +79,11 @@ def _matched_pairs(
     for index in range(start, end):
         if masked[index]:
             continue
-        char = text[index]
-        if char == _STRAIGHT_QUOTE:
-            role = _straight_quote_role(text, index, start, end)
-            if role == "open":
-                stack.append((char, index))
-                continue
-            if role == "":
-                continue
-            want = _STRAIGHT_QUOTE
-        elif char in _OPENERS:
-            stack.append((char, index))
-            continue
-        elif char in _CLOSERS:
-            want = _OPENERS[_CLOSERS.index(char)]
-        else:
-            continue
-        for depth in range(len(stack) - 1, -1, -1):
-            if stack[depth][0] == want:
-                pairs.append((stack[depth][1], index))
-                del stack[depth:]
-                break
+        action, opener = _action(text, index, start, end)
+        if action == "open":
+            stack.append((text[index], index))
+        elif action == "close" and (pair := _close(stack, opener, index)) is not None:
+            pairs.append(pair)
     return pairs
 
 
