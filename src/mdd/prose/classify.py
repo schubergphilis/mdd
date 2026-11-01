@@ -103,6 +103,10 @@ class LineClass(StrEnum):
     #: A list item or footnote marker line whose content is not paragraph text:
     #: an empty item, whose content, if any, starts on a later line.
     LIST_MARKER = "list-marker"
+    #: A line markdown-it and CommonMark renderers such as GitHub's read
+    #: differently, so that an edit safe for one may change the other. Passed
+    #: through byte for byte.
+    DIVERGENT = "divergent"
     PROSE = "prose"
 
 
@@ -282,6 +286,12 @@ class _State:
     #: and before the one above it.
     cols_before_line: list[int] = field(default_factory=list)
     cols_before_previous: list[int] = field(default_factory=list)
+    #: Line numbers markdown-it and CommonMark disagree on: lines whose whole
+    #: paragraph is in doubt, and lines that put only the line above in doubt.
+    divergent_paragraphs: set[int] = field(default_factory=set)
+    divergent_lines: set[int] = field(default_factory=set)
+    #: The content column of the list item the open block quote started in.
+    quote_base: int = 0
 
 
 def _continuation_markers(markers: str, column: int) -> str:
@@ -899,7 +909,7 @@ def _in_literal_block(rest: str, state: _State) -> bool:
     )
 
 
-def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None]:
+def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None, _State]:
     """Run the block-level state machine over *raw_lines*."""
     state = _State()
     out: list[Line] = []
@@ -912,9 +922,12 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
             continue
         state.cols_before_previous = state.cols_before_line
         state.cols_before_line = list(state.list_cols)
-        quote, rest = _strip_open_quote(raw, *_strip_quote(raw), state)
+        plain_quote, plain_rest = _strip_quote(raw)
+        quote, rest = _strip_open_quote(raw, plain_quote, plain_rest, state)
+        deep_marker = len(quote) > len(plain_quote) and _deep_quote_marker(quote, state)
         if not _in_literal_block(rest, state):
             quote, rest = _strip_quote_in_item(quote, rest, state)
+        deep_lazy = _deep_lazy_line(quote, rest, state)
         # A deeper block quote opens a new container, and no paragraph is open
         # inside it yet. A shallower one is a lazy continuation.
         if _quote_depth(quote) > state.paragraph_depth:
@@ -924,12 +937,73 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
         )
         line = _link_definition(line, rest, state)
         line = _track_table(line, quote, rest, out, state)
+        if line.cls is LineClass.PROSE and deep_marker:
+            state.divergent_paragraphs.add(number)
+        if line.cls is LineClass.PROSE and deep_lazy:
+            state.divergent_lines.update((number - 1, number))
         _track_list_div(line, rest, state)
         _track_nesting(number, quote, state)
         line = replace(line, quote=quote)
+        if not state.open_quotes and quote:
+            column = _indent_columns(quote)
+            state.quote_base = max((c for c in state.cols_before_line if c <= column), default=0)
         _after_line(line, quote, rest, state)
         out.append(line)
-    return out, _unclosed(state)
+    return out, _unclosed(state), state
+
+
+def _deep_quote_marker(quote: str, state: _State) -> bool:
+    """True when a ``>`` in *quote* sits four or more columns past its container.
+
+    markdown-it continues an open block quote on such a marker; CommonMark
+    reads the line as indented code, or as paragraph text with a literal
+    ``>``. The first marker is measured from the content column of the list
+    item the quote started in, the others from the end of the marker before.
+    """
+    column = 0
+    position = 0
+    first = True
+    while (marker := _ONE_QUOTE.match(quote, position)) is not None and marker.end() > position:
+        indent = _indent_bytes(quote[position:])
+        start = _columns(indent, column)
+        base = state.quote_base if first else column
+        if start - base >= _INDENTED_CODE_COLUMN:
+            return True
+        column = _columns(quote[position + len(indent) : marker.end()], start)
+        position = marker.end()
+        first = False
+    return False
+
+
+def _deep_lazy_line(quote: str, rest: str, state: _State) -> bool:
+    """True when *rest* is a lazy line, indented four or more, of a quoted paragraph.
+
+    markdown-it may end the paragraph there and start indented code, where
+    CommonMark reads one more paragraph line, so a hard break at the end of
+    the line above means something only to CommonMark.
+    """
+    if not state.in_paragraph or _quote_depth(quote) >= state.paragraph_depth:
+        return False
+    if not rest.strip(MD_SPACE):
+        return False
+    indent = _indent_columns(rest)
+    return indent - _container_column(indent, state) >= _INDENTED_CODE_COLUMN
+
+
+def _apply_divergent(
+    lines: list[Line], divergent_paragraphs: set[int], lines_only: set[int]
+) -> None:
+    """Make the prose lines renderers disagree on, and their paragraphs, divergent."""
+    blocks = {
+        line.block
+        for line in lines
+        if line.number in divergent_paragraphs and line.cls is LineClass.PROSE
+    }
+    for index, line in enumerate(lines):
+        if line.cls is not LineClass.PROSE:
+            continue
+        if line.block in blocks or line.number in lines_only:
+            lines[index] = replace(line, cls=LineClass.DIVERGENT, block=-1, cont_prefix="")
 
 
 #: What the scan may have called a line that is really a table row. A link
@@ -1306,7 +1380,7 @@ def classify(text: str) -> Classified | ClassifyError:
     if newline_style(text) is None:
         return ClassifyError(1, "file mixes line endings")
     raw_lines, newline, final_newline = split_lines(text)
-    lines, error = _scan_blocks(raw_lines)
+    lines, error, state = _scan_blocks(raw_lines)
     if error is not None:
         return error
     _reclaim_code_blanks(lines)
@@ -1315,6 +1389,7 @@ def classify(text: str) -> Classified | ClassifyError:
     _assign_blocks(lines)
     _apply_setext(lines)
     _apply_managed(lines)
+    _apply_divergent(lines, state.divergent_paragraphs, state.divergent_lines)
     _assign_blocks(lines)
     _apply_masks(lines)
     return Classified(lines=tuple(lines), newline=newline, final_newline=final_newline)

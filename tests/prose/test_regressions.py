@@ -631,3 +631,42 @@ def test_a_line_less_indented_than_a_list_item_table_ends_the_list() -> None:
 def test_an_indented_row_of_a_list_item_table_is_a_row() -> None:
     source = "- b | c\n  --- | ---\n  d | e\n\n      code  x\n"
     assert classes(source) == ["table", "table", "table", "blank", "indented-code"]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        # A `>` indented four columns continues the quote in markdown-it and is
+        # code, or paragraph text, in CommonMark.
+        ("> Quote\n>\n    > two  spaces here\n", ["prose", "block-quote", "divergent"]),
+        ("> alpha\n    > beta gamma\n", ["divergent", "divergent"]),
+        ("- a\n\n  > b\n  > c  d\n", ["prose", "blank", "prose", "prose"]),
+        ("10. a\n\n    > b\n    > c  d\n", ["prose", "blank", "prose", "prose"]),
+        # A lazy line indented four columns is code in markdown-it and
+        # paragraph text in CommonMark, so the line above it may end in a
+        # hard break or not.
+        ("> > Note the following   \n    - item text\n", ["divergent", "divergent"]),
+        ("> > first line   \n    second line\n", ["divergent", "divergent"]),
+        ("> a\n> b\n   c\n", ["prose", "prose", "prose"]),
+    ],
+)
+def test_lines_commonmark_renderers_disagree_on_are_not_prose(
+    source: str, expected: list[str]
+) -> None:
+    assert classes(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("check", "source"),
+    [
+        ("lint", "> Quote\n>\n    > two  spaces here\n"),
+        ("reflow", "> alpha\n    > beta gamma\n"),
+        ("lint", "> > first line   \n    second line\n"),
+        ("lint", "> > Note the following   \n    - item text\n"),
+    ],
+)
+def test_writers_leave_divergent_lines_alone(tmp_path: Path, check: str, source: str) -> None:
+    path = tmp_path / "doc.md"
+    write_file(path, source)
+    _ = cli_main(["prose", check, "--write", str(path)])
+    assert read_file(path) == source

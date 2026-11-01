@@ -320,7 +320,8 @@ WRITER_DAMAGE = [
         "lint",
         "---\n---\n\n\xa0The\nthe.\n\n\xa0The\nthe.\n\n1. ***\n2. the | the | the | the\n"
         "\t--- | --- | --- | ---\nthe | the | the | the\nthe | the | the | the\n"
-        "the | the | the | the\n3. \xa0The\nthe.\n\n\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
+        "the | the | the | the\n3. \xa0The\nthe.\n\n"
+        "\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
         id="lint-trims-blank-line-in-code-after-a-table-in-a-list-item",
     ),
 ]

@@ -160,6 +160,7 @@ dev = [
     "setuptools-scm>=10.3.4",
     "pip-audit>=2.10.1",
     "hypothesis>=6.170.9",
+    "cmarkgfm>=2025.10.22",
 ]
 
 [tool.pytest.ini_options]

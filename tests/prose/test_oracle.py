@@ -53,3 +53,8 @@ def test_whitespace_inside_an_xmp_element_across_blank_lines_is_content() -> Non
 
 def test_whitespace_after_a_closed_xmp_element_is_not_content() -> None:
     assert difference("<XMP>a</XMP> b  c\n", "<XMP>a</XMP> b c\n") is None
+
+
+def test_a_change_only_commonmark_sees_is_a_difference() -> None:
+    before = "> alpha\n    > beta gamma\n"
+    assert difference(before, "> alpha beta gamma\n") == "the CommonMark rendering changed"

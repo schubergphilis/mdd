@@ -4,14 +4,22 @@ It parses with markdown-it-py directly, in mdd's own flavour plus the front
 matter, footnote and dollar-math plugins, and never asks the production code
 what a line is. Two implementations that agree are evidence; one
 implementation checked against itself is not.
+
+A rewrite must also leave cmark-gfm's rendering alone. That is the renderer
+GitHub uses, and markdown-it departs from CommonMark in places, so a rewrite
+markdown-it cannot tell apart may still change a page on GitHub.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from cmarkgfm.cmark import (  # pyright: ignore[reportMissingTypeStubs]
+    Options,
+    markdown_to_html_with_extensions,  # pyright: ignore[reportUnknownVariableType]
+)
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.front_matter import front_matter_plugin
@@ -68,6 +76,26 @@ def rendered(text: str) -> str:
     byte.
     """
     return _collapse(PARSER.render(text))
+
+
+#: GFM as GitHub renders it, raw HTML included, less the tag filter, which
+#: escapes ``<xmp>`` and the like and would hide changes inside them.
+_CMARK_OPTIONS = cast(
+    "int",
+    Options.CMARK_OPT_UNSAFE | Options.CMARK_OPT_FOOTNOTES,  # pyright: ignore[reportUnknownMemberType]
+)
+_CMARK_EXTENSIONS = ["table", "strikethrough", "autolink", "tasklist"]
+
+
+def commonmark_rendered(text: str) -> str:
+    """Render *text* with cmark-gfm, insignificant whitespace collapsed as in :func:`rendered`."""
+    html = cast(
+        "str",
+        markdown_to_html_with_extensions(
+            text, options=_CMARK_OPTIONS, extensions=_CMARK_EXTENSIONS
+        ),
+    )
+    return _collapse(html)
 
 
 def _collapse(html: str) -> str:
@@ -127,6 +155,9 @@ def assert_same_document(before: str, after: str) -> None:
         return
     assert verbatim_blocks(after) == verbatim_blocks(before), "a literal block changed"
     assert rendered(after) == rendered(before), "the rendered document changed"
+    assert commonmark_rendered(after) == commonmark_rendered(before), (
+        "the CommonMark rendering changed"
+    )
 
 
 # --- reasons that are safe to print -------------------------------------------
@@ -149,6 +180,8 @@ def difference(before: str, after: str) -> str | None:
     if rendered(before) != rendered(after):
         line = _changed_block_line(before, after)
         return f"the rendered document changed, first in the block at line {line}"
+    if commonmark_rendered(before) != commonmark_rendered(after):
+        return "the CommonMark rendering changed"
     return None
 
 

@@ -229,7 +229,7 @@ cannot promise.
 - The classes are at minimum: `frontmatter`, `fenced-code`, `indented-code`,
   `html-block`, `html-comment` (including multi-line), `table`, `block-quote`,
   `heading`, `list-marker`, `link-target`, `inline-code`, `footnote-ref`,
-  `math`, `blank`, `prose`.
+  `math`, `blank`, `divergent`, `prose`.
 - This is a requirement rather than an implementation detail because the
   alternative has a specific, ugly failure: five checks each with their own
   idea of where a fenced block ends will disagree on an edge case, and the
@@ -247,6 +247,14 @@ cannot promise.
   several lines, a doubtful line is called something other than `prose` and
   the writers leave it alone. A paragraph line mistaken for a link definition
   only loses its checks; a link definition mistaken for prose gets rewritten.
+- The classifier imitates markdown-it, which departs from CommonMark in
+  places, and GitHub renders with cmark-gfm. Where the two are known to
+  disagree, the lines involved are `divergent`, not `prose`: a `>` four or
+  more columns past its container that markdown-it reads as continuing a
+  block quote makes its whole paragraph divergent, and a lazy line indented
+  four or more columns under a quoted paragraph makes itself and the line
+  above it divergent, since only one of the renderers reads the trailing
+  spaces there as a hard break.
 - Tables follow GFM: a table runs from its header row to the next blank line
   or the start of another block. A line directly below a table is one more
   row, not prose, whether or not it contains a pipe. A row is not a
@@ -1058,7 +1066,11 @@ with them.
 - Property tests: idempotence and IR equivalence over the golden corpus and
   over the existing IR corpus ([S32](S32-ir-test-corpus-expansion.md)), which
   is already the most hostile pile of Markdown in the repository and is exactly
-  the right adversary for a reflow.
+  the right adversary for a reflow. Generated documents drive both writers
+  through the runner, and a test-side oracle, independent of `mdd.prose`,
+  requires that what was written renders the same through markdown-it and
+  through cmark-gfm, the renderer GitHub uses. cmark-gfm is a development
+  dependency only; the write gate stays markdown-it.
 - The write gate has a passing and a failing pair for each thing it compares:
   a change inside a fence, a list turning loose, a lost hard break, a code
   span's internal spaces, a collapsed no-break space, a line that becomes a
