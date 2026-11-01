@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 from markdown_it.common.html_blocks import block_names
 
+from mdd.markdown.ir.callouts import div_opener
 from mdd.prose.inline import LinkRef, Span, scan
 
 if TYPE_CHECKING:
@@ -63,8 +64,7 @@ _HTML_BLOCK_TAG = re.compile(
 _DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
 _MATH_FENCE = re.compile(r"^ {0,3}\$\$")
 _MATH_LABEL_END = re.compile(r"\$\$[ \t]*\([^)$\r\n]+?\)$")
-_DIV_FENCE = re.compile(r"^[ \t]*:{3,}")
-_DIV_OPEN = re.compile(r"^[ \t]*(:{3,})[ \t]*\S")
+_DIV_CLOSER = re.compile(r"^[ \t]*(:{3,})\s*$")
 _ALERT_MARKER = re.compile(r"^\[!\w+\]$")
 _MANAGED_CALLOUT = re.compile(r"^\*\*(?:Confluence|SharePoint) export\*\*")
 _INDENT = re.compile(r"^[ \t]*")
@@ -262,6 +262,8 @@ class _State:
     #: item's content column, and the first line the renderer would drop.
     list_div: str | None = None
     list_div_column: int = 0
+    #: The colon run and block-quote depth of every open fenced div, outermost first.
+    divs: list[tuple[str, int]] = field(default_factory=list)
     dropped: ClassifyError | None = None
 
 
@@ -437,10 +439,13 @@ def _open_block(number: int, raw: str, quote: str, rest: str, state: _State) -> 
             state.in_math = True
             state.open_at = number
         return Line(number, raw, LineClass.MATH)
-    # A fenced-div marker. Its body is ordinary prose and is reflowed; the
+    # A fenced-div opener. Its body is ordinary prose and is reflowed; the
     # marker line is not. Joining `:::callout-tip` into the paragraph below it
-    # destroys the callout, which is a first-class construct in the IR.
-    if _DIV_FENCE.match(rest):
+    # destroys the callout, which is a first-class construct in the IR. A
+    # colon run with a name the renderer does not know is paragraph text.
+    fence = div_opener(rest.lstrip(MD_SPACE))
+    if fence is not None:
+        state.divs.append((fence, _quote_depth(quote)))
         return Line(number, raw, LineClass.DIV_MARKER)
     if _open_html_block(rest, state):
         return Line(number, raw, LineClass.HTML_BLOCK)
@@ -505,9 +510,9 @@ def _continues_paragraph_text(rest: str, state: _State) -> bool:
     """True when a list marker on *rest* is paragraph text rather than a new item.
 
     A marker that cannot interrupt a paragraph continues it, unless it sits
-    left of the paragraph's list item: then it starts a sibling item. A
-    fenced-div marker with a name the renderer does not know is paragraph text
-    too, so an item after one may be continuing a paragraph. Opening fewer
+    left of the paragraph's list item: then it starts a sibling item. A colon
+    run kept as a possible div closer may be paragraph text too, so an item
+    after one may be continuing a paragraph. Opening fewer
     items is the safe guess: it only lowers the indented-code floor.
     """
     paragraph = state.in_paragraph or state.after_div_marker
@@ -694,6 +699,26 @@ def _marker_line(number: int, raw: str, quote: str, rest: str, state: _State) ->
     return Line(number, raw, single, prefix=prefix) if single is not None else None
 
 
+def _close_div(number: int, raw: str, quote: str, rest: str, state: _State) -> Line | None:
+    """Classify a bare colon run that may close an open fenced div, or ``None``.
+
+    The renderer closes a div at the first line that is exactly its colon run,
+    at any indent. A run that matches no open div is paragraph text. One whose
+    block-quote depth differs from its opener's may still close it, through a
+    lazy continuation line, so it is a marker but leaves the div open.
+    """
+    closer = _DIV_CLOSER.match(rest)
+    if closer is None:
+        return None
+    fence = closer.group(1)
+    depth = _quote_depth(quote)
+    if (fence, depth) in state.divs:
+        del state.divs[state.divs.index((fence, depth)) :]
+    elif not any(open_fence == fence for open_fence, _ in state.divs):
+        return None
+    return Line(number, raw, LineClass.DIV_MARKER)
+
+
 def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State) -> Line:
     """Classify a line that is not inside any open multi-line construct."""
     # Indented code is tested first: its contents are literal, so a line inside
@@ -701,7 +726,9 @@ def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State)
     if _is_indented_code(rest, state):
         return Line(number, raw, LineClass.INDENTED_CODE)
     inner = _container_content(rest, state)
-    opened = _open_block(number, raw, quote, inner, state)
+    opened = _close_div(number, raw, quote, rest, state) or _open_block(
+        number, raw, quote, inner, state
+    )
     if opened is not None:
         _close_items(rest, state)
         if opened.cls is LineClass.FENCED_CODE:
@@ -744,12 +771,12 @@ def _track_list_div(line: Line, rest: str, state: _State) -> None:
         return
     split = _split_markers(rest)
     if split is None:
-        indent, opener = _indent_columns(rest), _DIV_OPEN.match(rest)
+        indent, opener = _indent_columns(rest), div_opener(rest.lstrip(MD_SPACE))
     else:
-        indent, opener = _columns(split[0]), _DIV_OPEN.match(split[2])
+        indent, opener = _columns(split[0]), div_opener(split[2].lstrip(MD_SPACE))
     column = _container_column(indent, state)
     if opener is not None and column:
-        state.list_div = opener.group(1)
+        state.list_div = opener
         state.list_div_column = column
 
 

@@ -153,6 +153,43 @@ def test_fenced_div_marker_is_not_prose() -> None:
     ]
 
 
+def test_colon_line_the_div_renderer_ignores_is_paragraph_text() -> None:
+    """The renderer opens a div only on a name it knows, and closes only an open one.
+
+    Calling `:::.` or a stray `:::` a div marker split the paragraph, so the
+    `=` below it read as prose rather than the underline of a setext heading.
+    """
+    assert classes("The\n:::.\n=\n") == ["heading", "heading", "heading"]
+    assert classes("The\n:::\n=\n") == ["heading", "heading", "heading"]
+    assert classes("::: unknown-name\nA.\n:::\n") == ["prose", "prose", "prose"]
+
+
+def test_closer_of_an_open_div_is_a_marker() -> None:
+    """Only a run of exactly the opener's colons closes the div it opened."""
+    assert classes("::::layout\n:::layout-section\nA.\n:::\n::::\n") == [
+        "div-marker",
+        "div-marker",
+        "prose",
+        "div-marker",
+        "div-marker",
+    ]
+    assert classes(":::callout-tip\nA.\n::::\n:::\n") == [
+        "div-marker",
+        "prose",
+        "prose",
+        "div-marker",
+    ]
+    # A lazy line may close a div opened in a block quote. Such a line stays a
+    # marker, and the div stays open for any later run of the same colons.
+    assert classes("> :::callout-tip\n> A.\n:::\nB.\n:::\n") == [
+        "div-marker",
+        "prose",
+        "div-marker",
+        "prose",
+        "div-marker",
+    ]
+
+
 def test_indented_code_containing_a_comment_opener_does_not_fail_closed() -> None:
     """`<!--` inside indented code raised a false "comment never closes" error."""
     assert isinstance(classify("Para.\n\n    <!-- not a comment\n    still code\n"), Classified)

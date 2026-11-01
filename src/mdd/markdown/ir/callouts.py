@@ -39,6 +39,19 @@ _KNOWN_NAMES = (
 )
 
 
+def div_opener(text: str) -> str | None:
+    """Return the colon run of the fenced div *text* opens, or ``None``.
+
+    *text* is a line without its leading spaces and tabs. A colon run opens a
+    div only when a name this plugin knows follows it; anything else is
+    paragraph text.
+    """
+    m = _FENCE_OPEN.match(text)
+    if m is None or m.group(2) not in _KNOWN_NAMES:
+        return None
+    return m.group(1)
+
+
 def fenced_div_plugin(md: MarkdownIt) -> None:
     """Register block rule that parses ``:::name ...`` fenced divs."""
     md.block.ruler.before(
