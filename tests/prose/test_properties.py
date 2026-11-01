@@ -205,6 +205,8 @@ CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param("[^1]:# A sentence. B.\n", id="footnote-without-space"),
     pytest.param("---\n---\n\nThe\n:::.\n=", id="unknown-div-name-in-setext-heading"),
     pytest.param("The\n:::\n=\n", id="unmatched-div-closer-in-setext-heading"),
+    pytest.param("> a\n\t> ===\n", id="setext-underline-on-indented-quote-line"),
+    pytest.param("> a\n\t> | x |\n\t> | - |\n", id="table-on-indented-quote-lines"),
 ]
 
 

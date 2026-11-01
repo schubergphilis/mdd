@@ -118,6 +118,8 @@ class Line:
     links: tuple[LinkRef, ...] = ()
     block: int = -1
     hard_break: bool = False
+    #: The block-quote markers the scan found at the start of the line.
+    quote: str = ""
 
     @property
     def content(self) -> str:
@@ -885,6 +887,7 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
         )
         line = _link_definition(line, rest, state)
         _track_list_div(line, rest, state)
+        line = replace(line, quote=quote)
         _after_line(line, quote, rest, state)
         out.append(line)
     return out, _unclosed(state)
@@ -994,7 +997,7 @@ def _apply_setext(lines: list[Line]) -> None:
         if lines[index - 1].cls is not LineClass.PROSE:
             continue
         start = _paragraph_start(lines, index - 1)
-        if not _underlines(_strip_quote(line.text)[1], _strip_quote(lines[start].text)[1]):
+        if not _underlines(_split_quote(line)[1], _split_quote(lines[start])[1]):
             continue
         for heading in range(start, index + 1):
             lines[heading] = replace(lines[heading], cls=LineClass.HEADING, cont_prefix="")
@@ -1015,14 +1018,14 @@ def _is_table_row(line: Line, depth: int) -> bool:
     """
     if line.cls not in _TABLE_ROW_CLASSES:
         return False
-    quote, rest = _strip_quote(line.text)
+    quote, rest = _split_quote(line)
     return _quote_depth(quote) == depth and _LIST.match(rest) is None
 
 
 def _apply_tables(lines: list[Line]) -> None:
     """Reclassify a header row, its delimiter row and the body rows as a table."""
     for index, line in enumerate(lines):
-        quote, rest = _strip_quote(line.text)
+        quote, rest = _split_quote(line)
         if index == 0 or not _DELIM_ROW.match(rest) or "|" not in rest:
             continue
         header = lines[index - 1]
@@ -1049,7 +1052,7 @@ def _apply_managed(lines: list[Line]) -> None:
     for index, line in enumerate(lines):
         if line.cls not in (LineClass.PROSE, LineClass.BLOCK_QUOTE):
             continue
-        quote, rest = _strip_quote(line.text)
+        quote, rest = _split_quote(line)
         if not quote:
             continue
         content = rest.strip(MD_SPACE)
@@ -1059,14 +1062,23 @@ def _apply_managed(lines: list[Line]) -> None:
         if not _MANAGED_CALLOUT.match(content):
             continue
         forward = index
-        while forward < len(lines) and _strip_quote(lines[forward].text)[0]:
+        while forward < len(lines) and lines[forward].quote:
             _mark_managed(lines, forward)
             forward += 1
 
 
+def _split_quote(line: Line) -> tuple[str, str]:
+    """Split *line* into the block-quote markers the scan found and the remainder.
+
+    The scan knows which quotes were open, so it may strip a ``>`` that
+    :func:`_strip_quote` on the text alone would read as content.
+    """
+    return line.quote, line.text[len(line.quote) :]
+
+
 def _line_depth(line: Line) -> int:
     """Return how many block quotes deep *line* is."""
-    return _quote_depth(_strip_quote(line.text)[0])
+    return _quote_depth(line.quote)
 
 
 def _continues_paragraph(depth: int, line: Line) -> bool:
@@ -1080,7 +1092,7 @@ def _continues_paragraph(depth: int, line: Line) -> bool:
     before: after a lazy line, a line with its ``>`` back still continues it.
     A bare list marker is never prose at all, so it cannot join one.
     """
-    rest = _strip_quote(line.text)[1]
+    rest = _split_quote(line)[1]
     if _LIST.match(rest) or _FOOTNOTE_DEF.match(rest):
         return False
     return _line_depth(line) <= depth
