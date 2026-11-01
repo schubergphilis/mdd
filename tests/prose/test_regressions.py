@@ -437,21 +437,19 @@ def test_reflow_write_still_fixes_the_paragraphs_that_are_not_suppressed(tmp_pat
     assert second.count("\n") == 2
 
 
-def test_a_held_paragraph_reports_its_other_lines_as_not_fixable(
+def test_a_reflow_suppression_silences_every_line_of_its_paragraph(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The suppression keeps --write off the paragraph, so nothing in it is fixable."""
+    """Only the paragraph's first line was silenced; the rest were reported as not fixable."""
     target = tmp_path / "a.md"
     source = (
         "<!-- mdd-prose-ignore: reflow -->\nShort first sentence here.\n"
         "This is the second line of the paragraph. It has two sentences in it.\n"
     )
     write_file(target, source)
-    assert cli_main(["prose", "reflow", "--json", str(target)]) == 1
-    out = capsys.readouterr().out
-    assert '"line": 3' in out
-    assert '"fixable": false' in out
-    assert cli_main(["prose", "reflow", "--write", str(target)]) == 1
+    assert cli_main(["prose", "reflow", "--json", str(target)]) == 0
+    assert capsys.readouterr().out == ""
+    assert cli_main(["prose", "reflow", "--write", str(target)]) == 0
     assert read_file(target) == source
 
 

@@ -319,6 +319,57 @@ def test_suppression_comment_silences_a_finding(corpus: Path) -> None:
     assert prose(["lint", "docs"]) == 0
 
 
+WRAPPED = (
+    "This paragraph is wrapped at a fixed width and not at sentence ends. It\n"
+    "has a second sentence that starts at the end of the first line. And a\n"
+    "third one that does the same thing again.\n"
+)
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        pytest.param("<!-- mdd-prose-ignore: reflow -->\n", id="line"),
+        pytest.param("<!-- mdd-prose-ignore -->\n", id="bare"),
+    ],
+)
+def test_a_reflow_suppression_covers_the_whole_paragraph(
+    corpus: Path, capsys: pytest.CaptureFixture[str], directive: str
+) -> None:
+    target = corpus / "a.md"
+    source = directive + WRAPPED
+    _ = target.write_text(source, encoding="utf-8")
+    assert prose(["reflow", "docs"]) == 0
+    assert "clean" in capsys.readouterr().err
+    assert prose(["reflow", "--write", "docs"]) == 0
+    assert target.read_text(encoding="utf-8") == source
+
+
+def test_a_reflow_suppression_over_a_clean_paragraph_is_unused(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _ = (corpus / "a.md").write_text(
+        "<!-- mdd-prose-ignore: reflow -->\nOne sentence.\nAnother sentence.\n", encoding="utf-8"
+    )
+    _ = (corpus.parent / "prose.yaml").write_text(
+        "prose:\n  rules:\n    unused-suppression: warning\n", encoding="utf-8"
+    )
+    assert prose(["reflow", "--config", "prose.yaml", "--min-severity", "warning", "docs"]) == 1
+    assert "unused-suppression" in capsys.readouterr().out
+
+
+def test_a_lint_suppression_covers_only_its_next_line(
+    corpus: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _ = (corpus / "a.md").write_text(
+        "<!-- mdd-prose-ignore: trailing-whitespace -->\nFirst line. \nSecond line. \n",
+        encoding="utf-8",
+    )
+    assert prose(["lint", "--json", "docs"]) == 1
+    findings = [json.loads(row) for row in capsys.readouterr().out.splitlines() if row]
+    assert [(f["rule"], f["line"]) for f in findings if "rule" in f] == [("trailing-whitespace", 3)]
+
+
 def test_unknown_suppression_is_reported(corpus: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _ = (corpus / "a.md").write_text("<!-- mdd-prose-ignore: nope -->\nA b.\n", encoding="utf-8")
     assert prose(["lint", "--min-severity", "warning", "docs"]) == 1

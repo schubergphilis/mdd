@@ -13,7 +13,7 @@ from mdd.commands.prose import _iso_date, _positive_int  # pyright: ignore[repor
 from mdd.prose import gate, lint, runner
 from mdd.prose.config import LintConfig, ProseConfig
 from mdd.prose.lint import Edit
-from mdd.prose.rules import RULES
+from mdd.prose.rules import RULES, Severity
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -82,8 +82,6 @@ def test_reflow_off_reports_without_writing(tmp_path: Path) -> None:
     target = tmp_path / "a.md"
     _ = target.write_text(LONG, encoding="utf-8")
     from dataclasses import replace
-
-    from mdd.prose.rules import Severity
 
     cfg = replace(config(), severities={**config().severities, "reflow": Severity.OFF})
     result = runner.run([target], cfg, options(write=True))
@@ -205,3 +203,58 @@ def test_a_failed_write_is_a_cross_cutting_finding(tmp_path: Path) -> None:
     assert [(f.check, f.line) for f in failures] == [("prose", 0)]
     assert "symlink" in failures[0].message
     assert result.failed
+
+
+WRAPPED = (
+    "This paragraph is wrapped at a fixed width and not at sentence ends. It\n"
+    "has a second sentence that starts at the end of the first line. And a\n"
+    "third one that does the same thing again.\n"
+)
+
+
+def test_a_wrapped_paragraph_is_reported_on_every_line(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text(WRAPPED, encoding="utf-8")
+    result = runner.run([target], config(), options())
+    assert {f.line for f in result.findings if f.rule == "reflow"} == {1, 2, 3}
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        pytest.param("<!-- mdd-prose-ignore: reflow -->\n", id="line"),
+        pytest.param("<!-- mdd-prose-ignore -->\n", id="bare"),
+    ],
+)
+def test_a_line_directive_covers_the_whole_paragraph_below_for_reflow(
+    tmp_path: Path, directive: str
+) -> None:
+    target = tmp_path / "a.md"
+    source = directive + WRAPPED
+    _ = target.write_text(source, encoding="utf-8")
+    assert runner.run([target], config(), options()).findings == []
+    written = runner.run([target], config(), options(write=True))
+    assert written.findings == []
+    assert target.read_text(encoding="utf-8") == source
+
+
+def test_a_reflow_directive_over_a_clean_paragraph_is_unused(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text(
+        "<!-- mdd-prose-ignore: reflow -->\nOne sentence.\nAnother sentence.\n", encoding="utf-8"
+    )
+    cfg = replace(
+        config(), severities={**config().severities, "unused-suppression": Severity.WARNING}
+    )
+    result = runner.run([target], cfg, options())
+    assert [(f.rule, f.line) for f in result.findings] == [("unused-suppression", 1)]
+
+
+def test_a_lint_directive_still_covers_only_its_next_line(tmp_path: Path) -> None:
+    target = tmp_path / "a.md"
+    _ = target.write_text(
+        "<!-- mdd-prose-ignore: trailing-whitespace -->\nFirst line. \nSecond line. \n",
+        encoding="utf-8",
+    )
+    result = runner.run([target], config(), options(checks=("lint",)))
+    assert [(f.rule, f.line) for f in result.findings] == [("trailing-whitespace", 3)]

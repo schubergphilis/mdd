@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 #: Stands for "every rule" in a bare suppression comment.
 ALL = "*"
 
+#: The one rule whose line directive covers a whole paragraph.
+REFLOW = "reflow"
+
 _DIRECTIVE = re.compile(
     r"<!--\s*mdd-prose-ignore(?P<file>-file)?\s*(?::\s*(?P<rules>[^>]*?))?\s*-->"
 )
@@ -58,12 +61,26 @@ class Suppressions:
     file_wide: set[str] = field(default_factory=set)
     sites: tuple[Site, ...] = ()
     used: set[Site] = field(default_factory=set)
+    #: The paragraph each prose line belongs to, by line number.
+    paragraph_of: dict[int, int] = field(default_factory=dict)
+
+    def _reaches(self, site: Site, line: int, rule: str) -> bool:
+        """True when *site* applies to *line* for *rule*.
+
+        A line directive applies to the line after it. For ``reflow``, which
+        rewrites whole paragraphs, it applies to every line of the paragraph
+        that starts on that next line.
+        """
+        if site.file_wide or site.line + 1 == line:
+            return True
+        if rule != REFLOW:
+            return False
+        below = self.paragraph_of.get(site.line + 1)
+        return below is not None and self.paragraph_of.get(line) == below
 
     def _match(self, line: int, rule: str) -> Site | None:
         for site in self.sites:
-            if site.rule not in (rule, ALL):
-                continue
-            if site.file_wide or site.line + 1 == line:
+            if site.rule in (rule, ALL) and self._reaches(site, line, rule):
                 return site
         return None
 
@@ -114,7 +131,8 @@ def collect(lines: Sequence[Line]) -> Suppressions:
             Site(line=line.number, rule=rule, file_wide=file_wide)
             for rule in _rules_of(match.group("rules"))
         )
-    return Suppressions(sites=tuple(sites))
+    paragraph_of = {line.number: line.block for line in lines if line.block >= 0}
+    return Suppressions(sites=tuple(sites), paragraph_of=paragraph_of)
 
 
 def _unknown_findings(

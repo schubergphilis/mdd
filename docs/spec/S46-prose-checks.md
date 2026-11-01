@@ -195,18 +195,24 @@ cannot promise.
   `<!-- mdd-prose-ignore -->` suppresses every rule on the next line. A
   file-wide form, `<!-- mdd-prose-ignore-file: reflow -->`, may appear anywhere
   in the file and disables the named rules (or all of them) for the whole file.
+- What the line and bare forms cover depends on the check:
+  - For `lint` rules, they cover exactly the next line.
+  - For `reflow`, they cover the whole paragraph that starts on the next line,
+    every line of it, in check-only reporting and in `--write` alike. Reflow
+    works per paragraph, and a directive is a line of its own, so it ends the
+    paragraph above it and can only sit directly above the one it means. A
+    blank line between the directive and the paragraph means the directive
+    covers nothing.
+  - A bare directive therefore covers the whole paragraph for `reflow` and
+    only its first line for every `lint` rule.
 - `blank-run` can only be suppressed with the file-wide form. Its findings sit
   on the second and later blank lines of a run, and a comment line placed
   among them splits the run rather than suppressing it.
 - A suppression stops the fix as well as the report. `lint --write` and
   `reflow --write` never edit a line whose finding is suppressed, in the
   line, bare and file-wide forms alike; the suppression is applied before the
-  fix is computed. Reflow rewrites whole paragraphs, so a paragraph is left
-  exactly as it is when a `reflow` suppression covers any of its lines. Its
-  other lines are still reported, one finding per differing line, but as not
-  fixable. A directive is a line of its own, so it ends the paragraph above
-  it: the line form can only cover a paragraph's first line, and the
-  file-wide form is the way to silence reflow on the rest.
+  fix is computed. Reflow rewrites whole paragraphs, so a paragraph under a
+  `reflow` suppression is neither reported nor rewritten.
 - "On its own line" is decided by the [classifier](#the-shared-line-classifier):
   a directive counts only when it is the whole of a line classified as an HTML
   comment or a line of an HTML block, after any block-quote markers and
@@ -219,7 +225,9 @@ cannot promise.
   (`unknown-suppression`, `warning`). A suppression that suppresses nothing is
   reported under an opt-in `unused-suppression` rule, default `off` — useful
   when cleaning up, noisy in normal work. Opt in with
-  `prose: {rules: {unused-suppression: warning}}`.
+  `prose: {rules: {unused-suppression: warning}}`. A `reflow` directive above
+  a paragraph that is already in semantic line break form suppresses nothing,
+  so it is reported as unused.
 
 ### The shared line classifier
 
