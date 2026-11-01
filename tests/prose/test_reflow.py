@@ -416,3 +416,50 @@ def test_reflow_does_not_break_inside_preformatted_inline_html() -> None:
     once = reflow(text, width=60, min_line=1)
     assert "<kbd>Ctrl, Alt, Delete</kbd>" in once
     assert verify(text, once).passed
+
+
+#: Text that opens a block when it starts a line. Reflow must never move one
+#: of these to the start of a line.
+BLOCK_STARTERS = (
+    "***",
+    "___",
+    "* * *",
+    "- - -",
+    "_ _ _",
+    "---",
+    "===",
+    "--",
+    "-",
+    "+",
+    "*",
+    "- x.",
+    "+ x.",
+    "* x.",
+    "1. x.",
+    "1) x.",
+    "# x.",
+    "> x.",
+    "```",
+    "~~~",
+    "<div>",
+    "<!-- x -->",
+    "| a |",
+    "$$",
+    ":::",
+    "::: note",
+    "[^x]: y.",
+    "[x]: /u",
+    "[a\\]b]: /u",
+    "--- | ---",
+    "-- | --",
+    ":-- | --:",
+)
+
+
+def test_reflow_never_starts_a_line_with_a_block_starter() -> None:
+    for starter in BLOCK_STARTERS:
+        for lead in ("Fill in every field marked with a line.", "a | b and one."):
+            text = f"{lead} {starter}\n"
+            once = reflow(text)
+            assert once == text, (starter, once)
+            assert verify(text, once).passed, starter

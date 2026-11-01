@@ -253,6 +253,16 @@ The load-bearing subcommand.
   run at a chosen break point is replaced. At a joined line break, the
   newline, the next line's indent and any trailing whitespace before
   it that is not a hard break become one space.
+- Reflow never starts a line with text that would open a block there. A
+  break that would is not taken, and the two lines stay one. That covers a
+  block quote `>`, an ATX `#`, a list marker (`-`, `+`, `*`, `1.`, `1)`), a
+  thematic break in any spelling (`***`, `___`, `---`, `* * *`, `- - -`), a
+  setext underline (`===`, `--`) or anything else made of `-`, `:` and `|`
+  only, which a table delimiter row would be, a fence, a `|`, `$$`, `:::`, an
+  HTML block start (`<` and a letter, `!`, `/` or `?`), and a link or
+  footnote definition (`[x]:`, `[^x]:`). A line a break leaves behind always
+  ends at a clause mark or a sentence terminator, so it never ends in a hard
+  line break.
 
 **Clause breaking — the part that is easy to get wrong**
 

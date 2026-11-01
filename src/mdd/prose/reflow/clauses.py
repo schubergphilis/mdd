@@ -102,21 +102,32 @@ def split_units(text: str, masked: Sequence[bool], start: int, end: int) -> list
 
 #: What a new line must not start with. Moving a sentence onto its own line can
 #: put a ``>`` or a ``-`` in column one, which turns prose into a block quote or
-#: a list item — a change of meaning, not of layout.
+#: a list item — a change of meaning, not of layout. The list errs wide: a
+#: line merged back only costs a break.
 _BLOCK_STARTER = re.compile(
+    # Block quote, ATX heading, bullet and ordered list items.
     r">"
     r"|#{1,6}(?:\s|$)"
     r"|[-*+](?:\s|$)"
     r"|\d{1,9}[.)](?:\s|$)"
+    # Thematic breaks in every spelling: three or more of one mark, spaced
+    # or not. The `-` and `*` forms with a space are list markers above too.
+    r"|(?:\*[ \t]*){3,}$"
+    r"|(?:_[ \t]*){3,}$"
+    r"|(?:-[ \t]*){3,}$"
+    # Setext underlines, and anything shaped like a table delimiter row,
+    # which would turn the line before into a heading or a table header.
+    r"|=+\s*$"
+    r"|[-:|][-:| \t]*$"
+    # Fences, tables, math blocks, fenced divs, HTML blocks.
     r"|`{3,}"
     r"|~{3,}"
     r"|\|"
-    r"|=+\s*$"
-    r"|-{2,}\s*$"
-    r"|\[[^\]]*\]:"
     r"|\$\$"
-    r"|<[A-Za-z!/?]"
     r"|:{3,}"
+    r"|<[A-Za-z!/?]"
+    # Link and footnote definitions, whatever the label holds.
+    r"|\[.*\]:"
     # A generated line starting with one of these classifies as a
     # `managed-region`, which silently exempts it and every following quoted
     # line from all checks. Reflow must not be able to manufacture one.
