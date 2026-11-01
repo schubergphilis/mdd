@@ -585,10 +585,11 @@ Two further requirements follow from the same boundary:
 
 - **mdd-managed regions in a mirrored body are masked.** The Confluence export
   callout (a leading block quote whose first quoted line begins with
-  `**Confluence export**`), the inserted MDD footer, and the published-office
-  callout are recognised by the classifier and passed through byte-for-byte,
-  like any other masked span. They are matched on export and stripped before a
-  push; a reflow that reshaped one could push it into the page body.
+  `**Confluence export**`) and the published-office callout are recognised by
+  the classifier and passed through byte-for-byte, like any other masked span.
+  They are matched on export and stripped before a push; a reflow that reshaped
+  one could push it into the page body. The MDD footer needs no masking: it is
+  inserted into the storage XHTML on push and never appears in the Markdown.
 - **Findings on a mirror are reported but are not the user's to fix.** `lint`
   and `anchors` run over exporter-generated Markdown will flag constructs the
   next pull regenerates identically. The guide's advice is to `.mddignore`
