@@ -32,6 +32,9 @@ _SETEXT = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
 _LIST = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+)(?=\S)")
 _LIST_BARE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]*$")
 _LINK_DEF = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+")
+_LINK_LABEL_ONLY = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*$")
+_LINK_DEF_TAIL = re.compile(r"^ {0,3}\[[^\]^]+\]:[ \t]*\S+[ \t]*(.*)$")
+_LINK_TITLE_START = re.compile(r"^[ \t]*[\"'(]")
 _FOOTNOTE_DEF = re.compile(r"^([ \t]*\[\^[^\]]+\]:[ \t]+)(?=\S)")
 _HTML_BLOCK = re.compile(r"^ {0,3}</?[A-Za-z!?]")
 #: HTML blocks that end at a closing marker rather than at a blank line, with
@@ -230,6 +233,10 @@ class _State:
     #: bare-tag HTML block cannot interrupt. A blank line is not the only thing
     #: that ends a paragraph: a heading, a fence or a rule does too.
     in_paragraph: bool = False
+    #: A link reference definition is still open: its destination or its title
+    #: has yet to come, so the lines that follow belong to it.
+    in_link_def: bool = False
+    after_link_def: bool = False
     open_at: int = 0
 
 
@@ -447,7 +454,45 @@ def _single_line_class(rest: str, state: _State) -> LineClass | None:
         return LineClass.THEMATIC_BREAK
     if _is_indented_code(rest, state):
         return LineClass.INDENTED_CODE
-    return LineClass.LINK_DEF if _LINK_DEF.match(rest) else None
+    if _LINK_DEF.match(rest) or _LINK_LABEL_ONLY.match(rest):
+        return LineClass.LINK_DEF
+    return None
+
+
+def _unclosed_title(rest: str) -> bool:
+    """True when the link definition on *rest* opens a title it does not close."""
+    tail = _LINK_DEF_TAIL.match(rest)
+    if tail is None:
+        return False
+    title = tail.group(1).rstrip(MD_SPACE)
+    if not title or title[0] not in "\"'(":
+        return False
+    closer = ")" if title[0] == "(" else title[0]
+    return len(title) < 2 or title[-1] != closer
+
+
+def _link_definition(line: Line, rest: str, state: _State) -> Line:
+    """Extend a link reference definition over the lines that continue it.
+
+    A definition may put its destination, or its title, on a later line, and a
+    title may run over several. Reproducing that grammar is not worth it, so
+    this fails closed: once a definition is incomplete, every line that would
+    otherwise be paragraph text is called part of it until something else ends
+    the run. A paragraph glued to a definition loses its checks; no line of a
+    definition is ever handed to a fixer.
+    """
+    continues = state.in_link_def or (
+        state.after_link_def and _LINK_TITLE_START.match(rest) is not None
+    )
+    if line.cls is LineClass.PROSE and continues:
+        line = Line(line.number, line.text, LineClass.LINK_DEF)
+        state.in_link_def = True
+    elif line.cls is LineClass.LINK_DEF:
+        state.in_link_def = bool(_LINK_LABEL_ONLY.match(rest)) or _unclosed_title(rest)
+    else:
+        state.in_link_def = False
+    state.after_link_def = line.cls is LineClass.LINK_DEF
+    return line
 
 
 def _classify_fresh(number: int, raw: str, quote: str, rest: str, state: _State) -> Line:
@@ -485,6 +530,7 @@ def _scan_blocks(raw_lines: list[str]) -> tuple[list[Line], ClassifyError | None
         line = _continuation(number, raw, quote, rest, state) or _classify_fresh(
             number, raw, quote, rest, state
         )
+        line = _link_definition(line, rest, state)
         blank = line.cls in (LineClass.BLANK, LineClass.BLOCK_QUOTE)
         state.in_paragraph = line.cls is LineClass.PROSE and not (
             state.in_paragraph and _SETEXT.match(rest)

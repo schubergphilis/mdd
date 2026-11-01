@@ -173,11 +173,10 @@ CLASSIFIER_GAPS = [
     pytest.param("# h\n    code\n", id="indented-code-after-heading"),
     pytest.param("a\n===\n    code\n", id="indented-code-after-setext-heading"),
     pytest.param("# h\n<span>\nb\n", id="html-block-after-heading"),
-    _gap(
-        "[x]:\n/u\n",
-        "a link reference definition spread over several lines is called prose",
-        "multi-line-link-definition",
-    ),
+    pytest.param("[x]:\n/u\n", id="multi-line-link-definition"),
+    pytest.param("[x]: /u\n'title'\n", id="link-definition-title-on-next-line"),
+    pytest.param("[x]: /u 'a\nb'\n", id="link-definition-title-over-two-lines"),
+    pytest.param("[x]: /u\n[y]:\n/v\n", id="link-definition-after-link-definition"),
     _gap(
         "- [x]: /u\n",
         "a link reference definition inside a list item is called prose",
