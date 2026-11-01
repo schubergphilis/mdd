@@ -42,6 +42,28 @@ def test_human_format_appends_the_excerpt() -> None:
     assert format_human(finding(), show_excerpt=True).endswith("\n    a  b")
 
 
+def test_human_format_neutralises_terminal_controls() -> None:
+    rendered = format_human(
+        finding(
+            path=Path("a\x1b[2J\u202e.md"),
+            message="link target 'x\x1b]0;t\x07' does not exist",
+            excerpt="Some text \x1b[2J\x1b[31mred  here.",
+        ),
+        show_excerpt=True,
+    )
+    assert "\x1b" not in rendered
+    assert "\x07" not in rendered
+    assert "\u202e" not in rendered
+    head, excerpt = rendered.split("\n")
+    assert head.startswith("a\ufffd[2J\ufffd.md:4:7: ")
+    assert excerpt == "    Some text \ufffd[2J\ufffd[31mred  here."
+
+
+def test_human_format_keeps_a_line_break_out_of_the_excerpt() -> None:
+    rendered = format_human(finding(excerpt="a\u2028b\nc"), show_excerpt=True)
+    assert rendered.endswith("\n    a\ufffdb\ufffdc")
+
+
 def test_json_format_carries_every_field() -> None:
     payload = json.loads(format_json(finding(), show_excerpt=True))
     assert payload == {

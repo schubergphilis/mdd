@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from mdd.prose.rules import Severity
+from mdd.utils.terminal import neutralise_line
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -54,13 +55,18 @@ def make_excerpt(text: str, column: int) -> str:
 
 
 def format_human(finding: Finding, *, show_excerpt: bool) -> str:
-    """Render *finding* in the ``path:line:column: severity: rule: message`` shape."""
+    """Render *finding* in the ``path:line:column: severity: rule: message`` shape.
+
+    The path, the message and the excerpt can all carry text from the file, so
+    each is neutralised: an escape sequence in a document must not act on the
+    terminal, and a line break in one must not start a record of its own.
+    """
     head = (
-        f"{finding.path}:{finding.line}:{finding.column}: "
-        f"{finding.severity.value}: {finding.rule}: {finding.message}"
+        f"{neutralise_line(str(finding.path))}:{finding.line}:{finding.column}: "
+        f"{finding.severity.value}: {finding.rule}: {neutralise_line(finding.message)}"
     )
     if show_excerpt and finding.excerpt:
-        return f"{head}\n    {finding.excerpt}"
+        return f"{head}\n    {neutralise_line(finding.excerpt)}"
     return head
 
 

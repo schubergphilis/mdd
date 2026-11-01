@@ -135,7 +135,7 @@ cannot promise.
 
 ### Reporting and exit status (all subcommands)
 
-- A finding is emitted as one line on **stdout**:
+- A finding is emitted on **stdout** as one line in this shape:
 
   ```
   <path>:<line>:<column>: <severity>: <rule-id>: <message>
@@ -144,7 +144,14 @@ cannot promise.
   matching the shape `scripts/spec-check.py` and `scripts/check-mdd-commands.py`
   already print, which is also the shape every editor's error parser
   understands. `column` is 1-based and may be `0` when a finding is
-  whole-line or whole-file.
+  whole-line or whole-file. Unless `--no-excerpt` is given, the excerpt
+  follows on a second line indented four spaces; an editor's error parser
+  skips it, as it does not start with a path.
+- Human output neutralises what it quotes from the file. Terminal control
+  characters, bidi controls and line breaks in the path, the message and the
+  excerpt are each printed as U+FFFD, so a document cannot move the cursor,
+  recolour the terminal or start a record of its own. `--json` needs no such
+  step: JSON escapes them.
 - `--json` switches to **line-delimited JSON**, one object per finding, the
   same convention as [`mdd search --json`](S19-search-command.md) — not a
   wrapping array, so a consumer can stream it. Fields:
