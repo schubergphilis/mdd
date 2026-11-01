@@ -207,6 +207,9 @@ CLASSIFIER_COUNTEREXAMPLES = [
     pytest.param("The\n:::\n=\n", id="unmatched-div-closer-in-setext-heading"),
     pytest.param("> a\n\t> ===\n", id="setext-underline-on-indented-quote-line"),
     pytest.param("> a\n\t> | x |\n\t> | - |\n", id="table-on-indented-quote-lines"),
+    pytest.param(
+        "---\n---\n\n- 1. the. The the.\n\t    ---", id="setext-heading-in-nested-list-item"
+    ),
 ]
 
 
@@ -313,6 +316,13 @@ WRITER_DAMAGE = [
         "<xmp>\n\nfirst  column  second\nnext row\n\n</xmp>\n",
         id="lint-collapses-spaces-in-xmp-opened-by-an-html-block",
     ),
+    pytest.param(
+        "lint",
+        "---\n---\n\n\xa0The\nthe.\n\n\xa0The\nthe.\n\n1. ***\n2. the | the | the | the\n"
+        "\t--- | --- | --- | ---\nthe | the | the | the\nthe | the | the | the\n"
+        "the | the | the | the\n3. \xa0The\nthe.\n\n\t::: callout-tip\n\n\t\xa0The\n\tthe.\n \n\t:::",
+        id="lint-trims-blank-line-in-code-after-a-table-in-a-list-item",
+    ),
 ]
 
 REFLOW_UNSTABLE = [
@@ -322,6 +332,11 @@ REFLOW_UNSTABLE = [
         id="reflow-unstable-footnote-with-lazy-quote-lines",
     ),
     pytest.param("> a\nb\n> c\n", id="reflow-unstable-quote-after-lazy-line"),
+    pytest.param(
+        ">The the the the\n>1. the\nthe the the the the the the the the the the the the\nthe\n"
+        "the\tthe\tthe.\n>The the the the the\tthe\tthe.\n=",
+        id="reflow-unstable-setext-underline-after-a-quoted-list-item",
+    ),
 ]
 
 

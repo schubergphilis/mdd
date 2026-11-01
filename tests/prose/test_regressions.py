@@ -580,3 +580,26 @@ def test_a_blank_between_two_indented_code_lines_is_still_reclaimed() -> None:
         "blank",
         "prose",
     ]
+
+
+# --- third review round: containers, CommonMark divergences ---------------
+
+
+@pytest.mark.parametrize(
+    ("source", "prefix", "cont_prefix"),
+    [
+        ("- >   - a  b\n", "- >   - ", "  >     "),
+        ("[^n]: -   a  b\n", "[^n]: -   ", "          "),
+        ("- 1. a  b\n", "- 1. ", "     "),
+    ],
+)
+def test_nested_container_markers_are_prefix(source: str, prefix: str, cont_prefix: str) -> None:
+    line = ok(source).lines[0]
+    assert (line.cls, line.prefix, line.cont_prefix) == (LineClass.PROSE, prefix, cont_prefix)
+
+
+def test_lint_leaves_the_gap_after_nested_markers_alone(tmp_path: Path) -> None:
+    path = tmp_path / "doc.md"
+    write_file(path, "- >   - a  b\n")
+    _ = lint_write(path)
+    assert read_file(path) == "- >   - a b\n"

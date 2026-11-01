@@ -281,7 +281,9 @@ The load-bearing subcommand.
   than the target width is broken further, at top-level clause boundaries.
 - A list item's continuation lines are indented to the item's content column so
   the list still parses. A block quote's continuation lines keep the `> `
-  prefix. Nested structure is preserved.
+  prefix. Nested structure is preserved: every container marker that opens a
+  line is prefix, so in `- > - a` the paragraph starts at `a`, and its
+  continuation lines keep the `>` and replace the list markers with spaces.
 - A paragraph is every prose line up to the next block start, as CommonMark
   defines it: a continuation line belongs to the paragraph whatever its indent,
   and so does a lazy one with no `>`. Only a list or footnote marker, a deeper

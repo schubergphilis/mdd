@@ -277,17 +277,39 @@ class _State:
     dropped: ClassifyError | None = None
 
 
+def _continuation_markers(markers: str, column: int) -> str:
+    """Return what a continuation line needs in place of *markers*.
+
+    *markers* starts at *column*. A list marker or footnote label becomes as
+    many spaces as it is wide, and a block-quote marker is kept, since a
+    continuation line needs it to stay inside the quote.
+    """
+    out = ""
+    rest = markers
+    while (match := _CONTAINER_MARKER.match(rest)) is not None and match.end() > 0:
+        piece = match.group(0)
+        end = _columns(piece, column)
+        out += piece if piece.lstrip(MD_SPACE).startswith(">") else " " * (end - column)
+        column = end
+        rest = rest[match.end() :]
+    return out
+
+
 def _prose_line(number: int, raw: str, quote: str, rest: str) -> Line:
-    """Build a PROSE line, deriving the prefix and continuation prefix."""
-    marker = _LIST.match(rest) or _FOOTNOTE_DEF.match(rest)
-    if marker is not None:
-        prefix = quote + marker.group(0)
+    """Build a PROSE line, deriving the prefix and continuation prefix.
+
+    Every container marker that opens the line is prefix, nested ones
+    included: in ``- > - a`` the paragraph starts at ``a``.
+    """
+    split = _split_markers(rest)
+    if split is not None:
+        markers = split[0]
         return Line(
             number=number,
             text=raw,
             cls=LineClass.PROSE,
-            prefix=prefix,
-            cont_prefix=quote + " " * (len(prefix) - len(quote)),
+            prefix=quote + markers,
+            cont_prefix=quote + _continuation_markers(markers, _columns(quote)),
             hard_break=_hard_break(raw),
         )
     indent = _indent_bytes(rest)
@@ -983,15 +1005,20 @@ def _underlines(underline: str, first: str) -> bool:
     content column, so `- a` over `---` is a list and a rule, while `- a` over
     `  ---` is a heading in the list item. A paragraph that does not open on a
     marker line gets the benefit of the doubt: calling a paragraph a heading
-    keeps it from the fixers, the other mistake hands one to them.
+    keeps it from the fixers, the other mistake hands one to them. The
+    container is the innermost one: in ``- 1. a`` that is the ``1.`` item.
     """
     if not _SETEXT.match(underline.lstrip(MD_SPACE)):
         return False
     indent = _indent_columns(underline)
-    item = _LIST.match(first) or _FOOTNOTE_DEF.match(first)
-    if item is None:
+    split = _split_markers(first)
+    if split is None:
         return indent <= max(_INDENTED_CODE_COLUMN - 1, _indent_columns(first) + 3)
-    column = _columns(item.group(0))
+    if ">" in split[0]:
+        # A block quote inside the item: where its underline may sit is not
+        # worth working out, and a heading is the safe guess.
+        return True
+    column = _columns(split[0])
     return column <= indent <= column + _INDENTED_CODE_COLUMN - 1
 
 
