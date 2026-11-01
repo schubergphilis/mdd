@@ -9,6 +9,8 @@ what prose is.
 from __future__ import annotations
 
 import datetime as dt
+import os
+import stat
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
@@ -86,6 +88,20 @@ class RunResult:
         return len(self.written_paths)
 
 
+def _read_regular_file(path: Path) -> bytes:
+    """Return the bytes of *path*, refusing anything that is not a regular file.
+
+    The open does not block, so a named pipe swapped in after discovery is
+    refused instead of waiting for a writer that never comes.
+    """
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(fd, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            msg = f"not a regular file: {path}"
+            raise OSError(msg)
+        return handle.read()
+
+
 def _read(path: Path, result: RunResult) -> str | ClassifyError | None:
     """Return the file's text, why it cannot be read as text, or ``None`` if it cannot be read.
 
@@ -94,7 +110,7 @@ def _read(path: Path, result: RunResult) -> str | ClassifyError | None:
     wrong line endings while reporting that it changed nothing.
     """
     try:
-        data = path.read_bytes()
+        data = _read_regular_file(path)
     except OSError as exc:
         log.error("cannot read %s: %s", path, exc)
         result.failed = True

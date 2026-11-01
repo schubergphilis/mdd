@@ -36,6 +36,9 @@ def _walk_directory(root: Path, ignore: MddIgnore) -> Iterable[Path]:
             candidate = current / name
             if not _is_markdown(candidate):
                 continue
+            # A named pipe or device called *.md would block, or never end, on read.
+            if not candidate.is_file():
+                continue
             if ignore.is_ignored(candidate.relative_to(root), is_dir=False):
                 continue
             yield candidate
@@ -50,6 +53,8 @@ def discover(
 
     A directory is walked for ``*.md`` and ``*.qmd``; a file the user named
     explicitly is taken as given, since naming a path is the user asking for it.
+    Only regular files are returned, whether walked or named: reading a named
+    pipe blocks until something writes to it.
     """
     targets = list(paths) or [Path()]
     out: list[Path] = []

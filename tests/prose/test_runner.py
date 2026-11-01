@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
+import threading
+import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -258,3 +261,34 @@ def test_a_lint_directive_still_covers_only_its_next_line(tmp_path: Path) -> Non
     )
     result = runner.run([target], config(), options(checks=("lint",)))
     assert [(f.rule, f.line) for f in result.findings] == [("trailing-whitespace", 3)]
+
+
+def test_a_named_pipe_is_refused_without_blocking(tmp_path: Path) -> None:
+    """A file swapped for a named pipe after discovery must not hang the run."""
+    mkfifo = getattr(os, "mkfifo", None)
+    if mkfifo is None:
+        pytest.skip("named pipes are not supported on this platform")
+    pipe = tmp_path / "pipe.md"
+    mkfifo(pipe)
+
+    done = threading.Event()
+
+    def unblock() -> None:
+        # Opening the write end releases a reader that blocked on the pipe.
+        if done.wait(2):
+            return
+        fd = os.open(pipe, os.O_WRONLY | os.O_NONBLOCK)
+        os.close(fd)
+
+    helper = threading.Thread(target=unblock, daemon=True)
+    started = time.monotonic()
+    helper.start()
+    try:
+        result = runner.run([pipe], config(), runner.RunOptions(checks=("lint",)))
+    finally:
+        done.set()
+        helper.join()
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.5, "the run blocked on the named pipe"
+    assert result.failed
+    assert result.file_count == 0

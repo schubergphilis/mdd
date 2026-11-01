@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
+
+import pytest
 
 from mdd.prose.walk import discover, missing
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def build(root: Path) -> None:
@@ -74,3 +75,22 @@ def test_default_target_is_the_current_directory(
     build(tmp_path)
     monkeypatch.chdir(tmp_path)
     assert sorted(str(p) for p in discover([])) == ["a.md", "b.qmd", "sub/d.md"]
+
+
+def _fifo(path: Path) -> None:
+    mkfifo = getattr(os, "mkfifo", None)
+    if mkfifo is None:
+        pytest.skip("named pipes are not supported on this platform")
+    mkfifo(path)
+
+
+def test_directory_walk_skips_a_named_pipe(tmp_path: Path) -> None:
+    """Reading a named pipe blocks until a writer opens it, so the walk never yields one."""
+    _fifo(tmp_path / "pipe.md")
+    _ = (tmp_path / "a.md").write_text("ok\n", encoding="utf-8")
+    assert names(discover([tmp_path]), tmp_path) == ["a.md"]
+
+
+def test_a_named_pipe_named_on_the_command_line_is_skipped(tmp_path: Path) -> None:
+    _fifo(tmp_path / "pipe.md")
+    assert discover([tmp_path / "pipe.md"]) == []

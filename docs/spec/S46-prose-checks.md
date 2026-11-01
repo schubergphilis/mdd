@@ -122,6 +122,11 @@ cannot promise.
   rewritten, even when `.mddignore` or an `--ignore` file matches it: the
   ignore files filter what a directory walk finds, and naming a file is a
   request for that file.
+- Only regular files are read, walked or named. A named pipe or a device
+  called `*.md` is skipped by the walk and by a named `PATH`, and a file that
+  turns into one after the walk is reported as unreadable: the file is opened
+  without blocking and checked before it is read, so the run never waits on
+  a pipe that nothing writes to.
 - Scoping is **path-based, not mirror-based.** The registered-root-source
   registry [`mdd search`](S19-search-command.md) uses answers "where are all my
   mirrors" — the wrong question for a gate, which runs inside one repository's
