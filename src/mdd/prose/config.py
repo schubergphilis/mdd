@@ -124,7 +124,6 @@ class ProseConfig:
     lint: LintConfig = LintConfig()
     anchors: AnchorsConfig = AnchorsConfig()
     freshness: FreshnessConfig = FreshnessConfig()
-    source: Path | None = None
 
     def severity(self, rule: str) -> Severity:
         """Return the resolved severity for *rule*."""
@@ -366,5 +365,4 @@ def load(path: Path | None = None) -> ProseConfig:
         lint=_resolve_lint(_section(raw_prose, "lint")),
         anchors=_resolve_anchors(_section(raw_prose, "anchors")),
         freshness=_resolve_freshness(_section(raw_prose, "freshness")),
-        source=found,
     )

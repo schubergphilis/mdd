@@ -851,15 +851,17 @@ src/mdd/prose/
         apply.py              # per-block rewriting and the reflow findings
     gate.py                   # the write gate both writers pass; no classifier
     write.py                  # the shared atomic-write + mirror-refusal path
+    frontmatter.py            # front matter read the way the sync readers see it
     lint.py                   # rules, and the whitespace fixers
     anchors.py                # slugging, link extraction, resolution, suggestions
     freshness.py
 ```
 
-`write.py` exists so the mirror refusal, the atomic replace, the `.mddignore`
-check on the write path and the per-file `info` log are written once and both
-writers call them. Two copies of that logic is how one of them quietly loses the
-mirror check.
+`write.py` exists so the mirror refusal, the refusal findings and the atomic
+replace are written once and both writers call them. Two copies of that logic
+is how one of them quietly loses the mirror check. `.mddignore` needs no check
+on the write path: the walk in `walk.py` never hands an ignored file to either
+writer, so the read path and the write path see the same set of files.
 
 `register(subparsers, parents)` adds the `prose` group and its subcommands, and
 `prose.py` joins the registered-module tuple in `src/mdd/cli.py`. Each handler

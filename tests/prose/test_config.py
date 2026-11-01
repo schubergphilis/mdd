@@ -23,7 +23,6 @@ def test_no_config_file_is_not_an_error(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("HOME", str(tmp_path))
     loaded = prose_config.load(None)
     assert loaded.enabled == frozenset(DEFAULT_ENABLED)
-    assert loaded.source is None
 
 
 def test_explicit_missing_config_is_an_error(tmp_path: Path) -> None:

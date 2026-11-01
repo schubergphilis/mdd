@@ -101,7 +101,7 @@ def _gating(findings: Sequence[report.Finding], min_severity: str) -> bool:
 
 def _resolve_checks(requested: tuple[str, ...], loaded: ProseConfig) -> tuple[str, ...]:
     """A named subcommand runs its own check; ``check`` runs every enabled one."""
-    return tuple(name for name in requested if name in loaded.enabled) or ()
+    return tuple(name for name in requested if name in loaded.enabled)
 
 
 def _execute(ns: argparse.Namespace, requested: tuple[str, ...], *, respect_enabled: bool) -> int:

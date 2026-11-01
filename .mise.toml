@@ -105,7 +105,7 @@ run = "uv run python scripts/prose-corpus.py --pinned"
 
 # The prose_corpus tests need a corpus to run over; the two tasks above supply one.
 [tasks.test-all]
-description = "Every test — unit + integration + office (needs services and Office)"
+description = "Every test but prose_corpus: unit, integration and office (needs services and Office)"
 run = "uv run python -m pytest -m \"not prose_corpus\""
 
 [tasks.audit]

@@ -84,7 +84,11 @@ def refusal_finding(path: Path, check: str, verdict: Verdict, config: ProseConfi
 
 
 def write_failure(path: Path, check: str, reason: str, config: ProseConfig) -> Finding:
-    """The finding a refused or failed write reports."""
+    """The finding a write that raised ``OSError`` reports.
+
+    That includes the writer's own refusals of a symlink or a hard-linked file.
+    The mirror refusal and the write-gate refusal have their own findings.
+    """
     return Finding(
         path=path,
         line=0,
