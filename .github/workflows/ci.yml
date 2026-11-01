@@ -71,6 +71,11 @@ jobs:
       - name: Test
         run: mise run test
 
+      # Part of `mise run ci`. The docs workflow runs it too, but only for
+      # changes under docs/, and a change to src/mdd/prose can break it.
+      - name: Prose checks over the repository's own Markdown
+        run: mise run docs-prose
+
       - name: IR round-trip (R1/R2/R3)
         run: mise run ir-roundtrip
 

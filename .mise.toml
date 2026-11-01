@@ -111,6 +111,7 @@ depends = [
   "ir-roundtrip",
   "ir-coverage",
   "check-mdd-commands",
+  "docs-prose",
 ]
 
 # `mise run ci` passing locally does not mean GitHub agrees: the workflow adds
@@ -247,7 +248,8 @@ run = "uv run python scripts/check-site-links.py"
 description = "mdd prose over this repo's own Markdown. Dogfooding the deterministic checks."
 # Vale owns words; mdd prose owns mechanics, structure and layout. They run
 # side by side rather than one through the other. reflow stays off here — see
-# configs/prose.yaml.
+# configs/prose.yaml. Part of `ci` as well as `docs-check`: a change under src/
+# can break it, and the docs workflow only runs for changes under docs/.
 run = "uv run mdd prose check --ignore configs/prose-ignore docs README.md AGENTS.md CONTRIBUTING.md"
 
 [tasks.docs-check]
