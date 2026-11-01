@@ -389,6 +389,20 @@ def canonical(text: str) -> str | None:
         return None
 
 
+def _first_changed_line(before: str, after: str) -> int:
+    """Return the 1-based number of the first line of *before* the rewrite changed.
+
+    The model comparison cannot say where two documents diverge, only that
+    they do, so it names the first line the rewrite touched instead. ``0``
+    when no line differs.
+    """
+    old, new = before.splitlines(), after.splitlines()
+    for number, (old_line, new_line) in enumerate(zip(old, new, strict=False), start=1):
+        if old_line != new_line:
+            return number
+    return min(len(old), len(new)) + 1 if len(old) != len(new) else 0
+
+
 def verify(before: str, after: str) -> Verdict:
     """Decide whether *after* may replace *before* on disk.
 
@@ -403,5 +417,9 @@ def verify(before: str, after: str) -> Verdict:
     if left is None or right is None:
         return Verdict(passed=False, reason="the document could not be parsed into mdd's model")
     if left != right:
-        return Verdict(passed=False, reason="the document renders differently in mdd's model")
+        return Verdict(
+            passed=False,
+            line=_first_changed_line(before, after),
+            reason="the document renders differently in mdd's model",
+        )
     return PASSED

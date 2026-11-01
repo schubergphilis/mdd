@@ -432,7 +432,9 @@ is a test:
    The gate applies to **both writers**: `lint --write` passes it exactly as
    `reflow --write` does. A file whose fix fails it is **not written**, and a
    cross-cutting `not-equivalent` finding (default `error`) names the first
-   differing line and what changed there, without quoting content. The gate
+   differing line and what changed there, without quoting content. The model
+   comparison cannot place a difference, so it names the first line the
+   rewrite changed. The gate
    also runs **without `--write`**, so the check-only report and the write
    agree: a refused fix is reported as not fixable, with the same
    `not-equivalent` finding, in both modes. The unit is the file, because

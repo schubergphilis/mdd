@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+import pytest
 
 from mdd.prose import gate
 from mdd.prose.gate import PASSED, Verdict, compare, verify
-
-if TYPE_CHECKING:
-    import pytest
 
 NBSP = "\xa0"
 
@@ -418,3 +416,28 @@ def test_a_lost_hard_break_in_a_quote_past_the_nesting_limit_is_refused() -> Non
 def test_a_deep_but_comparable_document_passes() -> None:
     before = "> " * 15 + "a\n" + "> " * 15 + "b\n"
     assert verify(before, "> " * 15 + "a b\n") == PASSED
+
+
+def test_a_model_refusal_names_the_first_changed_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    rendered = iter(["one", "two"])
+
+    def differently(_text: str) -> str:
+        return next(rendered)
+
+    def passes(_before: str, _after: str) -> Verdict:
+        return PASSED
+
+    monkeypatch.setattr(gate, "canonical", differently)
+    monkeypatch.setattr(gate, "compare", passes)
+    verdict = verify("a\nb\nc\n", "a\nb\nC\n")
+    assert verdict == Verdict(
+        passed=False, line=3, reason="the document renders differently in mdd's model"
+    )
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "line"),
+    [("a\nb\n", "a\nc\n", 2), ("a\n", "a\nb\n", 2), ("a\nb\n", "a\n", 2), ("a\n", "a\n", 0)],
+)
+def test_first_changed_line(before: str, after: str, line: int) -> None:
+    assert gate._first_changed_line(before, after) == line  # pyright: ignore[reportPrivateUsage]
