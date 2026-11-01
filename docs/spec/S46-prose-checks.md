@@ -1048,6 +1048,7 @@ src/mdd/prose/
     write.py                  # the shared atomic-write + mirror-refusal path
     frontmatter.py            # front matter read the way the sync readers see it
     lint.py                   # rules, and the whitespace fixers
+    quotes.py                 # quote spans for the punctuation-outside-quote rule
     anchors.py                # slugging, link extraction, resolution, suggestions
     freshness.py
 ```

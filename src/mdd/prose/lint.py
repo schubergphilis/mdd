@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from mdd.prose.classify import LineClass
 from mdd.prose.inline import mask_flags, span_at
+from mdd.prose.quotes import looks_literal, quote_candidates, quoted_interior
 from mdd.prose.report import Finding, make_excerpt
 from mdd.prose.rules import LINT_FIXABLE, RULES, Severity
 
@@ -27,9 +28,6 @@ _MULTIPLE_SPACES = re.compile(r"[ \t]{2,}")
 _SPACE_BEFORE_PUNCT = re.compile(r"[ \t]+(?=[,;:.!?])")
 _TRAILING = re.compile(r"[ \t]+$")
 _HARD_BREAK = "  "
-
-_QUOTES = "\"'“”‘’"
-_LITERAL_PREFIXES = ("-", "--", "/", "$", "<")
 
 #: Characters that look like a plain space and are not one.
 INVISIBLE_SPACES: dict[str, str] = {
@@ -241,55 +239,15 @@ def _invisible_space(line: Line) -> Iterable[Edit]:
         )
 
 
-def _quoted_interior(text: str, quote_at: int, quote: str) -> str | None:
-    """Return the interior of the quoted span closing at *quote_at*, or ``None``."""
-    opener = text.rfind(quote, 0, quote_at)
-    if quote in "”’":
-        opener = text.rfind("“" if quote == "”" else "‘", 0, quote_at)
-    if opener == -1:
-        return None
-    return text[opener + 1 : quote_at]
-
-
-def _looks_literal(interior: str | None, config: LintConfig) -> bool:
-    """True when a quoted span looks like a literal rather than like prose.
-
-    Deliberately conservative: a false skip loses a finding, a false flag
-    corrupts text.
-    """
-    if interior is None:
-        return True
-    if not interior or not interior.strip():
-        return True
-    if " " not in interior and "\t" not in interior:
-        return True
-    if interior.startswith(_LITERAL_PREFIXES):
-        return True
-    return any(pattern.search(interior) for pattern in config.literal_quote_patterns)
-
-
-def _quote_candidates(line: Line, config: LintConfig) -> Iterable[tuple[int, int]]:
-    """Yield ``(quote_index, mark_index)`` pairs the configured convention rejects."""
-    if config.quote_punctuation == "off":
-        return
-    inside = config.quote_punctuation == "inside"
-    for index in range(len(line.text) - 1):
-        first, second = line.text[index], line.text[index + 1]
-        if inside and first in _QUOTES and second in ",.":
-            yield index, index + 1
-        elif not inside and first in ",." and second in _QUOTES:
-            yield index + 1, index
-
-
 def _punctuation_outside_quote(line: Line, config: LintConfig) -> Iterable[Edit]:
     free = _unmasked(line)
-    for quote_index, mark_index in _quote_candidates(line, config):
+    for quote_index, mark_index in quote_candidates(line, config):
         if not free[quote_index] or not free[mark_index]:
             continue
         if span_at(line.masks, quote_index) is not None:
             continue
-        interior = _quoted_interior(line.text, quote_index, line.text[quote_index])
-        if _looks_literal(interior, config):
+        interior = quoted_interior(line.text, quote_index, line.text[quote_index])
+        if looks_literal(interior, config):
             continue
         target = "inside" if config.quote_punctuation == "inside" else "outside"
         yield Edit(
