@@ -203,6 +203,14 @@ cannot promise.
 - The classifier **fails closed**. An unbalanced fence, an unterminated HTML
   comment, or frontmatter that does not close is a `parse-error` finding and
   the file is skipped by every check — and, critically, never written to.
+- It also fails closed line by line. Where placing a construct exactly would
+  need substantial parsing, such as a link definition whose title runs over
+  several lines, a doubtful line is called something other than `prose` and
+  the writers leave it alone. A paragraph line mistaken for a link definition
+  only loses its checks; a link definition mistaken for prose gets rewritten.
+- Tables follow GFM: a table runs from its header row to the next blank line
+  or the start of another block. A line directly below a table is one more
+  row, not prose, whether or not it contains a pipe.
 - Mask fidelity is the correctness bar: a masked span is passed through
   byte-for-byte. A check may look at a masked span (`anchors` must read link
   targets; `lint`'s literal escape must recognise an `inline-code` span) but no

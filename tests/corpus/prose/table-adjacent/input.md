@@ -3,4 +3,6 @@ A paragraph immediately above a table. It has two sentences so it reflows.
 |---|---|
 | `a`  |  a thing, with  spaces |
 | b | another |
-Prose immediately below the table, which must not be treated as a row.
+A line directly below the table is one more row. GFM ends a table only at a blank line.
+
+Prose after the blank line is a paragraph again. It reflows.

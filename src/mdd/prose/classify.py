@@ -58,7 +58,8 @@ _HTML_RAW_BLOCKS: tuple[tuple[re.Pattern[str], re.Pattern[str]], ...] = (
 _HTML_BLOCK_TAG = re.compile(
     r"^ {0,3}</?(?:" + "|".join(block_names) + r")(?=[ \t]|/?>|$)", re.IGNORECASE
 )
-_DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$")
+#: A table's delimiter row. One column is enough; the caller also requires a pipe.
+_DELIM_ROW = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
 _MATH_FENCE = re.compile(r"^ {0,3}\$\$")
 _MATH_LABEL_END = re.compile(r"\$\$[ \t]*\([^)$\r\n]+?\)$")
 _DIV_FENCE = re.compile(r"^[ \t]*:{3,}")
@@ -724,10 +725,29 @@ def _apply_setext(lines: list[Line]) -> None:
             lines[heading] = replace(lines[heading], cls=LineClass.HEADING, cont_prefix="")
 
 
+#: What the scan may have called a line that is really a table row. A link
+#: definition or maths cannot interrupt a table, so a line shaped like one is
+#: just another row.
+_TABLE_ROW_CLASSES = (LineClass.PROSE, LineClass.LINK_DEF, LineClass.MATH)
+
+
+def _is_table_row(line: Line, depth: int) -> bool:
+    """True when *line*, straight after a row of a table *depth* quotes deep, is a row.
+
+    GFM ends a table at a blank line or at the start of another block, not at
+    the first line without a pipe. A line directly under a table is one more
+    row, and calling it prose let the fixers rewrite a table cell.
+    """
+    if line.cls not in _TABLE_ROW_CLASSES:
+        return False
+    quote, rest = _strip_quote(line.text)
+    return _quote_depth(quote) == depth and _LIST.match(rest) is None
+
+
 def _apply_tables(lines: list[Line]) -> None:
     """Reclassify a header row, its delimiter row and the body rows as a table."""
     for index, line in enumerate(lines):
-        _, rest = _strip_quote(line.text)
+        quote, rest = _strip_quote(line.text)
         if index == 0 or not _DELIM_ROW.match(rest) or "|" not in rest:
             continue
         header = lines[index - 1]
@@ -736,11 +756,7 @@ def _apply_tables(lines: list[Line]) -> None:
         lines[index - 1] = replace(header, cls=LineClass.TABLE, prefix="", cont_prefix="")
         lines[index] = replace(line, cls=LineClass.TABLE, prefix="", cont_prefix="")
         forward = index + 1
-        while (
-            forward < len(lines)
-            and lines[forward].cls is LineClass.PROSE
-            and "|" in lines[forward].text
-        ):
+        while forward < len(lines) and _is_table_row(lines[forward], _quote_depth(quote)):
             lines[forward] = replace(lines[forward], cls=LineClass.TABLE, prefix="", cont_prefix="")
             forward += 1
 
@@ -896,8 +912,10 @@ def classify(text: str) -> Classified | ClassifyError:
     if error is not None:
         return error
     _reclaim_code_blanks(lines)
-    _apply_setext(lines)
+    # Tables first: a row is never paragraph text, so an `===` or `---` under
+    # one is a row or a rule, never a setext underline for the table.
     _apply_tables(lines)
+    _apply_setext(lines)
     _apply_managed(lines)
     _assign_blocks(lines)
     _apply_masks(lines)

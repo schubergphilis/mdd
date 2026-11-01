@@ -99,12 +99,26 @@ def test_empty_block_quote_line() -> None:
 
 
 def test_table_header_and_body_are_table() -> None:
-    assert classes("| a | b |\n|---|---|\n| 1 | 2 |\nafter\n") == [
+    assert classes("| a | b |\n|---|---|\n| 1 | 2 |\n\nafter\n") == [
         LineClass.TABLE,
         LineClass.TABLE,
         LineClass.TABLE,
+        LineClass.BLANK,
         LineClass.PROSE,
     ]
+
+
+def test_a_line_directly_under_a_table_is_a_row() -> None:
+    # GFM ends a table at a blank line or another block, not at a line
+    # without a pipe.
+    assert classes("| a |\n|---|\nafter\n") == [LineClass.TABLE] * 3
+
+
+def test_a_block_start_ends_a_table() -> None:
+    table = [LineClass.TABLE] * 2
+    assert classes("| a |\n|---|\n# h\n") == [*table, LineClass.HEADING]
+    assert classes("| a |\n|---|\n> q\n") == [*table, LineClass.PROSE]
+    assert classes("| a |\n|---|\n- i\n") == [*table, LineClass.PROSE]
 
 
 def test_setext_heading_absorbs_its_paragraph() -> None:
