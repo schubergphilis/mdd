@@ -113,6 +113,21 @@ def test_blank_line_inside_indented_code_is_not_a_blank_run(tmp_path: Path) -> N
     assert read_file(target) == source
 
 
+def test_a_whitespace_line_in_code_after_a_closed_list_is_not_trimmed(tmp_path: Path) -> None:
+    """The list had ended, so the indented block was code, not list content.
+
+    An HTML block cannot be lazily continued, so `a` closes the list, and `2. b`
+    continues the paragraph `a` because an item numbered 2 cannot interrupt
+    one. Taking `2.` for a list item put the code floor out of reach, and
+    `trailing-whitespace` trimmed a line of the code block.
+    """
+    target = tmp_path / "a.md"
+    source = "1. <!-- c -->\na\n2. b\n\n    c\n \n    d\n"
+    write_file(target, source)
+    assert lint_write(target) == 0
+    assert read_file(target) == source
+
+
 def test_a_quoted_fence_does_not_close_an_outer_fence() -> None:
     """A `>`-prefixed ``` closed the fence, making the rest of the block prose."""
     text = "Intro.\n\n```markdown\n> A quote:\n>\n> ```\n> code  in  quote\n> ```\n```\n"

@@ -303,6 +303,22 @@ REFLOW_UNSTABLE = [
 ]
 
 
+REFLOW_UNSTABLE = [
+    pytest.param(
+        ">\xa0The\nthe.\n>\n[^1]: The\n>    No.\n    5\n    the.\n    The\n    the\n"
+        "    the\n    the\n    the\n>    the.",
+        id="reflow-unstable-footnote-with-lazy-quote-lines",
+    ),
+    pytest.param("> a\nb\n> c\n", id="reflow-unstable-quote-after-lazy-line"),
+]
+
+
+@pytest.mark.parametrize("text", REFLOW_UNSTABLE)
+def test_reflow_counterexample_is_idempotent(text: str) -> None:
+    once = run_writer("reflow", text)
+    assert run_writer("reflow", once.text).text == once.text
+
+
 @pytest.mark.parametrize(("check", "text"), WRITER_DAMAGE)
 def test_writer_counterexample(check: str, text: str) -> None:
     assert_same_document(text, run_writer(check, text).text)

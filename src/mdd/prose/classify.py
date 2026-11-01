@@ -856,7 +856,7 @@ def _reclaim_code_blanks(lines: list[Line]) -> None:
 def _paragraph_start(lines: Sequence[Line], index: int) -> int:
     """Return the index of the first line of the paragraph *index* belongs to."""
     while index > 0 and lines[index - 1].cls is LineClass.PROSE:
-        if not _continues_paragraph(lines[index - 1], lines[index]):
+        if not _continues_paragraph(_line_depth(lines[index - 1]), lines[index]):
             break
         index -= 1
     return index
@@ -968,35 +968,43 @@ def _apply_managed(lines: list[Line]) -> None:
             forward += 1
 
 
-def _continues_paragraph(previous: Line, line: Line) -> bool:
-    """True when prose *line* continues the paragraph *previous* belongs to.
+def _line_depth(line: Line) -> int:
+    """Return how many block quotes deep *line* is."""
+    return _quote_depth(_strip_quote(line.text)[0])
+
+
+def _continues_paragraph(depth: int, line: Line) -> bool:
+    """True when prose *line* continues a paragraph *depth* block quotes deep.
 
     Paragraph continuation ignores indentation and tolerates a missing ``>``
     (CommonMark's lazy continuation), so an indented or lazy line belongs to
     the paragraph above it. Only a line that opens a block of its own starts a
-    new one: a list or footnote marker, or a deeper block quote. A bare list
-    marker is never prose at all, so it cannot join one.
+    new one: a list or footnote marker, or a block quote deeper than the
+    paragraph. The paragraph's depth is that of its first line, not of the line
+    before: after a lazy line, a line with its ``>`` back still continues it.
+    A bare list marker is never prose at all, so it cannot join one.
     """
-    quote, rest = _strip_quote(line.text)
-    previous_quote, _ = _strip_quote(previous.text)
+    rest = _strip_quote(line.text)[1]
     if _LIST.match(rest) or _FOOTNOTE_DEF.match(rest):
         return False
-    return _quote_depth(quote) <= _quote_depth(previous_quote)
+    return _line_depth(line) <= depth
 
 
 def _assign_blocks(lines: list[Line]) -> None:
     """Group contiguous prose lines that belong to the same logical paragraph."""
     previous: Line | None = None
+    depth = 0
     counter = 0
     for index, line in enumerate(lines):
         if line.cls is not LineClass.PROSE:
             previous = None
             continue
-        if previous is not None and _continues_paragraph(previous, line):
+        if previous is not None and _continues_paragraph(depth, line):
             block = previous.block
         else:
             counter += 1
             block = counter
+            depth = _line_depth(line)
         lines[index] = replace(line, block=block)
         previous = lines[index]
 
