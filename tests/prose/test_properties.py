@@ -211,6 +211,9 @@ CLASSIFIER_COUNTEREXAMPLES = [
         "---\n---\n\n- 1. the. The the.\n\t    ---", id="setext-heading-in-nested-list-item"
     ),
     pytest.param("The\nthe.\n\nThe\nNo.\n5.\n=", id="bare-marker-in-a-setext-heading"),
+    pytest.param(
+        "---\n---\n\n>::: callout-tip\n\xa0The\nthe.\n:::", id="fenced-div-in-a-quote-then-lazy-lines"
+    ),
 ]
 
 

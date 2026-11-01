@@ -284,6 +284,12 @@ class _State:
     #: item's content column, and the first line the renderer would drop.
     list_div: str | None = None
     list_div_column: int = 0
+    #: The closing marker and block-quote depth of a fenced div opened in a
+    #: block quote, while the quote it was opened in is still open.
+    quote_div: tuple[str, int] | None = None
+    #: The line before was blank and inside that quote, so a line without
+    #: its ``>`` ends the quote rather than continuing it.
+    quote_div_after_blank: bool = False
     #: How many block quotes the previous line left open.
     open_quotes: int = 0
     #: The colon run and block-quote depth of every open fenced div, outermost first.
@@ -888,6 +894,39 @@ def _track_list_div(line: Line, rest: str, state: _State) -> None:
         state.list_div_column = column
 
 
+def _track_quote_div(
+    line: Line, quote: str, rest: str, open_paragraph: bool, state: _State
+) -> None:
+    """Fail closed on a fenced div in a block quote with a line outside the quote.
+
+    markdown-it takes a line without the quote's ``>`` into the quote, but the
+    fenced-div renderer drops it unless it continues an open paragraph. A
+    line that would instead end the quote, such as a heading, is refused too:
+    telling the two apart is not worth the risk. A blank line ends the quote,
+    and the div with it, as does any line without the ``>`` after a blank one.
+    """
+    depth = _quote_depth(quote)
+    blank = not rest.strip(MD_SPACE)
+    if state.quote_div is None:
+        opener = div_opener(rest.lstrip(MD_SPACE))
+        if line.cls is LineClass.DIV_MARKER and depth and opener is not None:
+            state.quote_div = (opener, depth)
+            state.quote_div_after_blank = False
+        return
+    fence, div_depth = state.quote_div
+    closer = _DIV_CLOSER.match(rest)
+    if line.cls is LineClass.DIV_MARKER and closer is not None and closer.group(1) == fence:
+        state.quote_div = None
+    elif depth >= div_depth:
+        state.quote_div_after_blank = blank
+    elif blank or state.quote_div_after_blank:
+        state.quote_div = None
+    elif not (open_paragraph and line.cls is LineClass.PROSE) and state.dropped is None:
+        state.dropped = ClassifyError(
+            line.number, "a fenced div in a block quote drops a line outside it"
+        )
+
+
 def _strip_open_quote(raw: str, quote: str, rest: str, state: _State) -> tuple[str, str]:
     """Strip the markers of the block quotes the line before left open, at any indent.
 
@@ -990,6 +1029,7 @@ def _scan_line(number: int, raw: str, out: list[Line], state: _State) -> Line:
     deep_lazy = _deep_lazy_line(quote, rest, state)
     lazy_tag = _lazy_line(quote, rest, state) and _HTML_BLOCK.match(rest) is not None
     footnote_interrupts = state.in_paragraph and _FOOTNOTE_DEF.match(rest) is not None
+    open_paragraph = state.in_paragraph
     # A deeper block quote opens a new container, and no paragraph is open
     # inside it yet. A shallower one is a lazy continuation.
     if _quote_depth(quote) > state.paragraph_depth:
@@ -1006,6 +1046,7 @@ def _scan_line(number: int, raw: str, out: list[Line], state: _State) -> Line:
     if line.cls is LineClass.PROSE and (lazy_tag or footnote_interrupts):
         state.divergent_paragraphs.update((number - 1, number))
     _track_list_div(line, rest, state)
+    _track_quote_div(line, quote, rest, open_paragraph, state)
     _track_nesting(number, quote, state)
     line = replace(line, quote=quote)
     _track_containers(line, quote, state)

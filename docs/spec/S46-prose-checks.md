@@ -243,7 +243,11 @@ cannot promise.
   nested eighteen levels deep (a block quote counting one, a list item two),
   close to the depth where markdown-it stops parsing, and so is a fenced div
   opened on a footnote line, or in a list item with a line indented less
-  than the item: the div renderer drops lines in both.
+  than the item: the div renderer drops lines in both. It drops them, too,
+  after a div opened in a block quote: a line without the quote's `>` that
+  does not continue an open paragraph is a `parse-error`, unless a blank
+  line ended the quote first. A line that would end the quote instead, such
+  as a heading, is refused as well, which is the simpler rule.
 - It also fails closed line by line. Where placing a construct exactly would
   need substantial parsing, such as a link definition whose title runs over
   several lines, a doubtful line is called something other than `prose` and

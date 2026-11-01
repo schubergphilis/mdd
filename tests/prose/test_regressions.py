@@ -751,6 +751,36 @@ def test_a_fenced_div_opened_on_a_footnote_line_fails_closed(source: str) -> Non
 
 
 @pytest.mark.parametrize(
+    ("source", "line"),
+    [
+        (">::: callout-tip\nThe text.\n:::\n", 2),
+        ("> ::: callout-tip\n> ```\n> x\n> ```\nThe text.\n", 5),
+        (">> ::: callout-tip\n> The text.\n", 2),
+    ],
+)
+def test_a_fenced_div_in_a_quote_with_a_line_outside_it_fails_closed(
+    source: str, line: int
+) -> None:
+    result = classify(source)
+    assert result == ClassifyError(line, "a fenced div in a block quote drops a line outside it")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "> ::: callout-tip\n> First\nlazy line.\n> :::\n",
+        "> ::: callout-tip\n> First.\n:::\n\nAfter.\n",
+        "> ::: callout-tip\n> First.\n\nAfter.\n",
+        "> ::: callout-tip\n> First.\n> :::\nAfter.\n",
+        ">> ::: callout-tip\n>> First.\n>\n> Second.\n",
+        "> ::: callout-tip\n>\nAfter.\n",
+    ],
+)
+def test_a_fenced_div_in_a_quote_may_end_with_the_quote(source: str) -> None:
+    assert isinstance(classify(source), Classified)
+
+
+@pytest.mark.parametrize(
     ("source", "expected"),
     [
         (
