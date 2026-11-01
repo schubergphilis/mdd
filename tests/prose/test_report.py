@@ -142,3 +142,13 @@ def test_summary_after_a_write_counts_what_was_written() -> None:
     assert summarise("mdd prose lint", findings, 3, written=1) == (
         "mdd prose lint: wrote 1 file, 1 error, 0 warnings in 3 files"
     )
+
+
+def test_summary_says_file_for_one_file() -> None:
+    assert summarise("mdd prose lint", [], 1) == "mdd prose lint: clean (1 file)"
+    assert summarise("mdd prose lint", [], 1, written=1) == (
+        "mdd prose lint: wrote 1 file, no findings left in 1 file"
+    )
+    assert summarise("mdd prose check", [finding(fixable=False)], 1) == (
+        "mdd prose check: 1 error, 0 warnings in 1 file"
+    )

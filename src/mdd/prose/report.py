@@ -118,11 +118,12 @@ def summarise(command: str, findings: Sequence[Finding], file_count: int, writte
     errors = sum(1 for f in findings if f.severity is Severity.ERROR)
     warnings = sum(1 for f in findings if f.severity is Severity.WARNING)
     wrote = f"wrote {_plural(written, 'file')}, " if written else ""
+    files = _plural(file_count, "file")
     if not errors and not warnings:
         if written:
-            return f"{command}: {wrote}no findings left in {file_count} files"
-        return f"{command}: clean ({file_count} files)"
+            return f"{command}: {wrote}no findings left in {files}"
+        return f"{command}: clean ({files})"
     fixable = sum(1 for f in findings if f.fixable)
     suffix = f" ({fixable} fixable with --write)" if fixable else ""
     counts = f"{_plural(errors, 'error')}, {_plural(warnings, 'warning')}"
-    return f"{command}: {wrote}{counts} in {file_count} files{suffix}"
+    return f"{command}: {wrote}{counts} in {files}{suffix}"

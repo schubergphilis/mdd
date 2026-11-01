@@ -58,7 +58,7 @@ def test_lint_reports_and_exits_one(corpus: Path, capsys: pytest.CaptureFixture[
 def test_clean_corpus_exits_zero(corpus: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _ = (corpus / "a.md").write_text("A clean sentence.\n", encoding="utf-8")
     assert prose(["lint", "docs"]) == 0
-    assert "clean (1 files)" in capsys.readouterr().err
+    assert "clean (1 file)" in capsys.readouterr().err
 
 
 def test_lint_write_fixes_what_it_can_and_reports_the_rest(
@@ -98,7 +98,7 @@ def test_an_undecodable_file_is_a_finding_with_its_path(
     assert prose(["lint", "--write", "docs"]) == 1
     captured = capsys.readouterr()
     assert f"{Path('docs') / 'a.md'}:2:0: error: parse-error: not valid UTF-8" in captured.out
-    assert "1 error, 0 warnings in 1 files" in captured.err
+    assert "1 error, 0 warnings in 1 file" in captured.err
     assert target.read_bytes() == b"First line.\ncaf\xe9   \n"
 
 

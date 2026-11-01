@@ -196,6 +196,7 @@ cannot promise.
   A finding whose file `--write` refused as `mirrored-file` or failed to write
   as `write-failed` is not counted as fixable: running `--write` again would
   not fix it.
+  Every count is pluralised by its number: `clean (1 file)`.
 
 ### Suppression
 
