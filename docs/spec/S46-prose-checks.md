@@ -483,15 +483,46 @@ is a test:
      once runs of Markdown whitespace (space, tab, line ending, soft break)
      are collapsed to one space. A no-break or other Unicode space is not
      Markdown whitespace and is never collapsed. Text inside an element a
-     browser renders with its whitespace intact (`pre`, `code`, `kbd`,
-     `samp`, `textarea`, `listing`, `xmp`) must be byte identical. The open
-     element count is carried across the whole token stream, through inline
-     HTML and HTML blocks alike, because such an element may open in one
-     paragraph and close blank lines later; a tag inside an HTML comment
-     counts for nothing. `code`, `kbd` and `samp` collapse whitespace in a
-     browser, and are counted anyway as the conservative choice. Footnote
-     definitions are compared where they are written, including those
-     nothing references. markdown-it stops parsing blocks at its nesting
+     browser renders with its whitespace intact must be byte identical.
+     Those are `pre`, `listing`, `plaintext`, `textarea` and `xmp`, plus
+     `code`, `kbd` and `samp`, which a browser collapses but which are
+     counted anyway as the conservative choice, and the elements whose
+     content is raw text a browser does not show as written: `script`,
+     `style`, `title`, `iframe`, `noembed`, `noframes` and `noscript`.
+     A document with no opening tag for any of these anywhere is compared
+     with whitespace collapsed throughout, and none of what follows applies.
+     Otherwise the gate follows the raw HTML the way a browser reads it,
+     through inline HTML and HTML blocks alike, because such an element may
+     open in one paragraph and close blank lines later:
+     - tags are found with markdown-it's own inline HTML pattern, so a tag,
+       comment or `<` inside a quoted attribute value is part of that value;
+     - an opening tag opens the element even with a trailing slash
+       (`<pre/>`), since HTML ignores the slash on an element that is not
+       void;
+     - a closing tag closes only an open element of the same name;
+     - inside `script`, `style`, `textarea`, `title`, `xmp` and the other
+       raw text elements, nothing but that element's own closing tag
+       counts, and `plaintext` never closes;
+     - a tag inside a closed HTML comment counts for nothing.
+
+     Wherever the gate cannot be sure it reads the HTML as a browser does,
+     it fails closed and compares everything from that point to the end of
+     the document byte for byte. That is the case for a processing
+     instruction or CDATA section, a comment a browser ends earlier than
+     markdown-it does (at `--!>`, say) or that never ends, markup
+     markdown-it does not take as a tag (an unbalanced quote, an attribute
+     name it does not accept), a comment opener inside a `script`, and any
+     `<` followed by a letter, `/`, `!` or `?` in inline or block math,
+     because a renderer without the math plugin reads that as HTML.
+     Footnote definitions are compared where they are written, including
+     those nothing references, and an inline footnote (`^[...]`) is
+     compared where it is referenced. A footnote renders after the body,
+     or in place without the footnote plugin, so in a document with any
+     whitespace-preserving element the text of every footnote is compared
+     byte for byte, and a whitespace-preserving tag inside a footnote fails
+     closed for the rest of the body. Whitespace set by CSS (a
+     `white-space: pre` style or a class) is not seen: the gate reads
+     elements, not styles. markdown-it stops parsing blocks at its nesting
      limit of twenty levels and drops what lies below without saying so, so
      a document in which a container opens one level short of that limit is
      refused rather than compared.

@@ -318,6 +318,194 @@ def test_a_changed_footnote_label_is_refused() -> None:
     assert verdict.reason == "the meta of a footnote ref changed"
 
 
+def test_a_changed_inline_footnote_is_refused() -> None:
+    """An inline footnote's text lives outside the token stream, but it is still text."""
+    verdict = refused("Text^[a b] c.\n", "Text^[a c] c.\n")
+    assert verdict.reason == "the text changed by more than whitespace"
+
+
+def test_a_rewrapped_inline_footnote_passes() -> None:
+    assert verify("Text^[a long\nnote here] c.\n", "Text^[a long note\nhere] c.\n") == PASSED
+
+
+def test_an_inline_footnote_spanning_lines_keeps_the_line_count() -> None:
+    """The text after the footnote starts on the line its body ends on."""
+    verdict = refused("A^[b\nc] d\ne.\n", "A^[b\nc] d\nf.\n")
+    assert verdict.line == 2
+
+
+# --- whitespace-preserving HTML the gate must not lose track of -------------
+#
+# Each pair is a whitespace-only rewrite a writer produced, or could produce,
+# of text a browser renders inside a whitespace-preserving element.
+
+LITERAL_HTML_REWRITES = [
+    pytest.param(
+        "Run this first sentence here.^[Keep this <pre>first sentence. Second\n"
+        "sentence</pre> here.] And more.\n",
+        "Run this first sentence here.^[Keep this <pre>first sentence. Second "
+        "sentence</pre> here.] And more.\n",
+        id="pre-inside-an-inline-footnote",
+    ),
+    pytest.param(
+        "Body text[^1] here.\n\n[^1]: First note sentence here. Second note sentence\n"
+        "    is here.\n\nLast paragraph has an open <pre>tag\n",
+        "Body text[^1] here.\n\n[^1]: First note sentence here.\n"
+        "      Second note sentence is here.\n\nLast paragraph has an open <pre>tag\n",
+        id="footnote-rendered-after-a-pre-left-open",
+    ),
+    pytest.param(
+        "Text <pre>a\n\n[^1]: </pre> note.\n\nfirst  column\n",
+        "Text <pre>a\n\n[^1]: </pre> note.\n\nfirst column\n",
+        id="footnote-closing-tag-does-not-close-the-body-pre",
+    ),
+    pytest.param(
+        "Run this first sentence here. <script>var x = 1 // comment here\nalert(x)</script>\n",
+        "Run this first sentence here. <script>var x = 1 // comment here alert(x)</script>\n",
+        id="script",
+    ),
+    pytest.param(
+        'Run <script>var s = "a  b";</script> now.\n',
+        'Run <script>var s = "a b";</script> now.\n',
+        id="script-spaces",
+    ),
+    pytest.param(
+        "Some <style>p {\n  color: red }</style> text.\n",
+        "Some <style>p { color: red }</style> text.\n",
+        id="style",
+    ),
+    pytest.param(
+        "Run this first sentence here. <plaintext>Keep this text on two lines\n"
+        "exactly as written.\n",
+        "Run this first sentence here. <plaintext>Keep this text on two lines "
+        "exactly as written.\n",
+        id="plaintext",
+    ),
+    pytest.param(
+        "Run this first sentence here. <plaintext>a</plaintext>\n\nKeep  this.\n",
+        "Run this first sentence here. <plaintext>a</plaintext>\n\nKeep this.\n",
+        id="plaintext-never-closes",
+    ),
+    pytest.param(
+        "Text <pre>a <script>x</pre></script>\n\nfirst  column\n",
+        "Text <pre>a <script>x</pre></script>\n\nfirst column\n",
+        id="closing-tag-inside-a-script-is-text",
+    ),
+    pytest.param(
+        "<script><!--<script>\n</script>\n\nSome  text.\n",
+        "<script><!--<script>\n</script>\n\nSome text.\n",
+        id="script-the-first-end-tag-does-not-end",
+    ),
+    pytest.param(
+        "Run this first sentence here. <pre/>Keep this text on two lines\nexactly as written.\n",
+        "Run this first sentence here. <pre/>Keep this text on two lines exactly as written.\n",
+        id="self-closing-slash",
+    ),
+    pytest.param(
+        "Text <pre title=x/>keep  these  spaces aligned\n",
+        "Text <pre title=x/>keep these spaces aligned\n",
+        id="self-closing-slash-after-an-attribute",
+    ),
+    pytest.param(
+        "Text <pre>a</code>keep  these  spaces aligned\n",
+        "Text <pre>a</code>keep these spaces aligned\n",
+        id="close-tag-of-another-element",
+    ),
+    pytest.param(
+        'Run this first sentence here. <pre>a <span title="</pre>">Keep this text on\n'
+        "two lines as written.</span>\n",
+        'Run this first sentence here. <pre>a <span title="</pre>">Keep this text on '
+        "two lines as written.</span>\n",
+        id="close-tag-inside-an-attribute-value",
+    ),
+    pytest.param(
+        '<div title="<!--"><pre>\n\nKeep this long first sentence here. Keep this second one'
+        " too\nexactly as written.\n",
+        '<div title="<!--"><pre>\n\nKeep this long first sentence here.\n'
+        "Keep this second one too exactly as written.\n",
+        id="comment-opener-inside-an-attribute-value",
+    ),
+    pytest.param(
+        "<div><!-- a --!> <pre> -->\n\nfirst  column\n",
+        "<div><!-- a --!> <pre> -->\n\nfirst column\n",
+        id="comment-a-browser-ends-at-dash-dash-bang",
+    ),
+    pytest.param(
+        "<div><!-- a ---> <pre> -->\n\nfirst  column\n",
+        "<div><!-- a ---> <pre> -->\n\nfirst column\n",
+        id="comment-a-browser-ends-at-three-dashes",
+    ),
+    pytest.param(
+        "<div><!-- <pre>\n\nfirst  column\n",
+        "<div><!-- <pre>\n\nfirst column\n",
+        id="unclosed-comment",
+    ),
+    pytest.param(
+        "<div title='a><pre>\n\nfirst  column\n",
+        "<div title='a><pre>\n\nfirst column\n",
+        id="unbalanced-quote",
+    ),
+    pytest.param(
+        "Run this first sentence here. Cost $x <pre>$ keeps this text\non two lines as written.\n",
+        "Run this first sentence here.\nCost $x <pre>$ keeps this text on two lines as written.\n",
+        id="pre-inside-dollar-math",
+    ),
+    pytest.param(
+        "Text <pre>a $x <!--$ </pre> -->\n\nfirst  column\n",
+        "Text <pre>a $x <!--$ </pre> -->\n\nfirst column\n",
+        id="comment-opener-inside-dollar-math",
+    ),
+    pytest.param(
+        "Text <pre>a <?x </pre> ?>one\ntwo\n",
+        "Text <pre>a <?x </pre> ?>one two\n",
+        id="close-tag-inside-a-processing-instruction",
+    ),
+    pytest.param(
+        "Text <pre>a <![CDATA[</pre>]]>one\ntwo\n",
+        "Text <pre>a <![CDATA[</pre>]]>one two\n",
+        id="close-tag-inside-cdata",
+    ),
+    pytest.param(
+        "<div><?x> <pre> ?>\n\nfirst  column\n",
+        "<div><?x> <pre> ?>\n\nfirst column\n",
+        id="processing-instruction-a-browser-ends-early",
+    ),
+]
+
+
+@pytest.mark.parametrize(("before", "after"), LITERAL_HTML_REWRITES)
+def test_a_whitespace_change_in_whitespace_preserving_html_is_refused(
+    before: str, after: str
+) -> None:
+    refused(before, after)
+
+
+def test_prose_after_a_pre_html_block_still_reflows() -> None:
+    before = '<pre class="x">\na  b\n</pre>\n\nOne\ntwo.\n\nThree\nfour.\n'
+    assert verify(before, '<pre class="x">\na  b\n</pre>\n\nOne two.\n\nThree four.\n') == PASSED
+
+
+def test_prose_after_a_script_html_block_still_reflows() -> None:
+    before = "<script>\nif (a<b) { x(); }\n</script>\n\nSome\ntext.\n"
+    assert verify(before, "<script>\nif (a<b) { x(); }\n</script>\n\nSome text.\n") == PASSED
+
+
+def test_prose_after_a_closed_inline_script_still_reflows() -> None:
+    before = "Run <script>x()</script> and then\nsome more.\n"
+    assert verify(before, "Run <script>x()</script> and then some more.\n") == PASSED
+
+
+def test_math_with_angle_brackets_reflows_without_whitespace_preserving_html() -> None:
+    before = "If $a<b$ and $c>d$ then\nthis holds.\n"
+    assert verify(before, "If $a<b$ and $c>d$ then this holds.\n") == PASSED
+
+
+def test_any_whitespace_preserving_tag_freezes_the_footnotes() -> None:
+    """Footnotes render after the body, whose final state the gate does not trust."""
+    before = "Intro <pre>x</pre> text[^1].\n\n[^1]: A note\n    that wraps.\n"
+    refused(before, "Intro <pre>x</pre> text[^1].\n\n[^1]: A note that\n    wraps.\n")
+
+
 # --- hard breaks -----------------------------------------------------------
 
 

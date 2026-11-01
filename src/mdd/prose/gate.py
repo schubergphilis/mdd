@@ -29,8 +29,9 @@ from __future__ import annotations
 import functools
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from markdown_it.common import html_re
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.front_matter import front_matter_plugin
@@ -51,22 +52,56 @@ log = get_logger(__name__)
 #: typographic choice, and collapsing it would let a writer silently drop one.
 _MARKDOWN_WHITESPACE = re.compile(r"[ \t\r\n]+")
 
-#: An HTML tag that opens or closes an element whose text keeps its whitespace
-#: when a browser renders it, so text inside one is compared byte for byte.
-#: ``code``, ``kbd`` and ``samp`` collapse whitespace in a browser; counting
-#: them as literal is the conservative choice.
-_LITERAL_ELEMENT_OPEN = re.compile(
-    r"<(pre|code|kbd|samp|textarea|listing|xmp)(?=[\s>/])[^>]*(?<!/)>", re.IGNORECASE
+#: Elements a browser renders with their whitespace intact, so text inside one
+#: is compared byte for byte. ``code``, ``kbd`` and ``samp`` collapse
+#: whitespace in a browser; counting them is the conservative choice. So is
+#: counting ``script``, ``style`` and the other elements whose text is not
+#: shown at all.
+_LITERAL_ELEMENTS = frozenset(
+    {
+        "code",
+        "iframe",
+        "kbd",
+        "listing",
+        "noembed",
+        "noframes",
+        "noscript",
+        "plaintext",
+        "pre",
+        "samp",
+        "script",
+        "style",
+        "textarea",
+        "title",
+        "xmp",
+    }
 )
-_LITERAL_ELEMENT_CLOSE = re.compile(
-    r"</(pre|code|kbd|samp|textarea|listing|xmp)\s*>", re.IGNORECASE
+#: Elements whose content is text up to their own end tag: no tag inside one
+#: opens or closes anything. ``plaintext`` has no end tag at all.
+_RAW_TEXT_ELEMENTS = frozenset(
+    {"iframe", "noembed", "noframes", "noscript", "script", "style", "textarea", "title", "xmp"}
 )
-_LITERAL_ELEMENT_TAG = re.compile(
-    rf"(?P<open>{_LITERAL_ELEMENT_OPEN.pattern})|{_LITERAL_ELEMENT_CLOSE.pattern}", re.IGNORECASE
+_RAW_TEXT_END = {
+    name: re.compile(rf"</{name}(?=[\t\n\f\r />])", re.IGNORECASE) for name in _RAW_TEXT_ELEMENTS
+}
+#: The start of a tag that opens a whitespace-preserving element, wherever it
+#: appears. A document without one has no such element anywhere.
+_LITERAL_ELEMENT_START = re.compile(
+    rf"<(?:{'|'.join(sorted(_LITERAL_ELEMENTS))})(?=[\s/>]|\Z)", re.IGNORECASE
 )
-#: An HTML comment, closed or running to the end of the HTML. A tag inside one
-#: opens or closes nothing.
-_HTML_COMMENT = re.compile(r"<!--(?:.*?-->|.*\Z)", re.DOTALL)
+#: One HTML construct, as markdown-it recognises inline HTML. ``opaque`` are
+#: the constructs a browser ends at a different place than markdown-it does.
+_HTML_CONSTRUCT = re.compile(
+    f"(?P<open>{html_re.open_tag})|(?P<close>{html_re.close_tag})"
+    f"|(?P<comment>{html_re.comment})|(?P<declaration>{html_re.declaration})"
+    f"|(?P<opaque>{html_re.processing}|{html_re.cdata})",
+    re.ASCII,
+)
+#: How a footnote definition's tokens change the footnote nesting depth.
+_FOOTNOTE_NESTING = {"footnote_reference_open": 1, "footnote_reference_close": -1}
+_TAG_NAME = re.compile(r"</?([A-Za-z][A-Za-z0-9-]*)")
+#: Where a browser starts reading a tag, comment or other markup.
+_MARKUP_START = re.compile(r"<[A-Za-z!?/]")
 
 #: Human-readable names for token types, for the reason a user is shown.
 _NOUNS: dict[str, str] = {
@@ -168,33 +203,153 @@ def _collapse(text: str) -> str:
     return _MARKDOWN_WHITESPACE.sub(" ", text)
 
 
-def _literal_depth_after(html: str, depth: int) -> int:
-    """Return how many whitespace-preserving elements are open after *html*.
+def _comment_ends_where_a_browser_ends_it(comment: str) -> bool:
+    """Whether a browser ends *comment* at its last character, as markdown-it does.
 
-    *depth* is the count before it. Tags are taken in order, and a closing tag
-    with nothing open is ignored, as a browser ignores it.
+    A browser ends a comment at the first ``-->`` or ``--!>``; markdown-it's
+    pattern can run on past either.
     """
-    for tag in _LITERAL_ELEMENT_TAG.finditer(_HTML_COMMENT.sub("", html)):
-        depth = depth + 1 if tag.group("open") else max(depth - 1, 0)
-    return depth
+    ends = [at + len(end) for end in ("-->", "--!>") if (at := comment.find(end, 2)) >= 0]
+    return min(ends, default=-1) == len(comment)
+
+
+class _LiteralTracker:
+    """Which whitespace-preserving HTML elements a browser would have open.
+
+    An element may open in one paragraph or HTML block and close in a later
+    one, so a single tracker follows the whole token stream. It fails closed:
+    when the HTML is anything it cannot follow the way a browser would, it
+    takes every element to stay open until the end of the document.
+    """
+
+    def __init__(self) -> None:
+        self._open: list[str] = []
+        self._to_the_end = False
+
+    @property
+    def literal(self) -> bool:
+        """Whether text at this point renders with its whitespace intact."""
+        return self._to_the_end or bool(self._open)
+
+    def feed(self, html: str) -> None:
+        """Follow raw HTML as a browser would read it, from where the last left off."""
+        position = 0
+        while not self._to_the_end and position < len(html):
+            if self._open and self._open[-1] in _RAW_TEXT_ELEMENTS:
+                position = self._skip_raw_text(html, position)
+            else:
+                position = self._take_construct(html, position)
+
+    def feed_out_of_place(self, html: str) -> None:
+        """Follow HTML that renders somewhere other than where it is written.
+
+        A footnote renders after the body, or in place without the footnote
+        plugin. Neither position can be trusted, so a whitespace-preserving tag
+        in one keeps everything after it literal.
+        """
+        if _LITERAL_ELEMENT_START.search(html):
+            self._to_the_end = True
+
+    def feed_math(self, math: str) -> None:
+        """Follow math, which a renderer without the math plugin reads as Markdown.
+
+        Any markup in it might then open, close or hide a tag.
+        """
+        if _MARKUP_START.search(math):
+            self._to_the_end = True
+
+    def _skip_raw_text(self, html: str, position: int) -> int:
+        name = self._open[-1]
+        end = _RAW_TEXT_END[name].search(html, position)
+        stop = len(html) if end is None else end.start()
+        if name == "script" and "<!--" in html[position:stop]:
+            # Inside a script, a comment opener changes where the script ends.
+            self._to_the_end = True
+        if end is None:
+            return len(html)
+        _ = self._open.pop()
+        return stop
+
+    def _take_construct(self, html: str, position: int) -> int:
+        start = html.find("<", position)
+        if start < 0:
+            return len(html)
+        construct = _HTML_CONSTRUCT.match(html, start)
+        if construct is None:
+            # Markup markdown-it would not take as a tag, such as an unclosed
+            # comment or a quote that never closes, but a browser reads anyway.
+            if _MARKUP_START.match(html, start):
+                self._to_the_end = True
+            return start + 1
+        kind = construct.lastgroup
+        text = construct.group()
+        if kind == "open":
+            self._open_element(self._name(text))
+        elif kind == "close":
+            self._close_element(self._name(text))
+        elif kind == "opaque" or (
+            kind == "comment" and not _comment_ends_where_a_browser_ends_it(text)
+        ):
+            self._to_the_end = True
+        return construct.end()
+
+    @staticmethod
+    def _name(tag: str) -> str:
+        name = _TAG_NAME.match(tag)
+        return name.group(1).lower() if name else ""
+
+    def _open_element(self, name: str) -> None:
+        # A trailing slash does not close a non-void element in HTML.
+        if name == "plaintext":
+            self._to_the_end = True
+        elif name in _LITERAL_ELEMENTS:
+            self._open.append(name)
+
+    def _close_element(self, name: str) -> None:
+        # A browser ignores an end tag for an element that is not open.
+        if name in self._open:
+            del self._open[len(self._open) - 1 - self._open[::-1].index(name)]
+
+
+def _inline_footnotes(env: dict[str, Any]) -> dict[int, list[Token]]:
+    """Return the parsed body of every inline footnote, by footnote id.
+
+    The footnote plugin keeps these out of the token stream.
+    """
+    notes: dict[int, dict[str, Any]] = env.get("footnotes", {}).get("list", {})
+    return {number: note["tokens"] for number, note in notes.items() if "tokens" in note}
 
 
 class _InlineFlattener:
-    """Turns one inline token's children into comparable items."""
+    """Turns one inline token's children into comparable items.
 
-    def __init__(self, line: int, literal_depth: int = 0) -> None:
+    *tracker* is ``None`` when the document has no whitespace-preserving
+    element at all. Text inside a footnote is literal whenever it has one.
+    """
+
+    def __init__(
+        self,
+        line: int,
+        tracker: _LiteralTracker | None,
+        footnotes: dict[int, list[Token]],
+        *,
+        in_footnote: bool = False,
+    ) -> None:
         self.line = line
         self.items: list[_Item] = []
         self._text: list[str] = []
         self._text_line = line
-        #: How many whitespace-preserving elements are open. An element may
-        #: open in one paragraph or HTML block and close in a later one, so
-        #: the caller carries this from one inline token to the next.
-        self.literal_depth = literal_depth
+        self._tracker = tracker
+        self._footnotes = footnotes
+        self._in_footnote = in_footnote
+
+    def _literal(self) -> bool:
+        tracker = self._tracker
+        return tracker is not None and (self._in_footnote or tracker.literal)
 
     def _flush(self) -> None:
         if self._text:
-            if self.literal_depth:
+            if self._literal():
                 joined = "".join(self._text)
                 kind = "html_literal_text"
             else:
@@ -230,8 +385,30 @@ class _InlineFlattener:
         # token this module does not know about.
         self.items.append(_Item(child.type, _shape(child), child.content, self.line))
         self.line += 1 if child.type == "hardbreak" else child.content.count("\n")
+        self._track(child)
+        if child.type == "footnote_ref":
+            self._feed_inline_footnote(child)
+
+    def _track(self, child: Token) -> None:
+        tracker = self._tracker
+        if tracker is None:
+            return
         if child.type == "html_inline":
-            self.literal_depth = _literal_depth_after(child.content, self.literal_depth)
+            if self._in_footnote:
+                tracker.feed_out_of_place(child.content)
+            else:
+                tracker.feed(child.content)
+        elif child.type.startswith("math"):
+            tracker.feed_math(child.content)
+
+    def _feed_inline_footnote(self, child: Token) -> None:
+        body = self._footnotes.get(child.meta.get("id", -1))
+        if body is None:
+            return
+        nested = _InlineFlattener(self.line, self._tracker, self._footnotes, in_footnote=True)
+        nested.feed(body)
+        self.items.extend(nested.finish())
+        self.line = nested.line
 
     def finish(self) -> list[_Item]:
         """Flush pending text and strip the whitespace at either end."""
@@ -267,23 +444,41 @@ def _check_nesting(token: Token, line: int) -> None:
         raise _TooDeep(line)
 
 
+def _track_block(tracker: _LiteralTracker, token: Token, *, in_footnote: bool) -> None:
+    if token.type == "html_block":
+        if in_footnote:
+            tracker.feed_out_of_place(token.content)
+        else:
+            tracker.feed(token.content)
+    elif token.type.startswith("math"):
+        tracker.feed_math(token.content)
+
+
 def _items(text: str) -> list[_Item]:
-    """Flatten *text*'s token stream into comparable items."""
+    """Flatten *text*'s token stream into comparable items.
+
+    Footnotes are compared where they are written. Inline footnotes, which
+    are kept out of the stream, are compared where they are referenced.
+    """
+    env: dict[str, Any] = {}
+    tokens = _parser().parse(text, env)
+    footnotes = _inline_footnotes(env)
+    tracker = _LiteralTracker() if _LITERAL_ELEMENT_START.search(text) else None
     items: list[_Item] = []
     line = 1
-    literal_depth = 0
-    for token in _parser().parse(text):
+    footnote_depth = 0
+    for token in tokens:
         if token.map is not None:
             line = token.map[0] + 1
         _check_nesting(token, line)
+        footnote_depth += _FOOTNOTE_NESTING.get(token.type, 0)
         if token.type == "inline":
-            flattener = _InlineFlattener(line, literal_depth)
+            flattener = _InlineFlattener(line, tracker, footnotes, in_footnote=footnote_depth > 0)
             flattener.feed(token.children or [])
             items.extend(flattener.finish())
-            literal_depth = flattener.literal_depth
             continue
-        if token.type == "html_block":
-            literal_depth = _literal_depth_after(token.content, literal_depth)
+        if tracker is not None:
+            _track_block(tracker, token, in_footnote=footnote_depth > 0)
         items.append(_Item(token.type, _shape(token), token.content, line))
     return items
 

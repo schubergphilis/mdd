@@ -127,5 +127,6 @@ def test_other_html_masks_only_the_tag() -> None:
 def test_the_masked_elements_are_the_ones_the_gate_compares_literally() -> None:
     from mdd.prose import gate
 
-    pattern = gate._LITERAL_ELEMENT_OPEN.pattern  # pyright: ignore[reportPrivateUsage]
-    assert f"({'|'.join(LITERAL_ELEMENTS)})" in pattern
+    # Masking fewer elements than the gate would only offer fixes the gate refuses.
+    gate_elements = gate._LITERAL_ELEMENTS  # pyright: ignore[reportPrivateUsage]
+    assert set(LITERAL_ELEMENTS) <= gate_elements
