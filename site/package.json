@@ -9,14 +9,14 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.4",
-    "@astrojs/starlight": "^0.42.7",
+    "@astrojs/markdown-remark": "^7.3.5",
+    "@astrojs/starlight": "^0.42.8",
     "@fontsource/merriweather": "^5.3.0",
     "@fontsource/merriweather-sans": "^5.3.0",
-    "astro": "^7.4.2",
+    "astro": "^7.4.5",
     "sharp": "^0.35.5",
     "starlight-llms-txt": "^0.12.0",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.2.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
