@@ -17,14 +17,14 @@ minimum_release_age = "7d"
 # like "0.13" within its range, so a prefix would only move by hand.
 [tools]
 python = "3.14.9"
-uv = "0.13.5"
+uv = "0.13.7"
 # `mdd search` shells out to ripgrep, and the search tests exercise it, so it
 # is a real dependency rather than an optional nicety.
 ripgrep = "15.2.0"
 # Documentation site only. `mise run ci` never touches these, so a contributor
 # working on Python pays nothing for them beyond `mise install`.
 bun = "1.4.4"
-vale = "3.25.1"
+vale = "3.26.0"
 
 [env]
 # uv 0.13 prefers Python 3.15 when it picks an interpreter itself, even with
