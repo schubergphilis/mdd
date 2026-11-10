@@ -33,7 +33,9 @@ GitHub App `mdd-renovate`.
   `.mise.toml`.
 - A new Python minor (3.14 to 3.15) waits for approval on the Dependency
   Dashboard issue and then gets its own pull request. The ML wheels lag
-  behind new Python releases.
+  behind new Python releases. Python patch releases
+  (3.14.9 to 3.14.10) of the `.mise.toml` pin still come with the other
+  non-major updates.
 - Renovate never moves TypeScript to a new major. `astro check` needs the
   TypeScript 6 API
   ([withastro/roadmap#1321](https://github.com/withastro/roadmap/discussions/1321)).
