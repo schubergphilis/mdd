@@ -33,6 +33,16 @@
   },
   "packageRules": [
     {
+      "description": "Renovate offers only the newest non-major version of a dependency, so a Python patch (3.14.9 -> 3.14.10) would hide behind the next minor, which waits for approval (next rule). Split them for the mise python pin, so patches arrive with the other non-major updates. Not for requires-python in pyproject.toml: a patch release must not raise that floor.",
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "separateMinorPatch": true
+    },
+    {
       "description": "A new Python minor (3.14 -> 3.15) is a deliberate move, not a routine bump: the ML wheels (torch, via docling) lag behind, and .mise.toml pins UV_PYTHON for that reason. Keep it out of the non-major group and only open the PR once a maintainer approves it on the Dependency Dashboard.",
       "matchDepNames": [
         "python"
