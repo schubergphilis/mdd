@@ -83,6 +83,19 @@ run = "uv run python -m pytest -m office --no-cov"
 description = "Every test — unit + integration + office (needs services and Office)"
 run = "uv run python -m pytest -m \"\""
 
+# Renovate's config validator, from the same image the Renovate workflow runs
+# (.github/workflows/renovate.yml). Keep the tag equal to the one there;
+# Renovate bumps both in one PR. Not part of `ci`: it needs Docker and pulls
+# the image over the network. CI runs it in the zizmor job. --strict also
+# fails on a config that only needs migrating. No file argument: a named file
+# is validated as global (self-hosting) config, not as repository config.
+[tasks.renovate-validate]
+description = "Validate renovate.json with Renovate's own validator (Docker, network; not part of `ci`)"
+run = """
+docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint renovate-config-validator \
+  ghcr.io/renovatebot/renovate:44.209.0 --strict
+"""
+
 [tasks.audit]
 description = "pip-audit (OSV) over the dependency closure"
 # pip-audit >= 2.10 rejects --disable-pip unless it is paired with -r, and CI

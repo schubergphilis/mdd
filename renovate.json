@@ -1,0 +1,94 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate policy for schubergphilis/mdd; see docs/agents/dependency-updates.md. Run by .github/workflows/renovate.yml.",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "group:allNonMajor"
+  ],
+  "timezone": "Europe/Amsterdam",
+  "schedule": [
+    "* * * * 1"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "build",
+  "semanticCommitScope": "deps",
+  "rangeStrategy": "bump",
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "automerge": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "* * * * 1"
+    ]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "A new Python minor (3.14 -> 3.15) is a deliberate move, not a routine bump: the ML wheels (torch, via docling) lag behind, and .mise.toml pins UV_PYTHON for that reason. Keep it out of the non-major group and only open the PR once a maintainer approves it on the Dependency Dashboard.",
+      "matchDepNames": [
+        "python"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "groupName": null,
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Never move TypeScript to a new major. `astro check` goes through @astrojs/language-server, which needs the programmatic TypeScript API that TypeScript 7 does not ship yet: https://github.com/withastro/roadmap/discussions/1321",
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Lock file maintenance has no release timestamp, and a minimumReleaseAge without a timestamp stays pending forever. The transitives it pulls in are aged by each tool's own cooldown instead: exclude-newer in pyproject.toml, minimumReleaseAge in site/bunfig.toml, minimum_release_age in .mise.toml.",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Renovate's own image (in .github/workflows/renovate.yml and the renovate-validate task in .mise.toml) is on GHCR, which has no release timestamps, so the 7-day wait would not apply. Look it up on npm instead, which has them; same versions.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/renovatebot/renovate"
+      ],
+      "overrideDatasource": "npm",
+      "overridePackageName": "renovate"
+    },
+    {
+      "description": "Commit and PR titles are build(deps): ..., as in the rest of the history. config:recommended's semantic prefix preset sets fix for production dependencies and chore for the rest in packageRules, which override the top-level semanticCommitType, so this rule, last, sets it back.",
+      "matchPackageNames": [
+        "*"
+      ],
+      "semanticCommitType": "build"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Renovate's image (`ghcr.io/renovatebot/renovate:<version>`) in the workflow that runs it and in the renovate-validate task. Both must be the same version.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.mise\\.toml$/",
+        "/^\\.github/workflows/renovate\\.yml$/"
+      ],
+      "matchStrings": [
+        "ghcr\\.io/renovatebot/renovate:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

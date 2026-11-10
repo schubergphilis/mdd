@@ -88,6 +88,11 @@ GitHub issues on `schubergphilis/mdd`. See
 Never put a closing keyword (`closes #NNN`) in a commit that lands on `main` —
 it closes the issue before the work is reviewed. Put it in the PR body.
 
+### Dependency updates
+
+Renovate opens dependency update PRs; a human merges them. See
+[`docs/agents/dependency-updates.md`](docs/agents/dependency-updates.md).
+
 ### Triage labels
 
 `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`,
