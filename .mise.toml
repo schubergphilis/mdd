@@ -6,21 +6,25 @@
 
 [settings]
 # Resolve [tools] through mise.lock, so every checkout and CI run installs the
-# same exact tool versions rather than whatever is newest in the range.
+# same exact tool versions and checksums.
 lockfile = true
 # Supply-chain cooldown: never install a release younger than this.
 minimum_release_age = "7d"
 
+# Every tool is pinned to an exact version, here and in the task-level `tools`
+# below. Renovate proposes each bump together with mise.lock, once the release
+# is 7 days old (docs/agents/dependency-updates.md). It can't update a prefix
+# like "0.13" within its range, so a prefix would only move by hand.
 [tools]
-python = "3.14"
-uv = "0.13"
+python = "3.14.9"
+uv = "0.13.5"
 # `mdd search` shells out to ripgrep, and the search tests exercise it, so it
 # is a real dependency rather than an optional nicety.
-ripgrep = "15"
+ripgrep = "15.2.0"
 # Documentation site only. `mise run ci` never touches these, so a contributor
 # working on Python pays nothing for them beyond `mise install`.
-bun = "1.4"
-vale = "3"
+bun = "1.4.4"
+vale = "3.25.1"
 
 [env]
 # uv 0.13 prefers Python 3.15 when it picks an interpreter itself, even with
@@ -60,7 +64,7 @@ run = "uv run complexipy --snapshot-create src/mdd"
 # stays cheap for contributors who never touch a workflow.
 [tasks.actions-lint]
 description = "actionlint + shellcheck over .github/workflows"
-tools = { "aqua:rhysd/actionlint" = "1.7", shellcheck = "0.11" }
+tools = { "aqua:rhysd/actionlint" = "1.7.12", shellcheck = "0.11.0" }
 run = "actionlint"
 
 [tasks.verify-clean]

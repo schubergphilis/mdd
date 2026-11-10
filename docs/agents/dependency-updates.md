@@ -17,6 +17,9 @@ GitHub App `mdd-renovate`.
 - Version floors in `pyproject.toml` and `site/package.json` move up with
   each update (`rangeStrategy: bump`), as the hand-made bumps did before.
   GitHub Actions stay pinned to a commit SHA with the version in a comment.
+  The `.mise.toml` tools are pinned to exact versions, and Renovate moves
+  each pin together with `mise.lock`. It can't update a version prefix
+  such as `"0.13"` within its range.
 - Vulnerability fixes, from GitHub's Dependabot alerts and from OSV, skip
   the Monday schedule but not the 7-day wait. Renovate's default drops the
   wait for them; `renovate.json` restores it, because a release rushed out
