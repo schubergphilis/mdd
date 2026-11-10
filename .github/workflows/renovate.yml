@@ -6,7 +6,7 @@
 #
 # Daily at 02:43 UTC. New update PRs only open on Mondays (renovate.json's
 # schedule); the other days rebase open PRs and pick up security fixes,
-# which ignore both the schedule and the 7-day wait. A manual run ignores
+# which ignore the schedule but not the 7-day wait. A manual run ignores
 # the schedule by default (force). Renovate never merges: a maintainer
 # reviews and merges every PR.
 #
