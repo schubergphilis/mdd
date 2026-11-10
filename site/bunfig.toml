@@ -1,0 +1,7 @@
+# bun only resolves to releases at least 7 days old (in seconds), the same
+# cooldown as `exclude-newer` in pyproject.toml, `minimum_release_age` in
+# .mise.toml and Renovate's minimumReleaseAge. Renovate ages the packages it
+# proposes itself; this ages the transitive packages that its weekly bun.lock
+# maintenance, or a hand-run `bun update`, pulls in.
+[install]
+minimumReleaseAge = 604800

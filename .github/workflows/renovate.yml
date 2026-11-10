@@ -1,0 +1,176 @@
+# Renovate for this repository, self-hosted. The policy is in renovate.json;
+# all of Renovate's global config is here, as RENOVATE_* variables. It runs
+# as its own GitHub App, `mdd-renovate`, owned by the schubergphilis
+# organization and installed on this repository only. Setup and policy:
+# docs/agents/dependency-updates.md.
+#
+# Daily at 02:43 UTC. New update PRs only open on Mondays (renovate.json's
+# schedule); the other days rebase open PRs and pick up security fixes,
+# which ignore both the schedule and the 7-day wait. A manual run ignores
+# the schedule by default (force). Renovate never merges: a maintainer
+# reviews and merges every PR.
+#
+# Renovate runs from its container image, pinned below, rather than through
+# renovatebot/github-action. The action only wraps `docker run`, and this
+# way no third-party action holds the App token.
+name: Renovate
+
+on:
+  schedule:
+    - cron: "43 2 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "Dry run (off = live)"
+        type: choice
+        options: ["off", "lookup", "full"]
+        default: "off"
+      force:
+        description: "Ignore the Monday schedule: take everything that is due now"
+        type: boolean
+        default: true
+      logLevel:
+        type: choice
+        options: ["info", "debug"]
+        default: "info"
+      repoCache:
+        description: "Repository cache"
+        type: choice
+        options: ["enabled", "reset"]
+        default: "enabled"
+
+permissions: {}
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # The App's secrets are environment secrets of `renovate`, which only
+    # main may deploy to. A workflow on another branch, which anyone with
+    # write access can push, can't read the App key.
+    environment: renovate
+    permissions:
+      contents: read
+    steps:
+      # Scoped to this repository only, with what Renovate needs (its GitHub
+      # App docs), even if the App's installation is ever widened. The App
+      # must grant at least these.
+      - name: Create App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RENOVATE_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-administration: read
+          permission-checks: write
+          permission-contents: write
+          permission-issues: write
+          permission-metadata: read
+          permission-pull-requests: write
+          permission-statuses: write
+          permission-vulnerability-alerts: read
+          permission-workflows: write
+
+      - name: Restore repository cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/renovate/cache/renovate/repository
+          key: renovate-repo-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: renovate-repo-cache-
+
+      # The image runs as uid 12021 (containerbase).
+      - name: Hand cache to the Renovate container user
+        run: |
+          mkdir -p /tmp/renovate
+          sudo chown -R 12021:0 /tmp/renovate
+
+      # Keep the image tag equal to the one in the renovate-validate task in
+      # .mise.toml; Renovate bumps both in one PR. `--env NAME` passes the
+      # value from this step's environment, so the token is not on the
+      # command line.
+      - name: Renovate
+        id: renovate
+        env:
+          RENOVATE_TOKEN: ${{ steps.app-token.outputs.token }}
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          RENOVATE_PLATFORM_COMMIT: enabled
+          RENOVATE_REPOSITORY_CACHE: ${{ inputs.repoCache || 'enabled' }}
+          # mise.lock is regenerated with `mise lock`.
+          RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: '["mise"]'
+          RENOVATE_REPORT_TYPE: file
+          RENOVATE_REPORT_PATH: /tmp/renovate/report.json
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun != 'off' && inputs.dryRun || '' }}
+          # A scheduled run has no inputs, so force is off.
+          RENOVATE_FORCE: ${{ inputs.force && '{"schedule":["at any time"],"lockFileMaintenance":{"schedule":["at any time"]}}' || '' }}
+        run: |
+          docker run --rm \
+            --volume /tmp/renovate:/tmp/renovate \
+            --env RENOVATE_TOKEN --env LOG_LEVEL --env RENOVATE_PLATFORM \
+            --env RENOVATE_REPOSITORIES --env RENOVATE_ONBOARDING \
+            --env RENOVATE_REQUIRE_CONFIG --env RENOVATE_PLATFORM_COMMIT \
+            --env RENOVATE_REPOSITORY_CACHE --env RENOVATE_ALLOWED_UNSAFE_EXECUTIONS \
+            --env RENOVATE_REPORT_TYPE --env RENOVATE_REPORT_PATH \
+            --env RENOVATE_DRY_RUN --env RENOVATE_FORCE \
+            ghcr.io/renovatebot/renovate:44.209.0
+
+      - name: Summarize open Renovate PRs
+        if: ${{ !cancelled() && steps.app-token.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dryRun != 'off' && inputs.dryRun || '' }}
+          RENOVATE_OUTCOME: ${{ steps.renovate.outcome }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Renovate"
+            echo
+            if [ -n "$DRY_RUN" ]; then
+              echo "Dry run ($DRY_RUN): nothing was pushed."
+              echo
+            fi
+            if [ "$RENOVATE_OUTCOME" != "success" ]; then
+              echo "**Renovate step: $RENOVATE_OUTCOME.** See its log."
+              echo
+            fi
+            rows=$(gh pr list -R "$REPO" --author "app/$APP_SLUG" --state open --limit 100 \
+              --json number,title,url,mergeable \
+              --jq '.[] | "| [#\(.number)](\(.url)) \(.title | gsub("\\|"; "\\|")) | \(.mergeable) |"')
+            if [ -n "$rows" ]; then
+              echo "| PR | Mergeable |"
+              echo "|---|---|"
+              echo "$rows"
+            else
+              echo "No open Renovate PRs."
+            fi
+            echo
+            echo "Renovate never merges; review and merge these by hand. The Dependency Dashboard issue lists pending, held, and failed updates."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save repository cache
+        if: ${{ !cancelled() && steps.renovate.outcome != 'skipped' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/renovate/cache/renovate/repository
+          key: renovate-repo-cache-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload report
+        if: ${{ !cancelled() && steps.renovate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: renovate-report
+          path: /tmp/renovate/report.json
+          retention-days: 14
+          if-no-files-found: ignore

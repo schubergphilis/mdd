@@ -38,8 +38,8 @@ reviewed. Put it in the pull request body instead.
 | `good first issue`| Good for newcomers                                 | #7057ff |
 | `help wanted`     | Extra attention is needed                          | #008672 |
 
-Dependabot maintains `dependencies`, `python`, `python:uv` and
-`github_actions` on its own pull requests. Do not apply those by hand.
+Renovate puts `dependencies` on its own pull requests
+([dependency-updates.md](dependency-updates.md)). Do not apply it by hand.
 
 ## Triage flow
 

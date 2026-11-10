@@ -121,3 +121,7 @@ jobs:
         env:
           MISE_GITHUB_TOKEN: ${{ github.token }}
         run: mise run actions-lint
+      # Renovate reads renovate.json only on main, so a broken policy would
+      # otherwise surface as a failed scheduled run after the merge.
+      - name: Validate Renovate config
+        run: mise run renovate-validate
