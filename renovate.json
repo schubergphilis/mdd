@@ -27,6 +27,10 @@
     ]
   },
   "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "description": "Vulnerability fixes wait the same 7 days as every other update. Renovate's default drops the wait for them, but a release rushed out as a 'security fix' is exactly what a supply-chain attack looks like. They still skip the Monday schedule.",
+    "minimumReleaseAge": "7 days"
+  },
   "packageRules": [
     {
       "description": "A new Python minor (3.14 -> 3.15) is a deliberate move, not a routine bump: the ML wheels (torch, via docling) lag behind, and .mise.toml pins UV_PYTHON for that reason. Keep it out of the non-major group and only open the PR once a maintainer approves it on the Dependency Dashboard.",

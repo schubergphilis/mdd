@@ -18,7 +18,10 @@ GitHub App `mdd-renovate`.
   each update (`rangeStrategy: bump`), as the hand-made bumps did before.
   GitHub Actions stay pinned to a commit SHA with the version in a comment.
 - Vulnerability fixes, from GitHub's Dependabot alerts and from OSV, skip
-  the Monday schedule and the 7-day wait.
+  the Monday schedule but not the 7-day wait. Renovate's default drops the
+  wait for them; `renovate.json` restores it, because a release rushed out
+  as a security fix is exactly what a supply-chain attack looks like. A fix
+  that can't wait 7 days is applied by hand, after reviewing the release.
 - Once a week, Renovate refreshes `uv.lock`, `site/bun.lock` and
   `mise.lock` (lock file maintenance). A refresh has no release date, so it
   skips the 7-day wait. Each tool's own cooldown ages the transitive
