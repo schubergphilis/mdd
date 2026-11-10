@@ -1206,7 +1206,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.1.3" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "mdit-py-plugins", specifier = ">=0.6.1" },
-    { name = "mermaidx", marker = "extra == 'mermaid'", specifier = ">=0.10.1" },
+    { name = "mermaidx", marker = "extra == 'mermaid'", specifier = ">=0.11.0" },
     { name = "openai", specifier = ">=3.37.0" },
     { name = "pathspec", specifier = ">=1.1.1" },
     { name = "pillow", specifier = ">=13.0.0" },
@@ -1254,7 +1254,7 @@ wheels = [
 
 [[package]]
 name = "mermaidx"
-version = "0.10.1"
+version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "novasvg" },
@@ -1262,7 +1262,7 @@ dependencies = [
     { name = "termaid" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/0d/7ae2cf9f372dc4d6096a3f8f0a67e65163003b1250bfbce85c4a6c299dd9/mermaidx-0.10.1-py3-none-any.whl", hash = "sha256:aa2e44648a96629df21acab3cac0ee2d6caca044be72898819d09736ea2f160e", size = 1795186, upload-time = "2026-10-21T11:00:40.536Z" },
+    { url = "https://files.pythonhosted.org/packages/70/a1/1b582d5252ffa79f09527af8a620c61a7716c078b1049aad511647a32160/mermaidx-0.11.0-py3-none-any.whl", hash = "sha256:61c00efdcb0cf965fa91beab2ae4de5176aa44b3b137781103513ad901b85834", size = 2674261, upload-time = "2026-11-01T13:35:36.82Z" },
 ]
 
 [[package]]
@@ -1391,17 +1391,17 @@ wheels = [
 
 [[package]]
 name = "novasvg"
-version = "0.11.3"
+version = "0.11.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/77/f5/d1d90cf8eeb86d9066008e961200463b8d2636c555b85abd5cb782c6f61f/novasvg-0.11.3.tar.gz", hash = "sha256:cc3303eefc53ec2ecb4303466e22c683148bbe2795cafe0b34b697e1a287a913", size = 8937862, upload-time = "2026-10-17T17:31:27.861Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/14/d57c285dfd418604665b5b938bf63525761cf963c96eca17013b1bd33acb/novasvg-0.11.4.tar.gz", hash = "sha256:97259e102c7a7577566a8f592765ef32583865d2c2a86d8fa5b524ba24b5d80f", size = 8941782, upload-time = "2026-10-29T23:22:07.447Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/a7/63d09b566fa2da91bb9d655146a1e9faac93ac822d21b8c4a7bc4bd83ebf/novasvg-0.11.3-cp312-abi3-macosx_10_15_universal2.whl", hash = "sha256:f6abc7c43d3e39e28062b4e21147b89e05637c9991418f7a2f4cb0b5286343c0", size = 1985662, upload-time = "2026-10-17T17:31:08.836Z" },
-    { url = "https://files.pythonhosted.org/packages/99/d3/146ca745c8eae395616bd2da5baa98b01de9a50913d10c8781501f8d9161/novasvg-0.11.3-cp312-abi3-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d32b47b3c54293da8ad1aaab06406844671fa5b1f36b11485a971b8134e34e1f", size = 1162316, upload-time = "2026-10-17T17:31:09.954Z" },
-    { url = "https://files.pythonhosted.org/packages/50/e7/34fea2039e9ad8bba0e772c0e25f1eea3491cc3fbae75db4532408c08dce/novasvg-0.11.3-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3c92c9c8e7705eda40b5d44b77e712fd5510104b9addeee7652f572ecc1b25ac", size = 1279126, upload-time = "2026-10-17T17:31:11.17Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/08/f6501d85bb7b589f1c120f4db366883a3efc9e3d1add91f6c741715ae996/novasvg-0.11.3-cp312-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:3605a8c418021659474a6fd939ccb1936fc5f6cd328e2f1e4edaceaccaa62d8f", size = 2575181, upload-time = "2026-10-17T17:31:12.845Z" },
-    { url = "https://files.pythonhosted.org/packages/fe/a6/3edc6192b3ce1140ec33dfb6ed325c3c1817cc9a6d6941fe7c95165d1da8/novasvg-0.11.3-cp312-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:0a5db50cff7f5f720ce4130492657be72d707a60feb530487af5eb5d90f18abf", size = 2751914, upload-time = "2026-10-17T17:31:14.107Z" },
-    { url = "https://files.pythonhosted.org/packages/26/4f/1523afa7c09ef7319fb01b9ac652638e1f63d3b2dede81ef630aaf068e36/novasvg-0.11.3-cp312-abi3-win32.whl", hash = "sha256:e0351526f37555f0b17d438d4cf422d68a6f385a02f16f2a4284cd49748f7bf1", size = 1009768, upload-time = "2026-10-17T17:31:15.33Z" },
-    { url = "https://files.pythonhosted.org/packages/81/b5/81449d4fe3b3b1d089c9c487bebf744ccf1c713ea162c13c7213f109cbd2/novasvg-0.11.3-cp312-abi3-win_amd64.whl", hash = "sha256:45b9dbfa4563817968f689c0d36b9bd5b87123b89565dcf2448135a587e3dd23", size = 1109326, upload-time = "2026-10-17T17:31:16.49Z" },
+    { url = "https://files.pythonhosted.org/packages/96/f1/bb6e01703c75d9f1f2a3e72334ffbbfb32f74187ce1af55f2c504077c333/novasvg-0.11.4-cp312-abi3-macosx_10_15_universal2.whl", hash = "sha256:2a4cfd341f3e9de745eab7f8a5a13d685d541c97cc94df8d56c450c80432a9a6", size = 2002279, upload-time = "2026-10-29T23:21:49.751Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/3e/83c527a7754d08717ef2731af43ac4853af820173c163e907b439fc827a9/novasvg-0.11.4-cp312-abi3-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:215661b9c637358673e06c56ab59b992e2bf16359e5583b4bbfb6cb6ce7c9727", size = 1177529, upload-time = "2026-10-29T23:21:51.108Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/36/5a8eb61bcee66e18fd5754bb8454638e6a662d5c5f1f622bfa75b0a159aa/novasvg-0.11.4-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:504418acf6b63f65c6511f6929af4370f9d5212ddea2e2e436b6d60413fb5913", size = 1297075, upload-time = "2026-10-29T23:21:52.354Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/d7/0dffa32e5bea17b8ef735511d8e322119b72852ee66338d90a1ddfff30d0/novasvg-0.11.4-cp312-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:eac223e25b55d7db890ded51fa201c8fa43119c2d8d4e8d49cb0ec15f05ba7aa", size = 2593288, upload-time = "2026-10-29T23:21:53.535Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/02/772f73b82d2a6a53c843fac93c536759af2b59972814e271df79721d8c19/novasvg-0.11.4-cp312-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:fb46c362ee04ed153bd52d67146b4cfb653ea09794643fd3a7eaf33cbe9229bf", size = 2770800, upload-time = "2026-10-29T23:21:54.668Z" },
+    { url = "https://files.pythonhosted.org/packages/db/e9/adc779cfb94c39249b075f3dbb5aead3676c92a658122aeb56e5e376b86e/novasvg-0.11.4-cp312-abi3-win32.whl", hash = "sha256:eea08d08863b3004e6ddb21764d9096dda4c29e64dc90e7f86a89c8e669cfa0d", size = 1014918, upload-time = "2026-10-29T23:21:56.139Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/6a/ac27fb0163253e114145742631a0cb97da1d788680a1f83229e3aa8dc820/novasvg-0.11.4-cp312-abi3-win_amd64.whl", hash = "sha256:62aa4b58771d57d77a5fd21fe61e91ed3fa50d530550722695b18cf593471df5", size = 1115242, upload-time = "2026-10-29T23:21:57.587Z" },
 ]
 
 [[package]]
