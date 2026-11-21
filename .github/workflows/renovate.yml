@@ -122,7 +122,7 @@ jobs:
             --env RENOVATE_REPOSITORY_CACHE --env RENOVATE_ALLOWED_UNSAFE_EXECUTIONS \
             --env RENOVATE_REPORT_TYPE --env RENOVATE_REPORT_PATH \
             --env RENOVATE_DRY_RUN --env RENOVATE_FORCE \
-            ghcr.io/renovatebot/renovate:44.209.0
+            ghcr.io/renovatebot/renovate:44.239.1
 
       - name: Summarize open Renovate PRs
         if: ${{ !cancelled() && steps.app-token.outcome == 'success' }}
