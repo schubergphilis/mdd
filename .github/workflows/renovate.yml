@@ -91,8 +91,8 @@ jobs:
           mkdir -p /tmp/renovate
           sudo chown -R 12021:0 /tmp/renovate
 
-      # Keep the image tag equal to the one in the renovate-validate task in
-      # .mise.toml; Renovate bumps both in one PR. `--env NAME` passes the
+      # This is the only pin of Renovate's image: the renovate-validate task
+      # in .mise.toml reads the tag from here. `--env NAME` passes the
       # value from this step's environment, so the token is not on the
       # command line.
       - name: Renovate
