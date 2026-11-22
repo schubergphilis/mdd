@@ -72,7 +72,7 @@
       "minimumReleaseAge": null
     },
     {
-      "description": "Renovate's own image (in .github/workflows/renovate.yml and the renovate-validate task in .mise.toml) is on GHCR, which has no release timestamps, so the 7-day wait would not apply. Look it up on npm instead, which has them; same versions.",
+      "description": "Renovate's own image (in .github/workflows/renovate.yml) is on GHCR, which has no release timestamps, so the 7-day wait would not apply. Look it up on npm instead, which has them; same versions.",
       "matchDatasources": [
         "docker"
       ],
@@ -92,10 +92,9 @@
   ],
   "customManagers": [
     {
-      "description": "Renovate's image (`ghcr.io/renovatebot/renovate:<version>`) in the workflow that runs it and in the renovate-validate task. Both must be the same version.",
+      "description": "Renovate's image (`ghcr.io/renovatebot/renovate:<version>`) in the workflow that runs it. The renovate-validate task in .mise.toml reads the tag from there. Do not match .mise.toml here: Renovate passes every dependency it updates in that file to `mise lock`, which fails on a non-mise tool and leaves mise.lock stale.",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^\\.mise\\.toml$/",
         "/^\\.github/workflows/renovate\\.yml$/"
       ],
       "matchStrings": [
